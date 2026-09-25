@@ -314,7 +314,7 @@ export async function archiveBot(
     ...activeRuns.map((run) => deps.jobs.cancel(runJobKey(run.id))),
     ...activeRoutines.map((routine) => deps.jobs.cancel(routineJobKey(routine.id))),
   ]);
-  await releaseTeamComputerScreen(deps, bot, dedicated?.id, context);
+  await releaseTeamComputerScreen(deps, bot, dedicated?.id, context, { purgeProfile: false });
   const currentDedicated = dedicated
     ? await deps.prisma.computer.findUnique({ where: { id: dedicated.id } })
     : null;
@@ -358,7 +358,7 @@ export async function destroyBot(
     ...activeRuns.map((run) => deps.jobs.cancel(runJobKey(run.id))),
     ...routines.map((routine) => deps.jobs.cancel(routineJobKey(routine.id))),
   ]);
-  await releaseTeamComputerScreen(deps, bot, dedicated?.id, context);
+  await releaseTeamComputerScreen(deps, bot, dedicated?.id, context, { purgeProfile: true });
   if (dedicated?.providerRef) {
     await deps.sandbox.destroy(toComputerRef(dedicated), context).catch(() => undefined);
   }
@@ -582,13 +582,19 @@ async function releaseTeamComputerScreen(
   bot: LifecycleBot,
   dedicatedId: string | undefined,
   context: AdapterContext,
+  options: { purgeProfile: boolean },
 ) {
   if (!bot.computerId || bot.computerId === dedicatedId) return;
   const computer = await deps.prisma.computer.findUnique({ where: { id: bot.computerId } });
   if (!computer?.providerRef) return;
   // The screen belongs to this bot, not to the caller: bot deletion has no botId in its context
-  // and a bot archiving its spawned bot carries its own, so key the release by bot.id.
+  // and a bot archiving its spawned bot carries its own, so key the release by bot.id. Deletion
+  // also removes the bot's browser profile; an archived bot keeps it for restore.
   await deps.sandbox
-    .releaseScreen?.(toComputerRef(computer), { ...context, botId: bot.id })
+    .releaseScreen?.(toComputerRef(computer), {
+      ...context,
+      botId: bot.id,
+      ...(options.purgeProfile ? { purgeProfile: true } : {}),
+    })
     .catch(() => undefined);
 }

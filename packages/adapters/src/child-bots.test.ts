@@ -449,7 +449,7 @@ describe("destroyBot", () => {
     );
   });
 
-  it("releases a deleted Team bot's own screen", async () => {
+  it("releases a deleted Team bot's own screen and removes its browser profile", async () => {
     const releaseScreen = vi.fn().mockResolvedValue(undefined);
     const teamComputer = { id: "team", homeKey: "team-home", kind: "docker", providerRef: "c-1" };
     const transaction = vi.fn(async (callback: (tx: unknown) => Promise<void>) =>
@@ -501,7 +501,7 @@ describe("destroyBot", () => {
     // The deletion context carries no botId; without the bot's own id the release is a no-op.
     expect(releaseScreen).toHaveBeenCalledWith(
       { id: "c-1", botId: "team-home", kind: "docker", providerRef: "c-1" },
-      expect.objectContaining({ botId: "bot-1" }),
+      expect.objectContaining({ botId: "bot-1", purgeProfile: true }),
     );
   });
 
@@ -635,7 +635,7 @@ describe("archiveBot", () => {
     expect(cancel).toHaveBeenCalledWith("run:run-1");
   });
 
-  it("releases an archived spawned bot's screen by its own id, not the parent's", async () => {
+  it("releases an archived Team bot's screen by its own id and keeps its profile", async () => {
     const releaseScreen = vi.fn().mockResolvedValue(undefined);
     const transaction = vi.fn(async (callback: (tx: unknown) => Promise<void>) =>
       callback({
@@ -682,6 +682,7 @@ describe("archiveBot", () => {
     expect(releaseScreen).toHaveBeenCalledOnce();
     const [, releaseContext] = releaseScreen.mock.calls[0]!;
     expect(releaseContext).toMatchObject({ botId: "bot-2" });
+    expect(releaseContext).not.toHaveProperty("purgeProfile");
   });
 
   it("surfaces computer stop failures and leaves the provider state retryable", async () => {

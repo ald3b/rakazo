@@ -14,6 +14,7 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   browserCloseProgram,
+  browserProfilePathForScreen,
   DEFAULT_DESKTOP_ENV,
   desktopControlCommand,
   desktopUrl,
@@ -21,6 +22,7 @@ import {
   interactiveScreenCommand,
   MAX_DESKTOP_DISPLAY,
   managedDesktopCommand,
+  purgeBrowserProfileCommand,
   quiesceBrowserProfilesCommand,
   releaseDesktopCommand,
   resetDesktopRuntimeCommand,
@@ -217,6 +219,23 @@ describe("shared Linux desktop lifecycle", () => {
         ),
       ),
     ).toBe(true);
+  });
+
+  it("removes only the deleted bot's own browser profile", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "desktop-runtime-purge-"));
+    roots.push(root);
+    const profiles = { ...env, browserProfilesDir: path.join(root, "profiles") };
+    const keep = browserProfilePathForScreen("kept", profiles);
+    const purge = browserProfilePathForScreen("deleted", profiles);
+    for (const dir of [keep, purge]) mkdirSync(dir, { recursive: true });
+
+    expect(spawnSync("bash", ["-c", purgeBrowserProfileCommand("deleted", profiles)]).status).toBe(
+      0,
+    );
+    expect(readdirSync(profiles.browserProfilesDir)).toEqual([path.basename(keep)]);
+    expect(purgeBrowserProfileCommand("../../..", profiles)).toMatch(
+      /^rm -rf '.*\/profiles\/chromium-bot-[0-9a-f]{32}'$/,
+    );
   });
 
   it("uses one published gateway and distinct private ports across 1000 desktops", () => {

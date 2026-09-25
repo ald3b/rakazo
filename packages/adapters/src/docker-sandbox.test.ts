@@ -320,6 +320,25 @@ describe("Docker sandbox", () => {
       }),
     );
   });
+
+  it("asks the supervisor to remove a deleted bot's browser profile", async () => {
+    const fetchMock = vi.fn(async () => Response.json({ ok: true }));
+    vi.stubGlobal("fetch", fetchMock);
+    const provider = new DockerSandboxProvider("http://supervisor.test", "test-token");
+    const computer = {
+      id: "computer-1",
+      botId: "bot",
+      kind: "docker",
+      providerRef: "computer-1",
+    } as const;
+    await provider.releaseScreen(computer, { ...context, purgeProfile: true });
+    await provider.releaseScreen(computer, context);
+    const headers = (fetchMock.mock.calls as unknown as Array<[string, RequestInit]>).map(
+      ([, init]) => init.headers as Record<string, string>,
+    );
+    expect(headers[0]?.["x-rakazo-purge-profile"]).toBe("1");
+    expect(headers[1]).not.toHaveProperty("x-rakazo-purge-profile");
+  });
 });
 
 describe("Docker page browser", () => {

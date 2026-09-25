@@ -1,6 +1,7 @@
 import {
   BROWSER_APPLICATIONS as DOCKER_BROWSER_ALIASES,
   MAX_DESKTOP_DISPLAY,
+  purgeBrowserProfileCommand,
   resetDesktopRuntimeCommand,
   shellQuote,
   stopBrowserCommand,
@@ -274,10 +275,17 @@ export function screenReleaseStopCommand(
     hasRegistry: boolean;
     cancelRunWork: boolean;
     screenId: string;
+    /** The bot was deleted: stop its browser even without a slot, then remove its profile. */
+    purgeProfile?: boolean;
   },
 ): string {
   if (index !== undefined) {
-    return stopExtraScreenCommand(index, options.screenId);
+    return withProfilePurge(stopExtraScreenCommand(index, options.screenId), options);
+  }
+  // Bot deletion cancels the bot's runs before releasing and sends no screen lease, so no
+  // newer run can own this screen: stop the browser by screen id even when its slot is gone.
+  if (options.purgeProfile) {
+    return withProfilePurge(stopBrowserCommand(options.screenId), options);
   }
   // Missing registry after a supervisor restart: cancel still tears down the
   // matching bot's orphaned Chromium process without touching another bot.
@@ -286,6 +294,14 @@ export function screenReleaseStopCommand(
     return stopBrowserCommand(options.screenId);
   }
   return "";
+}
+
+// The stop commands exit non-zero while the browser still runs, so the profile is never
+// removed from under a live Chromium.
+function withProfilePurge(stop: string, options: { screenId: string; purgeProfile?: boolean }) {
+  return options.purgeProfile
+    ? [stop, purgeBrowserProfileCommand(options.screenId)].join("\n")
+    : stop;
 }
 
 export function stopScreensCommand(screens: Array<{ screenId: string; index: number }>) {

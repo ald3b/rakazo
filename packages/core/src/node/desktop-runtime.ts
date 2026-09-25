@@ -438,6 +438,14 @@ export function prepareBrowserProfileCommand(screenId: string, env = DEFAULT_DES
   return `mkdir -p ${shellQuote(browserProfilePathForScreen(screenId, env))}`;
 }
 
+/**
+ * Remove only this bot's profile when the bot is deleted. The path derives from the screen id,
+ * so it cannot name another bot's profile or the profiles root. Stop the browser first.
+ */
+export function purgeBrowserProfileCommand(screenId: string, env = DEFAULT_DESKTOP_ENV) {
+  return `rm -rf ${shellQuote(browserProfilePathForScreen(screenId, env))}`;
+}
+
 function proxyEnvironmentCommand() {
   return [
     'if command -v websockify >/dev/null 2>&1; then proxy=$(command -v websockify); elif [ -x /opt/noVNC/utils/websockify/run ]; then proxy=/opt/noVNC/utils/websockify/run; else echo "websockify is required" >&2; exit 1; fi',

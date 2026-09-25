@@ -737,6 +737,32 @@ describe("sandbox supervisor input containment", () => {
     expect(orphanCancelStop).not.toContain("Xvfb");
   });
 
+  it("reaps a deleted bot's browser and removes only its profile, even without a slot", () => {
+    const profile = browserProfilePathForScreen("writer");
+    for (const index of [0, 2, undefined]) {
+      const stop = screenReleaseStopCommand(index, {
+        hasRegistry: true,
+        cancelRunWork: false,
+        screenId: "writer",
+        purgeProfile: true,
+      });
+      expect(stop).toContain(`--user-data-dir=${profile}`);
+      expect(stop.trimEnd().endsWith(`rm -rf '${profile}'`)).toBe(true);
+      expect(stop.indexOf("browser still running")).toBeLessThan(stop.indexOf("rm -rf"));
+      expect(stop).not.toContain(browserProfilePathForScreen("researcher"));
+      expect(spawnSync("bash", ["-n"], { input: stop }).status).toBe(0);
+    }
+    for (const index of [0, undefined]) {
+      expect(
+        screenReleaseStopCommand(index, {
+          hasRegistry: false,
+          cancelRunWork: true,
+          screenId: "writer",
+        }),
+      ).not.toContain("rm -rf");
+    }
+  });
+
   it("parses a captured frame without trusting optional desktop metadata", () => {
     expect(
       parseObservation(
