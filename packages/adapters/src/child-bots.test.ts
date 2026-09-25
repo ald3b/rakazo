@@ -449,6 +449,62 @@ describe("destroyBot", () => {
     );
   });
 
+  it("releases a deleted Team bot's own screen", async () => {
+    const releaseScreen = vi.fn().mockResolvedValue(undefined);
+    const teamComputer = { id: "team", homeKey: "team-home", kind: "docker", providerRef: "c-1" };
+    const transaction = vi.fn(async (callback: (tx: unknown) => Promise<void>) =>
+      callback({
+        ...noGroupMemberships(),
+        artifact: {
+          findMany: vi.fn().mockResolvedValue([]),
+          deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+        },
+        computerExecutionLease: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
+        computer: { updateMany: vi.fn().mockResolvedValue({ count: 0 }) },
+        $executeRaw: vi.fn().mockResolvedValue(1),
+        botDeletion: { create: vi.fn().mockResolvedValue({}) },
+        bot: { delete: vi.fn().mockResolvedValue({}) },
+      }),
+    );
+    const prisma = {
+      computer: {
+        findUnique: vi.fn(async ({ where }: { where: { id?: string } }) =>
+          where.id === "team" ? teamComputer : null,
+        ),
+      },
+      run: {
+        findMany: vi.fn().mockResolvedValue([]),
+        updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+      },
+      routine: { findMany: vi.fn().mockResolvedValue([]) },
+      $transaction: transaction,
+    } as unknown as PrismaClient;
+
+    await destroyBot(
+      {
+        prisma,
+        sandbox: { releaseScreen } as unknown as SandboxProvider,
+        home: {} as AgentHomeStore,
+        jobs: { cancel: vi.fn() } as unknown as JobPublisher,
+      },
+      {
+        id: "bot-1",
+        spaceId: "workspace-1",
+        name: "Researcher",
+        archivedAt: null,
+        computerId: "team",
+      },
+      context,
+      { deleteMemories: true },
+    );
+
+    // The deletion context carries no botId; without the bot's own id the release is a no-op.
+    expect(releaseScreen).toHaveBeenCalledWith(
+      { id: "c-1", botId: "team-home", kind: "docker", providerRef: "c-1" },
+      expect.objectContaining({ botId: "bot-1" }),
+    );
+  });
+
   it("surfaces transaction failures instead of reporting deletion success", async () => {
     const transaction = vi.fn().mockRejectedValue(new Error("delete failed"));
     const prisma = {
@@ -577,6 +633,55 @@ describe("archiveBot", () => {
     expect(groupCleanup.chatGroup.deleteMany).not.toHaveBeenCalled();
     expect(groupCleanup.chatGroupMember.deleteMany).not.toHaveBeenCalled();
     expect(cancel).toHaveBeenCalledWith("run:run-1");
+  });
+
+  it("releases an archived spawned bot's screen by its own id, not the parent's", async () => {
+    const releaseScreen = vi.fn().mockResolvedValue(undefined);
+    const transaction = vi.fn(async (callback: (tx: unknown) => Promise<void>) =>
+      callback({
+        ...noGroupMemberships(),
+        run: { updateMany: vi.fn().mockResolvedValue({ count: 0 }) },
+        task: { updateMany: vi.fn().mockResolvedValue({ count: 0 }) },
+        routine: { updateMany: vi.fn().mockResolvedValue({ count: 0 }) },
+        computerExecutionLease: { updateMany: vi.fn().mockResolvedValue({ count: 0 }) },
+        computer: { updateMany: vi.fn().mockResolvedValue({ count: 0 }) },
+        bot: { update: vi.fn().mockResolvedValue({}) },
+      }),
+    );
+    const prisma = {
+      bot: { findUnique: vi.fn().mockResolvedValue(null) },
+      computer: {
+        findUnique: vi.fn(async ({ where }: { where: { id?: string } }) =>
+          where.id === "team"
+            ? { id: "team", homeKey: "team-home", kind: "docker", providerRef: "c-1" }
+            : null,
+        ),
+      },
+      run: { findMany: vi.fn().mockResolvedValue([]) },
+      routine: { findMany: vi.fn().mockResolvedValue([]) },
+      $transaction: transaction,
+    } as unknown as PrismaClient;
+
+    await archiveBot(
+      {
+        prisma,
+        sandbox: { releaseScreen } as unknown as SandboxProvider,
+        home: {} as AgentHomeStore,
+        jobs: { cancel: vi.fn() } as unknown as JobPublisher,
+      },
+      {
+        id: "bot-2",
+        spaceId: "workspace-1",
+        name: "Spawned",
+        archivedAt: null,
+        computerId: "team",
+      },
+      { ...context, botId: "parent-bot" },
+    );
+
+    expect(releaseScreen).toHaveBeenCalledOnce();
+    const [, releaseContext] = releaseScreen.mock.calls[0]!;
+    expect(releaseContext).toMatchObject({ botId: "bot-2" });
   });
 
   it("surfaces computer stop failures and leaves the provider state retryable", async () => {

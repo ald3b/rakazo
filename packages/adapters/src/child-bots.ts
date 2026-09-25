@@ -586,5 +586,9 @@ async function releaseTeamComputerScreen(
   if (!bot.computerId || bot.computerId === dedicatedId) return;
   const computer = await deps.prisma.computer.findUnique({ where: { id: bot.computerId } });
   if (!computer?.providerRef) return;
-  await deps.sandbox.releaseScreen?.(toComputerRef(computer), context).catch(() => undefined);
+  // The screen belongs to this bot, not to the caller: bot deletion has no botId in its context
+  // and a bot archiving its spawned bot carries its own, so key the release by bot.id.
+  await deps.sandbox
+    .releaseScreen?.(toComputerRef(computer), { ...context, botId: bot.id })
+    .catch(() => undefined);
 }
