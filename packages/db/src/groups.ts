@@ -390,9 +390,23 @@ export function createGroupRepos(prisma: PrismaClient) {
         });
         const runIds = activeRuns.map((run) => run.id);
         const now = new Date();
+        // Snapshot teardown targets before the cancellation commits, as stopThreadRuns does.
+        // A Team run's computer is found through its ComputerExecutionLease: current acquisition
+        // does not write Computer.executionRunId, which stays only as a legacy fallback. The
+        // leases are expired after teardown (releaseArchivedRunLeases), so each screen release
+        // still carries its run's fence.
+        const leases = runIds.length
+          ? await tx.computerExecutionLease.findMany({
+              where: { runId: { in: runIds } },
+              select: { computerId: true, botId: true, runId: true, fence: true },
+            })
+          : [];
+        const leaseComputerIds = [...new Set(leases.map((lease) => lease.computerId))];
         const computers = runIds.length
           ? await tx.computer.findMany({
-              where: { executionRunId: { in: runIds } },
+              where: leaseComputerIds.length
+                ? { OR: [{ id: { in: leaseComputerIds } }, { executionRunId: { in: runIds } }] }
+                : { executionRunId: { in: runIds } },
               select: {
                 id: true,
                 homeKey: true,
@@ -403,29 +417,35 @@ export function createGroupRepos(prisma: PrismaClient) {
               },
             })
           : [];
-        const leases = runIds.length
-          ? await tx.computerExecutionLease.findMany({
-              where: { runId: { in: runIds } },
-              select: { computerId: true, runId: true, fence: true },
-            })
-          : [];
-        const leaseByComputerId = new Map(leases.map((lease) => [lease.computerId, lease]));
-        const computersWithLease = computers.map((computer) => ({
-          ...computer,
-          executionFence: leaseByComputerId.get(computer.id)?.fence ?? 0,
-        }));
+        const computerById = new Map(computers.map((computer) => [computer.id, computer]));
+        const targets: Array<{
+          id: string;
+          homeKey: string;
+          kind: string;
+          providerRef: string | null;
+          botId: string;
+          runId: string;
+          fence: number;
+        }> = [];
+        const seen = new Set<string>();
+        const addTarget = (computerId: string, botId: string, runId: string, fence: number) => {
+          const computer = computerById.get(computerId);
+          if (!computer || seen.has(`${computerId}:${runId}`)) return;
+          seen.add(`${computerId}:${runId}`);
+          const { id, homeKey, kind, providerRef } = computer;
+          targets.push({ id, homeKey, kind, providerRef, botId, runId, fence });
+        };
+        for (const lease of leases) {
+          addTarget(lease.computerId, lease.botId, lease.runId, lease.fence);
+        }
+        for (const computer of computers) {
+          if (!computer.executionBotId || !computer.executionRunId) continue;
+          if (!runIds.includes(computer.executionRunId)) continue;
+          addTarget(computer.id, computer.executionBotId, computer.executionRunId, 0);
+        }
 
         if (runIds.length) {
           await cancelRunsInTransaction(tx, activeRuns, now);
-          await expireComputerExecutionLeases(tx, { runId: { in: runIds } });
-          await tx.computer.updateMany({
-            where: { executionRunId: { in: runIds } },
-            data: {
-              executionRunId: null,
-              executionBotId: null,
-              executionLeaseExpiresAt: null,
-            },
-          });
           await tx.event.deleteMany({
             where: { type: "thread.progress", runId: { in: runIds } },
           });
@@ -436,7 +456,21 @@ export function createGroupRepos(prisma: PrismaClient) {
           data: { archivedAt: now, pinned: false },
         });
 
-        return { cancelledRunIds: runIds, computers: computersWithLease };
+        return { cancelledRunIds: runIds, computers: targets };
+      });
+    },
+
+    /** After an archive's teardown: expire the cancelled runs' leases and legacy columns. */
+    async releaseArchivedRunLeases(runIds: string[]) {
+      if (runIds.length === 0) return;
+      await expireComputerExecutionLeases(prisma, { runId: { in: runIds } });
+      await prisma.computer.updateMany({
+        where: { executionRunId: { in: runIds } },
+        data: {
+          executionRunId: null,
+          executionBotId: null,
+          executionLeaseExpiresAt: null,
+        },
       });
     },
 

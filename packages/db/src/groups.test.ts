@@ -86,23 +86,50 @@ describe("archiveGroup", () => {
     queryRaw = vi.fn().mockResolvedValue([{ id: "group-1" }]);
     findFirst = vi.fn().mockResolvedValue({ thread: { id: "thread-1" } });
     findManyRuns = vi.fn().mockResolvedValue([{ id: "run-1", taskId: "task-1" }]);
-    findManyComputers = vi.fn().mockResolvedValue([
+    // As in production: acquisition writes the lease, never Computer.executionRunId.
+    const computerRows = [
       {
         id: "computer-1",
         homeKey: "home-1",
         kind: "fake",
         providerRef: "computer-1",
-        executionBotId: "bot-1",
-        executionRunId: "run-1",
+        executionBotId: null,
+        executionRunId: null,
       },
-    ]);
+      {
+        id: "computer-2",
+        homeKey: "home-2",
+        kind: "fake",
+        providerRef: "computer-2",
+        executionBotId: null,
+        executionRunId: null,
+      },
+    ];
+    type ComputerWhere = {
+      id?: { in: string[] };
+      executionRunId?: { in: string[] };
+      OR?: ComputerWhere[];
+    };
+    const matches = (row: (typeof computerRows)[number], where: ComputerWhere): boolean =>
+      (where.OR?.some((clause) => matches(row, clause)) ?? false) ||
+      Boolean(where.id?.in.includes(row.id)) ||
+      Boolean(row.executionRunId && where.executionRunId?.in.includes(row.executionRunId));
+    findManyComputers = vi.fn(async ({ where }: { where: ComputerWhere }) =>
+      computerRows.filter((row) => matches(row, where)),
+    );
     runUpdateMany = vi.fn();
     attemptUpdateMany = vi.fn();
     taskUpdateMany = vi.fn();
     leaseUpdateMany = vi.fn();
-    leaseFindMany = vi
-      .fn()
-      .mockResolvedValue([{ computerId: "computer-1", runId: "run-1", fence: 3 }]);
+    // computer-1 is a Team computer: bot-2's lease there belongs to a run outside this group.
+    const leaseRows = [
+      { computerId: "computer-1", botId: "bot-1", runId: "run-1", fence: 3 },
+      { computerId: "computer-1", botId: "bot-2", runId: "run-other", fence: 7 },
+      { computerId: "computer-2", botId: "bot-3", runId: "run-other-group", fence: 1 },
+    ];
+    leaseFindMany = vi.fn(async ({ where }: { where: { runId: { in: string[] } } }) =>
+      leaseRows.filter((lease) => where.runId.in.includes(lease.runId)),
+    );
     computerUpdateMany = vi.fn();
     eventDeleteMany = vi.fn();
     groupUpdate = vi.fn();
@@ -121,7 +148,7 @@ describe("archiveGroup", () => {
     } as unknown as PrismaClient;
   });
 
-  it("locks the group, archives it, and cancels only that thread's runs", async () => {
+  it("tears down only this thread's runs, each under its own lease", async () => {
     const repos = createGroupRepos(prisma);
 
     await expect(repos.archiveGroup(actor, "group-1")).resolves.toEqual({
@@ -132,9 +159,9 @@ describe("archiveGroup", () => {
           homeKey: "home-1",
           kind: "fake",
           providerRef: "computer-1",
-          executionBotId: "bot-1",
-          executionRunId: "run-1",
-          executionFence: 3,
+          botId: "bot-1",
+          runId: "run-1",
+          fence: 3,
         },
       ],
     });
@@ -153,21 +180,37 @@ describe("archiveGroup", () => {
         }),
       }),
     );
-    expect(leaseUpdateMany).toHaveBeenCalledWith({
+    // The leases outlive the transaction so the caller's screen release still carries the fence.
+    expect(leaseUpdateMany).not.toHaveBeenCalled();
+    expect(computerUpdateMany).not.toHaveBeenCalled();
+    expect(groupUpdate).toHaveBeenCalledWith({
+      where: { id: "group-1" },
+      data: expect.objectContaining({ pinned: false, archivedAt: expect.any(Date) }),
+    });
+  });
+
+  it("expires the archived runs' leases and legacy columns once teardown is done", async () => {
+    const expire = vi.fn();
+    const clear = vi.fn();
+    const repos = createGroupRepos({
+      computerExecutionLease: { updateMany: expire },
+      computer: { updateMany: clear },
+    } as unknown as PrismaClient);
+
+    await repos.releaseArchivedRunLeases([]);
+    expect(expire).not.toHaveBeenCalled();
+    await repos.releaseArchivedRunLeases(["run-1"]);
+    expect(expire).toHaveBeenCalledWith({
       where: { runId: { in: ["run-1"] } },
       data: { expiresAt: new Date(0) },
     });
-    expect(computerUpdateMany).toHaveBeenCalledWith({
+    expect(clear).toHaveBeenCalledWith({
       where: { executionRunId: { in: ["run-1"] } },
       data: {
         executionRunId: null,
         executionBotId: null,
         executionLeaseExpiresAt: null,
       },
-    });
-    expect(groupUpdate).toHaveBeenCalledWith({
-      where: { id: "group-1" },
-      data: expect.objectContaining({ pinned: false, archivedAt: expect.any(Date) }),
     });
   });
 
