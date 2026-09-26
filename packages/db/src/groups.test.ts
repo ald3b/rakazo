@@ -141,12 +141,12 @@ describe("archiveGroup", () => {
     runUpdateMany = vi.fn();
     attemptUpdateMany = vi.fn();
     taskUpdateMany = vi.fn();
-    leaseUpdateMany = vi.fn();
     // computer-1 is a Team computer: bot-2's lease there belongs to a run outside this group.
     // run-1 and run-stale expired without reclaim, so their runId still names the screen.
     // run-reclaimed has no lease row; computer-2's column is not enough to resume.
     const liveUntil = new Date("2099-01-01T00:00:00.000Z");
-    const expiredAt = new Date("2020-01-01T00:00:00.000Z");
+    // After the cleanup epoch, so a resume still tears this unreclaimed lease down.
+    const expiredAt = new Date("2026-09-25T00:00:00.000Z");
     const leaseRows = [
       { computerId: "computer-1", botId: "bot-1", runId: "run-1", fence: 3, expiresAt: liveUntil },
       {
@@ -178,8 +178,26 @@ describe("archiveGroup", () => {
         expiresAt: expiredAt,
       },
     ];
-    leaseFindMany = vi.fn(async ({ where }: { where: { runId: { in: string[] } } }) =>
-      leaseRows.filter((lease) => where.runId.in.includes(lease.runId)),
+    leaseUpdateMany = vi.fn(
+      async ({
+        where,
+        data,
+      }: {
+        where: { runId?: { in: string[] } };
+        data: { expiresAt?: Date };
+      }) => {
+        if (!where.runId || !data.expiresAt) return;
+        for (const lease of leaseRows) {
+          if (where.runId.in.includes(lease.runId)) lease.expiresAt = data.expiresAt;
+        }
+      },
+    );
+    type LeaseWhere = { runId: { in: string[] }; expiresAt?: { gt: Date } };
+    leaseFindMany = vi.fn(async ({ where }: { where: LeaseWhere }) =>
+      leaseRows.filter((lease) => {
+        if (!where.runId.in.includes(lease.runId)) return false;
+        return !where.expiresAt || lease.expiresAt > where.expiresAt.gt;
+      }),
     );
     computerUpdateMany = vi.fn();
     eventDeleteMany = vi.fn();
@@ -339,7 +357,10 @@ describe("archiveGroup", () => {
     });
     expect(leaseFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { runId: { in: ["run-1", "run-stale", "run-reclaimed"] } },
+        where: {
+          runId: { in: ["run-1", "run-stale", "run-reclaimed"] },
+          expiresAt: { gt: new Date(0) },
+        },
       }),
     );
     expect(groupUpdate).not.toHaveBeenCalled();
@@ -360,6 +381,9 @@ describe("archiveGroup", () => {
         executionLeaseExpiresAt: null,
       },
     });
+
+    await expect(repos.archiveGroup(actor, "group-1")).rejects.toBeInstanceOf(IsolationError);
+    expect(groupUpdate).not.toHaveBeenCalled();
   });
 
   it("rejects an already-archived group when no lease still names a cancelled run", async () => {
@@ -374,7 +398,10 @@ describe("archiveGroup", () => {
     expect(queryRaw).toHaveBeenCalled();
     expect(leaseFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { runId: { in: ["run-reclaimed"] } },
+        where: {
+          runId: { in: ["run-reclaimed"] },
+          expiresAt: { gt: new Date(0) },
+        },
       }),
     );
     expect(groupUpdate).not.toHaveBeenCalled();

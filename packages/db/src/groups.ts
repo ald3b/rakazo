@@ -174,15 +174,19 @@ type RunTeardownTarget = {
   fence: number;
 };
 
-/** `ignoreStaleLegacy` skips `executionRunId` once reclaim has moved the lease to another run. */
+/** `expiresAfter` keeps leases newer than that instant. Resume passes the cleanup epoch. */
 async function snapshotRunTeardownTargets(
   tx: Prisma.TransactionClient,
   runIds: string[],
+  expiresAfter?: Date,
   ignoreStaleLegacy = false,
 ): Promise<{ leasedRunIds: string[]; targets: RunTeardownTarget[] }> {
   if (runIds.length === 0) return { leasedRunIds: [], targets: [] };
   const leases = await tx.computerExecutionLease.findMany({
-    where: { runId: { in: runIds } },
+    where: {
+      runId: { in: runIds },
+      ...(expiresAfter ? { expiresAt: { gt: expiresAfter } } : {}),
+    },
     select: { computerId: true, botId: true, runId: true, fence: true },
   });
   const leasedRunIds = [...new Set(leases.map((lease) => lease.runId))];
@@ -228,9 +232,11 @@ async function resumeArchivedGroupTeardown(tx: Prisma.TransactionClient, threadI
     where: { threadId, status: "cancelled" },
     select: { id: true },
   });
+  // Cleanup sets expiresAt to epoch and leaves runId. A TTL lapse is still after that.
   const { leasedRunIds, targets } = await snapshotRunTeardownTargets(
     tx,
     cancelled.map((run) => run.id),
+    new Date(0),
     true,
   );
   if (leasedRunIds.length === 0) throw new IsolationError();
