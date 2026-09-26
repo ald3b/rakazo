@@ -143,6 +143,7 @@ describe("archiveGroup", () => {
     taskUpdateMany = vi.fn();
     leaseUpdateMany = vi.fn();
     // computer-1 is a Team computer: bot-2's lease there belongs to a run outside this group.
+    // run-1's expired row was not reclaimed, so the initial archive still tears it down.
     // run-stale is this thread's cancelled run whose lease has already expired.
     const liveUntil = new Date("2099-01-01T00:00:00.000Z");
     const expiredAt = new Date("2020-01-01T00:00:00.000Z");
@@ -220,6 +221,15 @@ describe("archiveGroup", () => {
           fence: 3,
         },
         {
+          id: "computer-expired",
+          homeKey: "home-expired",
+          kind: "fake",
+          providerRef: "computer-expired",
+          botId: "bot-1",
+          runId: "run-1",
+          fence: 9,
+        },
+        {
           id: "computer-legacy",
           homeKey: "home-legacy",
           kind: "fake",
@@ -232,10 +242,7 @@ describe("archiveGroup", () => {
     });
     expect(leaseFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: {
-          runId: { in: ["run-1", "run-legacy"] },
-          expiresAt: { gt: expect.any(Date) },
-        },
+        where: { runId: { in: ["run-1", "run-legacy"] } },
       }),
     );
 

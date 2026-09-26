@@ -468,8 +468,9 @@ export function createGroupRepos(prisma: PrismaClient) {
         });
         const runIds = activeRuns.map((run) => run.id);
         const now = new Date();
-        // Snapshot before cancellation commits. Leases stay live until screen release.
-        const { targets } = await snapshotRunTeardownTargets(tx, runIds, now);
+        // Snapshot before cancellation commits. An expired lease that has not been
+        // reclaimed still names this run's screen.
+        const { targets } = await snapshotRunTeardownTargets(tx, runIds);
 
         if (runIds.length) {
           await cancelRunsInTransaction(tx, activeRuns, now);
