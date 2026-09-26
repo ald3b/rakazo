@@ -164,6 +164,82 @@ const groupTargetInclude = {
   },
 } as const;
 
+type RunTeardownTarget = {
+  id: string;
+  homeKey: string;
+  kind: string;
+  providerRef: string | null;
+  botId: string;
+  runId: string;
+  fence: number;
+};
+
+/** `expiresAfter` keeps only leases that still block the computer. */
+async function snapshotRunTeardownTargets(
+  tx: Prisma.TransactionClient,
+  runIds: string[],
+  expiresAfter?: Date,
+): Promise<{ leasedRunIds: string[]; targets: RunTeardownTarget[] }> {
+  if (runIds.length === 0) return { leasedRunIds: [], targets: [] };
+  const leases = await tx.computerExecutionLease.findMany({
+    where: {
+      runId: { in: runIds },
+      ...(expiresAfter ? { expiresAt: { gt: expiresAfter } } : {}),
+    },
+    select: { computerId: true, botId: true, runId: true, fence: true },
+  });
+  const leasedRunIds = [...new Set(leases.map((lease) => lease.runId))];
+  // On a retry, ignore a stale executionRunId once its lease is no longer live.
+  const legacyRunIds = expiresAfter ? leasedRunIds : runIds;
+  if (legacyRunIds.length === 0) return { leasedRunIds, targets: [] };
+
+  const leaseComputerIds = [...new Set(leases.map((lease) => lease.computerId))];
+  const computers = await tx.computer.findMany({
+    where: leaseComputerIds.length
+      ? { OR: [{ id: { in: leaseComputerIds } }, { executionRunId: { in: legacyRunIds } }] }
+      : { executionRunId: { in: legacyRunIds } },
+    select: {
+      id: true,
+      homeKey: true,
+      kind: true,
+      providerRef: true,
+      executionBotId: true,
+      executionRunId: true,
+    },
+  });
+  const computerById = new Map(computers.map((computer) => [computer.id, computer]));
+  const targets: RunTeardownTarget[] = [];
+  const seen = new Set<string>();
+  const addTarget = (computerId: string, botId: string, runId: string, fence: number) => {
+    const computer = computerById.get(computerId);
+    if (!computer || seen.has(`${computerId}:${runId}`)) return;
+    seen.add(`${computerId}:${runId}`);
+    const { id, homeKey, kind, providerRef } = computer;
+    targets.push({ id, homeKey, kind, providerRef, botId, runId, fence });
+  };
+  for (const lease of leases) addTarget(lease.computerId, lease.botId, lease.runId, lease.fence);
+  for (const computer of computers) {
+    if (!computer.executionBotId || !computer.executionRunId) continue;
+    if (!legacyRunIds.includes(computer.executionRunId)) continue;
+    addTarget(computer.id, computer.executionBotId, computer.executionRunId, 0);
+  }
+  return { leasedRunIds, targets };
+}
+
+async function resumeArchivedGroupTeardown(tx: Prisma.TransactionClient, threadId: string) {
+  const cancelled = await tx.run.findMany({
+    where: { threadId, status: "cancelled" },
+    select: { id: true },
+  });
+  const { leasedRunIds, targets } = await snapshotRunTeardownTargets(
+    tx,
+    cancelled.map((run) => run.id),
+    new Date(),
+  );
+  if (leasedRunIds.length === 0) throw new IsolationError();
+  return { cancelledRunIds: leasedRunIds, computers: targets };
+}
+
 export function createGroupRepos(prisma: PrismaClient) {
   async function listSpaceGroupsForSpaces(actor: Actor, spaceIds: string[]): Promise<SpaceGroup[]> {
     if (spaceIds.length === 0) return [];
@@ -375,11 +451,11 @@ export function createGroupRepos(prisma: PrismaClient) {
             id: groupId,
             spaceId: actor.spaceId,
             userId: actor.userId,
-            archivedAt: null,
           },
-          select: { thread: { select: { id: true } } },
+          select: { archivedAt: true, thread: { select: { id: true } } },
         });
         if (!current?.thread) throw new IsolationError();
+        if (current.archivedAt) return resumeArchivedGroupTeardown(tx, current.thread.id);
 
         const activeRuns = await tx.run.findMany({
           where: {
@@ -390,59 +466,8 @@ export function createGroupRepos(prisma: PrismaClient) {
         });
         const runIds = activeRuns.map((run) => run.id);
         const now = new Date();
-        // Snapshot teardown targets before the cancellation commits, as stopThreadRuns does.
-        // A Team run's computer is found through its ComputerExecutionLease: current acquisition
-        // does not write Computer.executionRunId, which stays only as a legacy fallback. The
-        // leases are expired after teardown (releaseArchivedRunLeases), so each screen release
-        // still carries its run's fence.
-        const leases = runIds.length
-          ? await tx.computerExecutionLease.findMany({
-              where: { runId: { in: runIds } },
-              select: { computerId: true, botId: true, runId: true, fence: true },
-            })
-          : [];
-        const leaseComputerIds = [...new Set(leases.map((lease) => lease.computerId))];
-        const computers = runIds.length
-          ? await tx.computer.findMany({
-              where: leaseComputerIds.length
-                ? { OR: [{ id: { in: leaseComputerIds } }, { executionRunId: { in: runIds } }] }
-                : { executionRunId: { in: runIds } },
-              select: {
-                id: true,
-                homeKey: true,
-                kind: true,
-                providerRef: true,
-                executionBotId: true,
-                executionRunId: true,
-              },
-            })
-          : [];
-        const computerById = new Map(computers.map((computer) => [computer.id, computer]));
-        const targets: Array<{
-          id: string;
-          homeKey: string;
-          kind: string;
-          providerRef: string | null;
-          botId: string;
-          runId: string;
-          fence: number;
-        }> = [];
-        const seen = new Set<string>();
-        const addTarget = (computerId: string, botId: string, runId: string, fence: number) => {
-          const computer = computerById.get(computerId);
-          if (!computer || seen.has(`${computerId}:${runId}`)) return;
-          seen.add(`${computerId}:${runId}`);
-          const { id, homeKey, kind, providerRef } = computer;
-          targets.push({ id, homeKey, kind, providerRef, botId, runId, fence });
-        };
-        for (const lease of leases) {
-          addTarget(lease.computerId, lease.botId, lease.runId, lease.fence);
-        }
-        for (const computer of computers) {
-          if (!computer.executionBotId || !computer.executionRunId) continue;
-          if (!runIds.includes(computer.executionRunId)) continue;
-          addTarget(computer.id, computer.executionBotId, computer.executionRunId, 0);
-        }
+        // Snapshot before cancellation commits. Leases stay live until screen release.
+        const { targets } = await snapshotRunTeardownTargets(tx, runIds);
 
         if (runIds.length) {
           await cancelRunsInTransaction(tx, activeRuns, now);

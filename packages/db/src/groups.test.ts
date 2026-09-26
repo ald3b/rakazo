@@ -122,13 +122,38 @@ describe("archiveGroup", () => {
     taskUpdateMany = vi.fn();
     leaseUpdateMany = vi.fn();
     // computer-1 is a Team computer: bot-2's lease there belongs to a run outside this group.
+    // run-stale is this thread's cancelled run whose lease has already expired.
+    const liveUntil = new Date("2099-01-01T00:00:00.000Z");
     const leaseRows = [
-      { computerId: "computer-1", botId: "bot-1", runId: "run-1", fence: 3 },
-      { computerId: "computer-1", botId: "bot-2", runId: "run-other", fence: 7 },
-      { computerId: "computer-2", botId: "bot-3", runId: "run-other-group", fence: 1 },
+      { computerId: "computer-1", botId: "bot-1", runId: "run-1", fence: 3, expiresAt: liveUntil },
+      {
+        computerId: "computer-1",
+        botId: "bot-2",
+        runId: "run-other",
+        fence: 7,
+        expiresAt: liveUntil,
+      },
+      {
+        computerId: "computer-2",
+        botId: "bot-3",
+        runId: "run-other-group",
+        fence: 1,
+        expiresAt: liveUntil,
+      },
+      {
+        computerId: "computer-2",
+        botId: "bot-4",
+        runId: "run-stale",
+        fence: 2,
+        expiresAt: new Date("2020-01-01T00:00:00.000Z"),
+      },
     ];
-    leaseFindMany = vi.fn(async ({ where }: { where: { runId: { in: string[] } } }) =>
-      leaseRows.filter((lease) => where.runId.in.includes(lease.runId)),
+    type LeaseWhere = { runId: { in: string[] }; expiresAt?: { gt: Date } };
+    leaseFindMany = vi.fn(async ({ where }: { where: LeaseWhere }) =>
+      leaseRows.filter((lease) => {
+        if (!where.runId.in.includes(lease.runId)) return false;
+        return !where.expiresAt || lease.expiresAt > where.expiresAt.gt;
+      }),
     );
     computerUpdateMany = vi.fn();
     eventDeleteMany = vi.fn();
@@ -145,6 +170,8 @@ describe("archiveGroup", () => {
     };
     prisma = {
       $transaction: vi.fn(async (callback: (client: typeof tx) => unknown) => callback(tx)),
+      computerExecutionLease: { updateMany: leaseUpdateMany },
+      computer: { updateMany: computerUpdateMany },
     } as unknown as PrismaClient;
   });
 
@@ -174,10 +201,12 @@ describe("archiveGroup", () => {
     );
     expect(findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({
+        where: {
           id: "group-1",
-          archivedAt: null,
-        }),
+          spaceId: actor.spaceId,
+          userId: actor.userId,
+        },
+        select: { archivedAt: true, thread: { select: { id: true } } },
       }),
     );
     // The leases outlive the transaction so the caller's screen release still carries the fence.
@@ -214,7 +243,84 @@ describe("archiveGroup", () => {
     });
   });
 
-  it("rejects when the group is already archived or missing", async () => {
+  it("resumes teardown when the group is already archived but a cancelled run still holds a live lease", async () => {
+    const archivedAt = new Date("2026-09-26T00:00:00.000Z");
+    findFirst.mockResolvedValue({ archivedAt, thread: { id: "thread-1" } });
+    findManyRuns.mockResolvedValue([{ id: "run-1" }, { id: "run-stale" }]);
+    const repos = createGroupRepos(prisma);
+
+    const archived = await repos.archiveGroup(actor, "group-1");
+    expect(archived).toEqual({
+      cancelledRunIds: ["run-1"],
+      computers: [
+        {
+          id: "computer-1",
+          homeKey: "home-1",
+          kind: "fake",
+          providerRef: "computer-1",
+          botId: "bot-1",
+          runId: "run-1",
+          fence: 3,
+        },
+      ],
+    });
+
+    expect(queryRaw).toHaveBeenCalled();
+    expect(findManyRuns).toHaveBeenCalledWith({
+      where: { threadId: "thread-1", status: "cancelled" },
+      select: { id: true },
+    });
+    expect(leaseFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          runId: { in: ["run-1", "run-stale"] },
+          expiresAt: { gt: expect.any(Date) },
+        },
+      }),
+    );
+    expect(groupUpdate).not.toHaveBeenCalled();
+    expect(runUpdateMany).not.toHaveBeenCalled();
+    expect(leaseUpdateMany).not.toHaveBeenCalled();
+    expect(computerUpdateMany).not.toHaveBeenCalled();
+
+    await repos.releaseArchivedRunLeases(archived.cancelledRunIds);
+    expect(leaseUpdateMany).toHaveBeenCalledWith({
+      where: { runId: { in: ["run-1"] } },
+      data: { expiresAt: new Date(0) },
+    });
+    expect(computerUpdateMany).toHaveBeenCalledWith({
+      where: { executionRunId: { in: ["run-1"] } },
+      data: {
+        executionRunId: null,
+        executionBotId: null,
+        executionLeaseExpiresAt: null,
+      },
+    });
+  });
+
+  it("rejects an already-archived group when no cancelled run still holds a live lease", async () => {
+    findFirst.mockResolvedValue({
+      archivedAt: new Date("2026-09-26T00:00:00.000Z"),
+      thread: { id: "thread-1" },
+    });
+    findManyRuns.mockResolvedValue([{ id: "run-stale" }]);
+    const repos = createGroupRepos(prisma);
+
+    await expect(repos.archiveGroup(actor, "group-1")).rejects.toBeInstanceOf(IsolationError);
+    expect(queryRaw).toHaveBeenCalled();
+    expect(leaseFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          runId: { in: ["run-stale"] },
+          expiresAt: { gt: expect.any(Date) },
+        },
+      }),
+    );
+    expect(groupUpdate).not.toHaveBeenCalled();
+    expect(leaseUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it("rejects when the group is missing", async () => {
     findFirst.mockResolvedValue(null);
     const repos = createGroupRepos(prisma);
     await expect(repos.archiveGroup(actor, "group-1")).rejects.toBeInstanceOf(IsolationError);

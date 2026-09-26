@@ -1905,14 +1905,18 @@ afterEach(() => {
 });
 
 describe("groups.archive", () => {
-  it("stops each member's run work and releases its screen before expiring the lease", async () => {
+  async function archiveGroup(archivedAt: Date | null) {
     const calls: string[] = [];
+    const groupUpdate = vi.fn();
     // As in production: the run's computer is known only through its execution lease.
     const tx = {
       $queryRaw: vi.fn().mockResolvedValue([{ id: "group-1" }]),
       chatGroup: {
-        findFirst: vi.fn().mockResolvedValue({ thread: { id: "thread-1" } }),
-        update: vi.fn(),
+        findFirst: vi.fn().mockResolvedValue({
+          archivedAt,
+          thread: { id: "thread-1" },
+        }),
+        update: groupUpdate,
       },
       run: {
         findMany: vi.fn().mockResolvedValue([{ id: "run-1", taskId: "task-1" }]),
@@ -1993,8 +1997,32 @@ describe("groups.archive", () => {
       }),
       { prefix: "/rpc", context: { actor } },
     );
+    return { response, releaseScreen, calls, groupUpdate };
+  }
+
+  it("stops each member's run work and releases its screen before expiring the lease", async () => {
+    const { response, releaseScreen, calls } = await archiveGroup(null);
 
     expect(response?.status).toBe(200);
+    expect(releaseScreen).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "computer-1" }),
+      expect.objectContaining({
+        botId: "bot-1",
+        runId: "run-1",
+        screenLeaseId: screenLeaseIdForRun({ runId: "run-1", fence: 3 }, "run-1"),
+        cancelRunWork: true,
+      }),
+    );
+    expect(calls).toEqual(["cancel run work", "release screen", "expire lease"]);
+  });
+
+  it("finishes teardown when the group is already archived and a lease is still live", async () => {
+    const { response, releaseScreen, calls, groupUpdate } = await archiveGroup(
+      new Date("2026-09-26T00:00:00.000Z"),
+    );
+
+    expect(response?.status).toBe(200);
+    expect(groupUpdate).not.toHaveBeenCalled();
     expect(releaseScreen).toHaveBeenCalledWith(
       expect.objectContaining({ id: "computer-1" }),
       expect.objectContaining({
