@@ -174,23 +174,19 @@ type RunTeardownTarget = {
   fence: number;
 };
 
-/** `expiresAfter` keeps only leases still live then. `ignoreStaleLegacy` is the retry path. */
+/** `ignoreStaleLegacy` skips `executionRunId` once reclaim has moved the lease to another run. */
 async function snapshotRunTeardownTargets(
   tx: Prisma.TransactionClient,
   runIds: string[],
-  expiresAfter?: Date,
   ignoreStaleLegacy = false,
 ): Promise<{ leasedRunIds: string[]; targets: RunTeardownTarget[] }> {
   if (runIds.length === 0) return { leasedRunIds: [], targets: [] };
   const leases = await tx.computerExecutionLease.findMany({
-    where: {
-      runId: { in: runIds },
-      ...(expiresAfter ? { expiresAt: { gt: expiresAfter } } : {}),
-    },
+    where: { runId: { in: runIds } },
     select: { computerId: true, botId: true, runId: true, fence: true },
   });
   const leasedRunIds = [...new Set(leases.map((lease) => lease.runId))];
-  // Retry must not follow executionRunId after its lease expired. The initial archive still does.
+  // Reclaim rewrites the lease runId. Resume must not follow a leftover executionRunId.
   const legacyRunIds = ignoreStaleLegacy ? leasedRunIds : runIds;
   if (legacyRunIds.length === 0) return { leasedRunIds, targets: [] };
 
@@ -235,7 +231,6 @@ async function resumeArchivedGroupTeardown(tx: Prisma.TransactionClient, threadI
   const { leasedRunIds, targets } = await snapshotRunTeardownTargets(
     tx,
     cancelled.map((run) => run.id),
-    new Date(),
     true,
   );
   if (leasedRunIds.length === 0) throw new IsolationError();

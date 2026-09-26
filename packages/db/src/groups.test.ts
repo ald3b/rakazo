@@ -90,8 +90,8 @@ describe("archiveGroup", () => {
       { id: "run-legacy", taskId: "task-legacy" },
     ]);
     // computer-1 matches production: the lease is ownership, executionRunId stays unset.
-    // computer-legacy is the executionRunId fallback for a run with no live lease.
-    // computer-2's executionRunId is stale; resume must not follow it.
+    // computer-legacy is the executionRunId fallback for a run with no lease row.
+    // computer-2's executionRunId names a reclaimed run; resume must not follow that column.
     const computerRows = [
       {
         id: "computer-1",
@@ -107,7 +107,7 @@ describe("archiveGroup", () => {
         kind: "fake",
         providerRef: "computer-2",
         executionBotId: "bot-4",
-        executionRunId: "run-stale",
+        executionRunId: "run-reclaimed",
       },
       {
         id: "computer-expired",
@@ -143,8 +143,8 @@ describe("archiveGroup", () => {
     taskUpdateMany = vi.fn();
     leaseUpdateMany = vi.fn();
     // computer-1 is a Team computer: bot-2's lease there belongs to a run outside this group.
-    // run-1's expired row was not reclaimed, so the initial archive still tears it down.
-    // run-stale is this thread's cancelled run whose lease has already expired.
+    // run-1 and run-stale expired without reclaim, so their runId still names the screen.
+    // run-reclaimed has no lease row; computer-2's column is not enough to resume.
     const liveUntil = new Date("2099-01-01T00:00:00.000Z");
     const expiredAt = new Date("2020-01-01T00:00:00.000Z");
     const leaseRows = [
@@ -178,12 +178,8 @@ describe("archiveGroup", () => {
         expiresAt: expiredAt,
       },
     ];
-    type LeaseWhere = { runId: { in: string[] }; expiresAt?: { gt: Date } };
-    leaseFindMany = vi.fn(async ({ where }: { where: LeaseWhere }) =>
-      leaseRows.filter((lease) => {
-        if (!where.runId.in.includes(lease.runId)) return false;
-        return !where.expiresAt || lease.expiresAt > where.expiresAt.gt;
-      }),
+    leaseFindMany = vi.fn(async ({ where }: { where: { runId: { in: string[] } } }) =>
+      leaseRows.filter((lease) => where.runId.in.includes(lease.runId)),
     );
     computerUpdateMany = vi.fn();
     eventDeleteMany = vi.fn();
@@ -296,15 +292,15 @@ describe("archiveGroup", () => {
     });
   });
 
-  it("resumes teardown when the group is already archived but a cancelled run still holds a live lease", async () => {
+  it("resumes teardown for cancelled runs whose lease row still names them", async () => {
     const archivedAt = new Date("2026-09-26T00:00:00.000Z");
     findFirst.mockResolvedValue({ archivedAt, thread: { id: "thread-1" } });
-    findManyRuns.mockResolvedValue([{ id: "run-1" }, { id: "run-stale" }]);
+    findManyRuns.mockResolvedValue([{ id: "run-1" }, { id: "run-stale" }, { id: "run-reclaimed" }]);
     const repos = createGroupRepos(prisma);
 
     const archived = await repos.archiveGroup(actor, "group-1");
     expect(archived).toEqual({
-      cancelledRunIds: ["run-1"],
+      cancelledRunIds: ["run-1", "run-stale"],
       computers: [
         {
           id: "computer-1",
@@ -314,6 +310,24 @@ describe("archiveGroup", () => {
           botId: "bot-1",
           runId: "run-1",
           fence: 3,
+        },
+        {
+          id: "computer-expired",
+          homeKey: "home-expired",
+          kind: "fake",
+          providerRef: "computer-expired",
+          botId: "bot-1",
+          runId: "run-1",
+          fence: 9,
+        },
+        {
+          id: "computer-2",
+          homeKey: "home-2",
+          kind: "fake",
+          providerRef: "computer-2",
+          botId: "bot-4",
+          runId: "run-stale",
+          fence: 2,
         },
       ],
     });
@@ -325,10 +339,7 @@ describe("archiveGroup", () => {
     });
     expect(leaseFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: {
-          runId: { in: ["run-1", "run-stale"] },
-          expiresAt: { gt: expect.any(Date) },
-        },
+        where: { runId: { in: ["run-1", "run-stale", "run-reclaimed"] } },
       }),
     );
     expect(groupUpdate).not.toHaveBeenCalled();
@@ -338,11 +349,11 @@ describe("archiveGroup", () => {
 
     await repos.releaseArchivedRunLeases(archived.cancelledRunIds);
     expect(leaseUpdateMany).toHaveBeenCalledWith({
-      where: { runId: { in: ["run-1"] } },
+      where: { runId: { in: ["run-1", "run-stale"] } },
       data: { expiresAt: new Date(0) },
     });
     expect(computerUpdateMany).toHaveBeenCalledWith({
-      where: { executionRunId: { in: ["run-1"] } },
+      where: { executionRunId: { in: ["run-1", "run-stale"] } },
       data: {
         executionRunId: null,
         executionBotId: null,
@@ -351,22 +362,19 @@ describe("archiveGroup", () => {
     });
   });
 
-  it("rejects an already-archived group when no cancelled run still holds a live lease", async () => {
+  it("rejects an already-archived group when no lease still names a cancelled run", async () => {
     findFirst.mockResolvedValue({
       archivedAt: new Date("2026-09-26T00:00:00.000Z"),
       thread: { id: "thread-1" },
     });
-    findManyRuns.mockResolvedValue([{ id: "run-stale" }]);
+    findManyRuns.mockResolvedValue([{ id: "run-reclaimed" }]);
     const repos = createGroupRepos(prisma);
 
     await expect(repos.archiveGroup(actor, "group-1")).rejects.toBeInstanceOf(IsolationError);
     expect(queryRaw).toHaveBeenCalled();
     expect(leaseFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: {
-          runId: { in: ["run-stale"] },
-          expiresAt: { gt: expect.any(Date) },
-        },
+        where: { runId: { in: ["run-reclaimed"] } },
       }),
     );
     expect(groupUpdate).not.toHaveBeenCalled();
