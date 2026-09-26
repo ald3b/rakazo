@@ -174,11 +174,12 @@ type RunTeardownTarget = {
   fence: number;
 };
 
-/** `expiresAfter` keeps only leases that still block the computer. */
+/** `expiresAfter` keeps only leases still live then. `ignoreStaleLegacy` is the retry path. */
 async function snapshotRunTeardownTargets(
   tx: Prisma.TransactionClient,
   runIds: string[],
   expiresAfter?: Date,
+  ignoreStaleLegacy = false,
 ): Promise<{ leasedRunIds: string[]; targets: RunTeardownTarget[] }> {
   if (runIds.length === 0) return { leasedRunIds: [], targets: [] };
   const leases = await tx.computerExecutionLease.findMany({
@@ -189,8 +190,8 @@ async function snapshotRunTeardownTargets(
     select: { computerId: true, botId: true, runId: true, fence: true },
   });
   const leasedRunIds = [...new Set(leases.map((lease) => lease.runId))];
-  // On a retry, ignore a stale executionRunId once its lease is no longer live.
-  const legacyRunIds = expiresAfter ? leasedRunIds : runIds;
+  // Retry must not follow executionRunId after its lease expired. The initial archive still does.
+  const legacyRunIds = ignoreStaleLegacy ? leasedRunIds : runIds;
   if (legacyRunIds.length === 0) return { leasedRunIds, targets: [] };
 
   const leaseComputerIds = [...new Set(leases.map((lease) => lease.computerId))];
@@ -235,6 +236,7 @@ async function resumeArchivedGroupTeardown(tx: Prisma.TransactionClient, threadI
     tx,
     cancelled.map((run) => run.id),
     new Date(),
+    true,
   );
   if (leasedRunIds.length === 0) throw new IsolationError();
   return { cancelledRunIds: leasedRunIds, computers: targets };
@@ -467,7 +469,7 @@ export function createGroupRepos(prisma: PrismaClient) {
         const runIds = activeRuns.map((run) => run.id);
         const now = new Date();
         // Snapshot before cancellation commits. Leases stay live until screen release.
-        const { targets } = await snapshotRunTeardownTargets(tx, runIds);
+        const { targets } = await snapshotRunTeardownTargets(tx, runIds, now);
 
         if (runIds.length) {
           await cancelRunsInTransaction(tx, activeRuns, now);

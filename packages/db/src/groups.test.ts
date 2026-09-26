@@ -85,8 +85,13 @@ describe("archiveGroup", () => {
   beforeEach(() => {
     queryRaw = vi.fn().mockResolvedValue([{ id: "group-1" }]);
     findFirst = vi.fn().mockResolvedValue({ thread: { id: "thread-1" } });
-    findManyRuns = vi.fn().mockResolvedValue([{ id: "run-1", taskId: "task-1" }]);
-    // As in production: acquisition writes the lease, never Computer.executionRunId.
+    findManyRuns = vi.fn().mockResolvedValue([
+      { id: "run-1", taskId: "task-1" },
+      { id: "run-legacy", taskId: "task-legacy" },
+    ]);
+    // computer-1 matches production: the lease is ownership, executionRunId stays unset.
+    // computer-legacy is the executionRunId fallback for a run with no live lease.
+    // computer-2's executionRunId is stale; resume must not follow it.
     const computerRows = [
       {
         id: "computer-1",
@@ -101,8 +106,24 @@ describe("archiveGroup", () => {
         homeKey: "home-2",
         kind: "fake",
         providerRef: "computer-2",
+        executionBotId: "bot-4",
+        executionRunId: "run-stale",
+      },
+      {
+        id: "computer-expired",
+        homeKey: "home-expired",
+        kind: "fake",
+        providerRef: "computer-expired",
         executionBotId: null,
         executionRunId: null,
+      },
+      {
+        id: "computer-legacy",
+        homeKey: "home-legacy",
+        kind: "fake",
+        providerRef: "computer-legacy",
+        executionBotId: "bot-legacy",
+        executionRunId: "run-legacy",
       },
     ];
     type ComputerWhere = {
@@ -124,8 +145,16 @@ describe("archiveGroup", () => {
     // computer-1 is a Team computer: bot-2's lease there belongs to a run outside this group.
     // run-stale is this thread's cancelled run whose lease has already expired.
     const liveUntil = new Date("2099-01-01T00:00:00.000Z");
+    const expiredAt = new Date("2020-01-01T00:00:00.000Z");
     const leaseRows = [
       { computerId: "computer-1", botId: "bot-1", runId: "run-1", fence: 3, expiresAt: liveUntil },
+      {
+        computerId: "computer-expired",
+        botId: "bot-1",
+        runId: "run-1",
+        fence: 9,
+        expiresAt: expiredAt,
+      },
       {
         computerId: "computer-1",
         botId: "bot-2",
@@ -145,7 +174,7 @@ describe("archiveGroup", () => {
         botId: "bot-4",
         runId: "run-stale",
         fence: 2,
-        expiresAt: new Date("2020-01-01T00:00:00.000Z"),
+        expiresAt: expiredAt,
       },
     ];
     type LeaseWhere = { runId: { in: string[] }; expiresAt?: { gt: Date } };
@@ -179,7 +208,7 @@ describe("archiveGroup", () => {
     const repos = createGroupRepos(prisma);
 
     await expect(repos.archiveGroup(actor, "group-1")).resolves.toEqual({
-      cancelledRunIds: ["run-1"],
+      cancelledRunIds: ["run-1", "run-legacy"],
       computers: [
         {
           id: "computer-1",
@@ -190,8 +219,25 @@ describe("archiveGroup", () => {
           runId: "run-1",
           fence: 3,
         },
+        {
+          id: "computer-legacy",
+          homeKey: "home-legacy",
+          kind: "fake",
+          providerRef: "computer-legacy",
+          botId: "bot-legacy",
+          runId: "run-legacy",
+          fence: 0,
+        },
       ],
     });
+    expect(leaseFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          runId: { in: ["run-1", "run-legacy"] },
+          expiresAt: { gt: expect.any(Date) },
+        },
+      }),
+    );
 
     expect(queryRaw).toHaveBeenCalled();
     expect(findManyRuns).toHaveBeenCalledWith(
