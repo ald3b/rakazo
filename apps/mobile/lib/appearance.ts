@@ -29,6 +29,7 @@ export async function loadAppearancePreference(): Promise<AppearancePreference> 
   } catch {
     memoryPreference = memoryPreference ?? "system";
   }
+  applyNativeColorScheme(memoryPreference);
   notify();
   return memoryPreference;
 }
@@ -42,6 +43,7 @@ export async function setAppearancePreference(
   } catch {
     // Keep the in-memory preference when SecureStore is unavailable.
   }
+  applyNativeColorScheme(preference);
   notify();
   return preference;
 }
@@ -69,6 +71,12 @@ export function subscribeAppearance(listener: () => void): () => void {
 
 function notify() {
   for (const listener of listeners) listener();
+}
+
+// Native surfaces (alerts, action sheets, the keyboard, iOS platform colors) follow the
+// window's scheme, so an explicit app choice overrides it and System hands it back to the OS.
+function applyNativeColorScheme(preference: AppearancePreference) {
+  Appearance.setColorScheme(preference === "system" ? "unspecified" : preference);
 }
 
 Appearance.addChangeListener(() => {
