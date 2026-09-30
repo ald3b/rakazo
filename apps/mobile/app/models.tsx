@@ -156,6 +156,9 @@ export default function Models() {
     setCredentials(nextCredentials);
     resetOpenAiCompatibleProbe();
     setProvider(nextProvider);
+    setModelSearch((current) =>
+      current.provider === nextProvider ? current : { provider: nextProvider, query: "" },
+    );
     setModelId(nextModel);
     if (nextProvider === OPENAI_COMPATIBLE_PROVIDER_ID) {
       setBaseUrl(nextCredential?.baseUrl ?? "");
@@ -211,7 +214,7 @@ export default function Models() {
   const modelsForProvider = catalog.filter((entry) => entry.provider === provider);
   const selected = modelsForProvider.find((entry) => entry.id === modelId) ?? modelsForProvider[0];
   const showModelSearch = modelsForProvider.length > MODEL_SEARCH_THRESHOLD;
-  // A query belongs to the provider it was typed for, so any provider change clears it.
+  // Hide a query typed for another provider until load()/chooseProvider clears it.
   const modelQuery = modelSearch.provider === provider ? modelSearch.query : "";
   const visibleModels = showModelSearch
     ? filterModelCatalog(modelsForProvider, modelQuery)
