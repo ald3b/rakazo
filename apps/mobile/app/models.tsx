@@ -18,8 +18,9 @@ import {
   initialModelProbeState,
 } from "@rakazo/core";
 import { useFocusEffect } from "expo-router";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  AccessibilityInfo,
   ActivityIndicator,
   Keyboard,
   Linking,
@@ -219,6 +220,12 @@ export default function Models() {
   const visibleModels = showModelSearch
     ? filterModelCatalog(modelsForProvider, modelQuery)
     : modelsForProvider;
+  const noModelMatches = showModelSearch && visibleModels.length === 0;
+
+  // The search field keeps focus, so tell screen readers once when the results run out.
+  useEffect(() => {
+    if (noModelMatches) AccessibilityInfo.announceForAccessibility(t("No matching models"));
+  }, [noModelMatches, t]);
   const isOpenAiCompatible = provider === OPENAI_COMPATIBLE_PROVIDER_ID;
   const credential = credentials.find((entry) => entry.provider === provider);
   const currentEntry = catalog.find(
@@ -791,7 +798,7 @@ export default function Models() {
                   />
                 ) : null}
                 <View style={styles.card}>
-                  {visibleModels.length === 0 ? (
+                  {noModelMatches ? (
                     <View style={styles.modelRow}>
                       <Text style={[styles.modelLabel, styles.mutedLabel]}>
                         {t("No matching models")}
