@@ -105,5 +105,4 @@ describe("mobile avatar style cache", () => {
     expect(store.has(AVATAR_STYLE_KEY)).toBe(false);
     expect(getCachedAvatarStyle()).toBe("robot");
   });
-
 });
