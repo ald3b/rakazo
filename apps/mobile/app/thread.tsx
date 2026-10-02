@@ -1562,7 +1562,8 @@ function Thread() {
           options?.enableJump
             ? (event) => {
                 if (jumpScrollTarget.current !== message.id) return;
-                const y = Math.max(0, event.nativeEvent.layout.y - 24);
+                // Opaque header used to own this space; clear the transparent bar + fade.
+                const y = Math.max(0, event.nativeEvent.layout.y - (headerHeight + 24));
                 requestAnimationFrame(() => {
                   if (jumpScrollTarget.current !== message.id) return;
                   pinnedScroll.current?.scrollTo({ y, animated: true });
@@ -1732,10 +1733,10 @@ function Thread() {
       style={{ flex: 1, backgroundColor: tokens.background, paddingHorizontal: 20 }}
     >
       {error ? (
-        <Text style={{ color: tokens.mutedForeground, marginTop: headerHeight + 12 }}>{error}</Text>
+        <Text style={{ color: tokens.mutedForeground, marginTop: headerHeight + 28 }}>{error}</Text>
       ) : null}
       {runError ? (
-        <Text style={{ color: tokens.destructive, marginTop: error ? 12 : headerHeight + 12 }}>
+        <Text style={{ color: tokens.destructive, marginTop: error ? 12 : headerHeight + 28 }}>
           {runError}
         </Text>
       ) : null}
