@@ -27,16 +27,14 @@ export async function saveSessionToken(token: string) {
   sessionFallback = undefined;
 }
 
-/**
- * Clears the session and the avatar style that belonged to it.
- * Returns false when the token or the previous account's style is still on disk.
- */
+/** Clears the session. Returns false only when SecureStore could neither delete nor overwrite. */
 export async function clearSessionToken(): Promise<boolean> {
   sessionGeneration += 1;
   await stopLiveNotifications(true).catch(() => undefined);
   const tokenCleared = await clearStoredSessionToken();
-  const styleCleared = await clearAvatarStyle();
-  return tokenCleared && styleCleared;
+  // Best-effort: a stuck style must not block sign-out or restore a wiped token.
+  await clearAvatarStyle();
+  return tokenCleared;
 }
 
 /** Saves a style response only when it still belongs to the current session. */

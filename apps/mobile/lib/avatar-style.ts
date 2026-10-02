@@ -102,9 +102,14 @@ export function createAvatarStyleClient(options: {
   let refreshId = 0;
   let updateId = 0;
   let updateInFlight: Promise<void> | null = null;
+  let refreshAfterUpdate = false;
 
   function refresh() {
-    if (updateInFlight) return;
+    if (updateInFlight) {
+      refreshAfterUpdate = true;
+      return;
+    }
+    refreshAfterUpdate = false;
     const id = ++refreshId;
     const generation = options.generation();
     void options
@@ -137,6 +142,7 @@ export function createAvatarStyleClient(options: {
       })
       .finally(() => {
         if (updateInFlight === task) updateInFlight = null;
+        if (refreshAfterUpdate) refresh();
       });
     updateInFlight = task;
     return task;

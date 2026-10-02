@@ -255,4 +255,35 @@ describe("avatar style refresh and update", () => {
     expect(saved).toEqual([]);
     expect(published).toEqual([]);
   });
+
+  it("runs a deferred refresh after an in-flight update finishes", async () => {
+    const { createAvatarStyleClient } = await import("./avatar-style");
+    const write = deferred<"robot" | "organic">();
+    const read = deferred<"robot" | "organic">();
+    const published: string[] = [];
+    let reads = 0;
+    const client = createAvatarStyleClient({
+      read: () => {
+        reads += 1;
+        return read.promise;
+      },
+      write: () => write.promise,
+      publish: (style) => published.push(style),
+      generation: () => 1,
+      save: async () => true,
+    });
+
+    const update = client.update("organic");
+    client.refresh();
+    expect(reads).toBe(0);
+
+    write.resolve("organic");
+    await update;
+    await afterMicrotasks();
+    expect(reads).toBe(1);
+
+    read.resolve("robot");
+    await afterMicrotasks();
+    expect(published).toEqual(["organic", "robot"]);
+  });
 });

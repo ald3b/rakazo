@@ -87,7 +87,7 @@ describe("mobile session storage", () => {
     }
   });
 
-  it("does not report a cleared session when the avatar style stays on disk", async () => {
+  it("still clears the session when the avatar style cannot be wiped", async () => {
     const disk = new Map<string, string>();
     vi.mocked(SecureStore.setItemAsync).mockImplementation(async (key, value) => {
       disk.set(key, value);
@@ -106,7 +106,8 @@ describe("mobile session storage", () => {
     });
 
     try {
-      await expect(clearSessionToken()).resolves.toBe(false);
+      await expect(clearSessionToken()).resolves.toBe(true);
+      expect(disk.has("rakazo.session_token")).toBe(false);
       expect(disk.get(AVATAR_STYLE_KEY)).toBe("organic");
     } finally {
       vi.mocked(SecureStore.setItemAsync).mockReset();
