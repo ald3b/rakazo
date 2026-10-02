@@ -8,6 +8,7 @@ export const AVATAR_STYLE_KEY = "rakazo.avatar-style";
 let memoryStyle: AvatarStyle | null = null;
 /** What SecureStore holds, so a failed write is retried by the next save. */
 let storedStyle: AvatarStyle | null = null;
+let writeGeneration = 0;
 
 export function getCachedAvatarStyle(): AvatarStyle {
   return memoryStyle ?? "robot";
@@ -27,25 +28,45 @@ export async function loadAvatarStyle(): Promise<AvatarStyle> {
 export async function saveAvatarStyle(style: AvatarStyle): Promise<void> {
   memoryStyle = style;
   if (style === storedStyle) return;
+  const generation = ++writeGeneration;
+  await persistAvatarStyle(style, generation);
+}
+
+async function persistAvatarStyle(style: AvatarStyle, generation: number): Promise<void> {
   try {
     await SecureStore.setItemAsync(AVATAR_STYLE_KEY, style);
-    storedStyle = style;
   } catch {
-    // Keep the in-memory style when SecureStore is unavailable.
+    // Keep the in-memory style when SecureStore is unavailable; retry on the next save.
+    return;
   }
+  if (generation !== writeGeneration) {
+    if (memoryStyle === null) {
+      storedStyle = null;
+      await clearStoredAvatarStyle();
+      return;
+    }
+    await persistAvatarStyle(memoryStyle, writeGeneration);
+    return;
+  }
+  storedStyle = style;
 }
 
 export async function clearAvatarStyle(): Promise<void> {
+  writeGeneration += 1;
   memoryStyle = null;
   storedStyle = null;
+  await clearStoredAvatarStyle();
+}
+
+async function clearStoredAvatarStyle(): Promise<void> {
   try {
     await SecureStore.deleteItemAsync(AVATAR_STYLE_KEY);
   } catch {
-    // If the key can't be removed, overwrite it so the next account doesn't start from this style.
     try {
       await SecureStore.setItemAsync(AVATAR_STYLE_KEY, "robot");
+      storedStyle = "robot";
     } catch {
-      // The server value replaces a stale style on the next fetch.
+      // SecureStore may be unavailable.
     }
   }
 }

@@ -33,7 +33,6 @@ export function AvatarStyleProvider({ children }: { children: ReactNode }) {
         .catch(() => undefined);
     }
     refresh();
-    // A launch or route change while offline keeps the cached style; resuming refetches it.
     const appState = AppState.addEventListener("change", (state) => {
       if (state === "active") refresh();
     });

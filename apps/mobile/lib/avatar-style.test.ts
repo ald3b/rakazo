@@ -82,4 +82,28 @@ describe("mobile avatar style cache", () => {
     expect(store.has(AVATAR_STYLE_KEY)).toBe(false);
     expect(getCachedAvatarStyle()).toBe("robot");
   });
+
+  it("discards a late save that finishes after clear", async () => {
+    const SecureStore = await import("expo-secure-store");
+    const { AVATAR_STYLE_KEY, clearAvatarStyle, getCachedAvatarStyle, saveAvatarStyle } =
+      await import("./avatar-style");
+
+    let finishSave!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      finishSave = resolve;
+    });
+    vi.mocked(SecureStore.setItemAsync).mockImplementationOnce(async (key, value) => {
+      await gate;
+      store.set(key, value);
+    });
+
+    const save = saveAvatarStyle("organic");
+    await clearAvatarStyle();
+    finishSave();
+    await save;
+
+    expect(store.has(AVATAR_STYLE_KEY)).toBe(false);
+    expect(getCachedAvatarStyle()).toBe("robot");
+  });
+
 });
