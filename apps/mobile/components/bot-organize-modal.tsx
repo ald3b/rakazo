@@ -240,6 +240,7 @@ function createBotOrganizeStyles() {
     },
     sheet: {
       maxHeight: "82%",
+      flexShrink: 1,
       borderTopLeftRadius: 22,
       borderTopRightRadius: 22,
       backgroundColor: native.fillPressed,
@@ -280,6 +281,7 @@ function createBotOrganizeStyles() {
     },
     sectionOptions: {
       maxHeight: 230,
+      flexShrink: 1,
     },
     sectionOption: {
       minHeight: 44,
