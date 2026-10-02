@@ -21,6 +21,8 @@ export function AvatarStyleProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     function refresh() {
+      // The update's response is newer than a `me` that would supersede it.
+      if (updatePromiseRef.current) return;
       const requestId = ++requestIdRef.current;
       void rpc<Me>("me")
         .then((me) => {

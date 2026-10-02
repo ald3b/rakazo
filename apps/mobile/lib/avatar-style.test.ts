@@ -18,6 +18,20 @@ describe("mobile avatar style cache", () => {
     vi.resetModules();
   });
 
+  it("falls back to the default style when clearing cannot delete the stored one", async () => {
+    const SecureStore = await import("expo-secure-store");
+    const { AVATAR_STYLE_KEY, clearAvatarStyle, loadAvatarStyle, saveAvatarStyle } = await import(
+      "./avatar-style"
+    );
+    await saveAvatarStyle("organic");
+    vi.mocked(SecureStore.deleteItemAsync).mockRejectedValueOnce(new Error("locked"));
+
+    await clearAvatarStyle();
+
+    expect(store.get(AVATAR_STYLE_KEY)).toBe("robot");
+    await expect(loadAvatarStyle()).resolves.toBe("robot");
+  });
+
   it("defaults to robot and ignores an unknown stored value", async () => {
     const { AVATAR_STYLE_KEY, getCachedAvatarStyle, loadAvatarStyle } = await import(
       "./avatar-style"
@@ -44,6 +58,20 @@ describe("mobile avatar style cache", () => {
     const { loadAvatarStyle } = await import("./avatar-style");
     vi.mocked(SecureStore.getItemAsync).mockRejectedValueOnce(new Error("device locked"));
     await expect(loadAvatarStyle()).resolves.toBe("robot");
+  });
+
+  it("retries a style whose save failed", async () => {
+    const SecureStore = await import("expo-secure-store");
+    const { AVATAR_STYLE_KEY, getCachedAvatarStyle, saveAvatarStyle } = await import(
+      "./avatar-style"
+    );
+    vi.mocked(SecureStore.setItemAsync).mockRejectedValueOnce(new Error("device locked"));
+    await saveAvatarStyle("organic");
+    expect(store.has(AVATAR_STYLE_KEY)).toBe(false);
+    expect(getCachedAvatarStyle()).toBe("organic");
+
+    await saveAvatarStyle("organic");
+    expect(store.get(AVATAR_STYLE_KEY)).toBe("organic");
   });
 
   it("clears the cached style", async () => {
