@@ -203,7 +203,9 @@ describe("avatar style refresh and update", () => {
 
     write.resolve("organic");
     await update;
-    expect(published).toEqual(["organic"]);
+    await afterMicrotasks();
+    // The refresh queued during the update runs afterward with the shared read.
+    expect(published).toEqual(["organic", "robot"]);
   });
 
   it("applies a refresh that starts after the update has finished", async () => {
