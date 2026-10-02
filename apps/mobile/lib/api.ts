@@ -31,11 +31,11 @@ import {
 } from "@rakazo/core";
 import * as SecureStore from "expo-secure-store";
 import { promptAiConsent } from "./ai-consent";
+import { getCachedAvatarStyle, saveAvatarStyle } from "./avatar-style";
 import type { EndpointResult } from "./endpoint";
 import { defaultApiBase, normalizeApiBase } from "./endpoint";
 import { t } from "./i18n";
 import { resumeLiveNotifications } from "./live-notifications";
-import { getCachedAvatarStyle, saveAvatarStyle } from "./avatar-style";
 import {
   clearSessionToken,
   currentSessionGeneration,
