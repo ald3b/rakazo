@@ -98,11 +98,161 @@ describe("mobile avatar style cache", () => {
     });
 
     const save = saveAvatarStyle("organic");
-    await clearAvatarStyle();
+    await Promise.resolve();
+    const clearing = clearAvatarStyle();
     finishSave();
-    await save;
+    await Promise.all([save, clearing]);
 
     expect(store.has(AVATAR_STYLE_KEY)).toBe(false);
     expect(getCachedAvatarStyle()).toBe("robot");
+  });
+
+  it("keeps the newer style when an older save finishes last", async () => {
+    const SecureStore = await import("expo-secure-store");
+    const { AVATAR_STYLE_KEY, getCachedAvatarStyle, saveAvatarStyle } = await import(
+      "./avatar-style"
+    );
+    let releaseFirst: () => void = () => undefined;
+    const firstWrite = new Promise<void>((resolve) => {
+      releaseFirst = resolve;
+    });
+    let writes = 0;
+    vi.mocked(SecureStore.setItemAsync).mockImplementation(async (key: string, value: string) => {
+      writes += 1;
+      if (writes === 1) await firstWrite;
+      store.set(key, value);
+    });
+
+    try {
+      const first = saveAvatarStyle("organic");
+      await Promise.resolve();
+      const second = saveAvatarStyle("robot");
+      releaseFirst();
+      await Promise.all([first, second]);
+
+      expect(getCachedAvatarStyle()).toBe("robot");
+      expect(store.get(AVATAR_STYLE_KEY)).toBe("robot");
+    } finally {
+      releaseFirst();
+      vi.mocked(SecureStore.setItemAsync).mockImplementation(async (key: string, value: string) => {
+        store.set(key, value);
+      });
+    }
+  });
+
+  it("reports failure when the previous style stays on disk", async () => {
+    const SecureStore = await import("expo-secure-store");
+    const { AVATAR_STYLE_KEY, clearAvatarStyle, getCachedAvatarStyle, saveAvatarStyle } =
+      await import("./avatar-style");
+    await saveAvatarStyle("organic");
+    vi.mocked(SecureStore.deleteItemAsync).mockRejectedValue(new Error("device locked"));
+    vi.mocked(SecureStore.setItemAsync).mockRejectedValue(new Error("device locked"));
+
+    try {
+      await expect(clearAvatarStyle()).resolves.toBe(false);
+      expect(store.get(AVATAR_STYLE_KEY)).toBe("organic");
+      expect(getCachedAvatarStyle()).toBe("organic");
+    } finally {
+      vi.mocked(SecureStore.deleteItemAsync).mockImplementation(async (key: string) => {
+        store.delete(key);
+      });
+      vi.mocked(SecureStore.setItemAsync).mockImplementation(async (key: string, value: string) => {
+        store.set(key, value);
+      });
+    }
+  });
+});
+
+function deferred<T>() {
+  let resolve: (value: T) => void = () => undefined;
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
+
+function afterMicrotasks() {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}
+
+describe("avatar style refresh and update", () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+
+  it("does not let a foreground read replace a newer in-flight update", async () => {
+    const { createAvatarStyleClient } = await import("./avatar-style");
+    const read = deferred<"robot" | "organic">();
+    const write = deferred<"robot" | "organic">();
+    const published: string[] = [];
+    const generation = 1;
+    const client = createAvatarStyleClient({
+      read: () => read.promise,
+      write: () => write.promise,
+      publish: (style) => published.push(style),
+      generation: () => generation,
+      save: async () => true,
+    });
+
+    client.refresh();
+    const update = client.update("organic");
+    client.refresh();
+    read.resolve("robot");
+    await afterMicrotasks();
+    expect(published).toEqual([]);
+
+    write.resolve("organic");
+    await update;
+    expect(published).toEqual(["organic"]);
+  });
+
+  it("applies a refresh that starts after the update has finished", async () => {
+    const { createAvatarStyleClient } = await import("./avatar-style");
+    const write = deferred<"robot" | "organic">();
+    const read = deferred<"robot" | "organic">();
+    const published: string[] = [];
+    const client = createAvatarStyleClient({
+      read: () => read.promise,
+      write: () => write.promise,
+      publish: (style) => published.push(style),
+      generation: () => 1,
+      save: async () => true,
+    });
+
+    const update = client.update("organic");
+    write.resolve("organic");
+    await update;
+    client.refresh();
+    read.resolve("robot");
+    await afterMicrotasks();
+
+    expect(published).toEqual(["organic", "robot"]);
+  });
+
+  it("drops a style response after the session generation changes", async () => {
+    const { createAvatarStyleClient } = await import("./avatar-style");
+    const read = deferred<"robot" | "organic">();
+    const published: string[] = [];
+    const saved: string[] = [];
+    let generation = 1;
+    const client = createAvatarStyleClient({
+      read: () => read.promise,
+      write: async () => "organic",
+      publish: (style) => published.push(style),
+      generation: () => generation,
+      save: async (seen, style) => {
+        if (seen !== generation) return false;
+        saved.push(style);
+        return true;
+      },
+    });
+
+    client.refresh();
+    generation = 2;
+    read.resolve("organic");
+    await afterMicrotasks();
+
+    expect(saved).toEqual([]);
+    expect(published).toEqual([]);
   });
 });

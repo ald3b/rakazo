@@ -1,5 +1,6 @@
+import type { AvatarStyle } from "@rakazo/contracts";
 import * as SecureStore from "expo-secure-store";
-import { clearAvatarStyle } from "./avatar-style";
+import { clearAvatarStyle, saveAvatarStyle } from "./avatar-style";
 import { stopLiveNotifications } from "./live-notifications";
 
 const SESSION_KEY = "rakazo.session_token";
@@ -26,13 +27,22 @@ export async function saveSessionToken(token: string) {
   sessionFallback = undefined;
 }
 
-/** Clears the session. Returns false only when SecureStore could neither delete nor overwrite. */
+/**
+ * Clears the session and the avatar style that belonged to it.
+ * Returns false when the token or the previous account's style is still on disk.
+ */
 export async function clearSessionToken(): Promise<boolean> {
   sessionGeneration += 1;
   await stopLiveNotifications(true).catch(() => undefined);
-  const cleared = await clearStoredSessionToken();
-  await clearAvatarStyle();
-  return cleared;
+  const tokenCleared = await clearStoredSessionToken();
+  const styleCleared = await clearAvatarStyle();
+  return tokenCleared && styleCleared;
+}
+
+/** Saves a style response only when it still belongs to the current session. */
+export function saveAvatarStyleIfCurrent(generation: number, style: AvatarStyle): Promise<boolean> {
+  if (generation !== sessionGeneration) return Promise.resolve(false);
+  return saveAvatarStyle(style).then(() => generation === sessionGeneration);
 }
 
 async function clearStoredSessionToken(): Promise<boolean> {
