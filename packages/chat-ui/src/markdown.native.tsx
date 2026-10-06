@@ -12,7 +12,13 @@ import Markdown, {
 } from "@ronradtke/react-native-markdown-display";
 import type { ReactNode } from "react";
 import { createContext, memo, useContext, useMemo, useState } from "react";
-import type { StyleProp, TextStyle, ViewStyle } from "react-native";
+import type {
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  StyleProp,
+  TextStyle,
+  ViewStyle,
+} from "react-native";
 import { Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { ChatMarkdownProps } from "./markdown";
 import {
@@ -155,11 +161,56 @@ function textStyleForParents(
 }
 
 const TABLE_FONT_SIZE = 15.5;
+const TABLE_LINE_HEIGHT = 23;
+const TABLE_CELL_PADDING = 5;
+const TABLE_SINGLE_LINE_HEIGHT = TABLE_LINE_HEIGHT + TABLE_CELL_PADDING * 2;
 const TABLE_CELL_GUTTER = 16;
 const TABLE_MIN_COLUMN_WIDTH = 64;
 const TABLE_MAX_COLUMN_WIDTH = 220;
+const TABLE_VISIBLE_EDGE = 8;
 
-const TableLayoutContext = createContext<readonly number[]>([]);
+type TableLayout = {
+  widths: readonly number[];
+  viewportWidth: number;
+  scrollX: number;
+};
+
+const TableLayoutContext = createContext<TableLayout>({
+  widths: [],
+  viewportWidth: 0,
+  scrollX: 0,
+});
+
+function columnOffset(widths: readonly number[], index: number) {
+  let offset = 0;
+  for (let cursor = 0; cursor < index; cursor++) offset += widths[cursor] ?? 0;
+  return offset;
+}
+
+function columnContributesHeight(
+  index: number,
+  widths: readonly number[],
+  viewportWidth: number,
+  scrollX: number,
+) {
+  const start = columnOffset(widths, index);
+  const width = widths[index] ?? 0;
+  if (width <= 0) return false;
+  if (viewportWidth <= 0) return start === 0;
+  const overlap = Math.min(start + width, scrollX + viewportWidth) - Math.max(start, scrollX);
+  return overlap > TABLE_VISIBLE_EDGE;
+}
+
+function heightMask(widths: readonly number[], viewportWidth: number, scrollX: number) {
+  return widths
+    .map((_, index) => (columnContributesHeight(index, widths, viewportWidth, scrollX) ? "1" : "0"))
+    .join("");
+}
+
+const offscreenCell: ViewStyle = {
+  height: TABLE_SINGLE_LINE_HEIGHT,
+  overflow: "hidden",
+};
 
 function glyphEm(char: string) {
   if (char === " " || char === "\n" || char === "\t") return 0.33;
@@ -261,9 +312,14 @@ function TableCell({
   baseStyle: StyleProp<ViewStyle>;
   children?: ReactNode;
 }) {
-  const widths = useContext(TableLayoutContext);
+  const { widths, viewportWidth, scrollX } = useContext(TableLayoutContext);
   const width = widths[columnIndex] ?? TABLE_MIN_COLUMN_WIDTH;
-  return <View style={[baseStyle, columnStyle(width)]}>{children}</View>;
+  const contributes = columnContributesHeight(columnIndex, widths, viewportWidth, scrollX);
+  return (
+    <View style={[baseStyle, columnStyle(width), contributes ? null : offscreenCell]}>
+      {children}
+    </View>
+  );
 }
 
 function TableRow({
@@ -273,7 +329,7 @@ function TableRow({
   baseStyle: StyleProp<ViewStyle>;
   children?: ReactNode;
 }) {
-  const widths = useContext(TableLayoutContext);
+  const { widths } = useContext(TableLayoutContext);
   const rowWidth = widths.reduce((total, width) => total + width, 0);
   return (
     <View style={[baseStyle, { width: rowWidth, minWidth: rowWidth, flexShrink: 0 }]}>
@@ -300,8 +356,21 @@ function TableScrollView({
   style?: StyleProp<ViewStyle>;
 }) {
   const [viewportWidth, setViewportWidth] = useState(0);
+  const [scrollX, setScrollX] = useState(0);
   const widths = useMemo(() => fittedColumnWidths(table, viewportWidth), [table, viewportWidth]);
   const contentWidth = widths.reduce((total, width) => total + width, 0);
+  const tableLayout = useMemo(
+    () => ({ widths, viewportWidth, scrollX }),
+    [widths, viewportWidth, scrollX],
+  );
+  const onScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const next = event.nativeEvent.contentOffset.x;
+    setScrollX((current) =>
+      heightMask(widths, viewportWidth, current) === heightMask(widths, viewportWidth, next)
+        ? current
+        : next,
+    );
+  };
   return (
     <View
       style={tableFrame}
@@ -310,11 +379,13 @@ function TableScrollView({
         setViewportWidth((current) => (current === next ? current : next));
       }}
     >
-      <TableLayoutContext.Provider value={widths}>
+      <TableLayoutContext.Provider value={tableLayout}>
         <ScrollView
           horizontal
           nestedScrollEnabled
           directionalLockEnabled
+          scrollEventThrottle={16}
+          onScroll={onScroll}
           style={[
             style,
             viewportWidth > 0 ? { width: viewportWidth } : { flexGrow: 1, flexShrink: 1 },

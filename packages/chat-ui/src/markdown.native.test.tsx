@@ -9,6 +9,15 @@ const linking = vi.hoisted(() => ({
   openURL: vi.fn(async () => undefined),
 }));
 
+const tableEvents = vi.hoisted(() => ({
+  onLayout: undefined as
+    | ((event: { nativeEvent: { layout: { width: number; height: number } } }) => void)
+    | undefined,
+  onScroll: undefined as
+    | ((event: { nativeEvent: { contentOffset: { x: number } } }) => void)
+    | undefined,
+}));
+
 // react-native ships uncompiled Flow source that node cannot load, so tests mock
 // its component surface as marker elements that expose the layout props the
 // render rules set (horizontal scrolling, per-row minimum width, cell width) and
@@ -40,6 +49,12 @@ vi.mock("react-native", async () => {
         if (value !== undefined && value !== null && value !== false) {
           data[`data-${kebab(key)}`] = value === true ? "true" : value;
         }
+      }
+      if (tag === "rn-view" && typeof rest.onLayout === "function") {
+        tableEvents.onLayout = rest.onLayout as typeof tableEvents.onLayout;
+      }
+      if (tag === "rn-scroll-view" && typeof rest.onScroll === "function") {
+        tableEvents.onScroll = rest.onScroll as typeof tableEvents.onScroll;
       }
       return createElement(
         tag,
@@ -182,6 +197,47 @@ describe("native markdown tables", () => {
     expect(notes).toBeLessThan(400);
     expect(html.match(/data-font-weight="600"/g)).toHaveLength(3);
     expect(html).toContain('data-flex-shrink="0"');
+  });
+
+  it("keeps an offscreen column from stretching the row, and lets it back in when scrolled", async () => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    await act(async () => {
+      root.render(<ChatMarkdown>{CONTENT_SIZED_TABLE}</ChatMarkdown>);
+    });
+    await act(async () => {
+      tableEvents.onLayout?.({ nativeEvent: { layout: { width: 70, height: 40 } } });
+    });
+
+    const rows = () => tableRows(container.innerHTML);
+    const notesHeight = (row: ReturnType<typeof tableRows>[number]) => {
+      const html = container.innerHTML;
+      const document = new DOMParser().parseFromString(html, "text/html");
+      const view = [...document.querySelectorAll("rn-view[data-border-bottom-width]")].find(
+        (candidate) => Number(candidate.getAttribute("data-width")) === row.width,
+      );
+      const notes = view?.querySelector("rn-view[data-max-width]:last-child");
+      return notes?.getAttribute("data-height") ?? null;
+    };
+    for (const row of rows()) {
+      expect(row.cells.length).toBeGreaterThan(1);
+      expect(notesHeight(row)).toBe("33");
+    }
+
+    const notesStart = (rows()[0]?.cells ?? [])
+      .slice(0, -1)
+      .reduce((total, width) => total + width, 0);
+    await act(async () => {
+      tableEvents.onScroll?.({ nativeEvent: { contentOffset: { x: notesStart } } });
+    });
+    for (const row of rows()) expect(notesHeight(row)).toBeNull();
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
   });
 
   it.each([
