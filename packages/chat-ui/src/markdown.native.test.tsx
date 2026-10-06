@@ -12,7 +12,7 @@ const linking = vi.hoisted(() => ({
 // react-native ships uncompiled Flow source that node cannot load, so tests mock
 // its component surface as marker elements that expose the layout props the
 // render rules set (horizontal scrolling, per-row minimum width, cell width) and
-// the colors of rules drawn inside a message.
+// the color and hairline size of rules drawn inside a message.
 vi.mock("react-native", async () => {
   const { createElement } = await import("react");
 
@@ -59,9 +59,12 @@ vi.mock("react-native", async () => {
       "borderColor",
       "borderLeftColor",
       "backgroundColor",
+      "borderWidth",
+      "borderBottomWidth",
+      "height",
     ]),
     Text: mockComponent("rn-text", ["accessibilityRole", "textDecorationLine", "fontWeight"]),
-    ScrollView: mockComponent("rn-scroll-view", ["horizontal", "borderColor"]),
+    ScrollView: mockComponent("rn-scroll-view", ["horizontal", "borderColor", "borderWidth"]),
     Pressable: mockComponent("rn-pressable", ["accessibilityRole", "borderBottomWidth"]),
     TextInput: mockComponent("rn-text-input"),
     Image: mockComponent("rn-image"),
@@ -150,11 +153,25 @@ describe("native markdown tables", () => {
         </ChatMarkdown>,
       );
       const rule = palette.mutedForeground;
-      expect(html).toMatch(new RegExp(`<rn-scroll-view[^>]*data-border-color="${rule}"`));
-      const rows = html.match(new RegExp(`<rn-view[^>]*data-border-color="${rule}"`, "g"));
+      const hairline = "1";
+      expect(html).toMatch(
+        new RegExp(
+          `<rn-scroll-view[^>]*data-border-color="${rule}"[^>]*data-border-width="${hairline}"`,
+        ),
+      );
+      const rows = html.match(
+        new RegExp(
+          `<rn-view[^>]*data-border-color="${rule}"[^>]*data-border-bottom-width="${hairline}"`,
+          "g",
+        ),
+      );
       expect(rows).toHaveLength(3);
       expect(html).toContain(`data-border-left-color="${rule}"`);
-      expect(html).toContain(`data-background-color="${rule}"`);
+      expect(html).toMatch(
+        new RegExp(
+          `<rn-view[^>]*data-background-color="${rule}"[^>]*data-height="${hairline}"`,
+        ),
+      );
       // The bubble is filled with `muted`; a rule in that color is invisible.
       expect(html).not.toContain(`data-border-color="${palette.muted}"`);
       expect(html).not.toContain(`data-border-left-color="${palette.muted}"`);
