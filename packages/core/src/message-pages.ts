@@ -58,7 +58,7 @@ export function openThreadWindow<
   };
 }
 
-/** Add the page fetched around `newerCursor + 1` to an open window. */
+/** Add the next around page. `coveredThroughSeq` is the highest seq that page read. */
 export function appendNewerThreadPage<
   TMessage extends MessageIdentity,
   TSnapshot extends ThreadHistory<TMessage>,
@@ -66,13 +66,20 @@ export function appendNewerThreadPage<
   snapshot: TSnapshot,
   newerCursor: number,
   page: ThreadHistory<TMessage>,
+  coveredThroughSeq?: number | null,
 ): ThreadWindow<TSnapshot> {
   if (snapshot.threadId !== page.threadId) return { snapshot, newerCursor };
   const newest = newestSeq(page.messages);
-  // Nothing past the cursor: the server has nothing newer to show before the latest messages.
-  if (newest === null || newest <= newerCursor) return { snapshot, newerCursor: null };
-  const messages = mergeMessagesBySeq(snapshot.messages, page.messages);
-  return { snapshot: { ...snapshot, messages }, newerCursor: newerGapCursor(messages, newest) };
+  const messages =
+    newest !== null && newest > newerCursor
+      ? mergeMessagesBySeq(snapshot.messages, page.messages)
+      : snapshot.messages;
+  const cursor = forwardCursor(messages, newerCursor, coveredThroughSeq ?? null);
+  if (messages === snapshot.messages && cursor === newerCursor) return { snapshot, newerCursor };
+  return {
+    snapshot: messages === snapshot.messages ? snapshot : { ...snapshot, messages },
+    newerCursor: cursor,
+  };
 }
 
 export function threadWindowMessages<T extends MessageIdentity>(
@@ -99,6 +106,36 @@ export function leaveThreadWindow<
 
 function isWindowMessage(message: MessageIdentity, newerCursor: number): boolean {
   return isDurableMessage(message) && typeof message.seq === "number" && message.seq <= newerCursor;
+}
+
+function forwardCursor(
+  messages: readonly MessageIdentity[],
+  newerCursor: number,
+  coveredThroughSeq: number | null,
+): number | null {
+  const present = new Set<number>();
+  let maxSeq = newerCursor;
+  for (const message of messages) {
+    if (!isDurableMessage(message) || typeof message.seq !== "number") continue;
+    present.add(message.seq);
+    if (message.seq > maxSeq) maxSeq = message.seq;
+  }
+  let cursor = newerCursor;
+  let scan = newerCursor;
+  while (scan < maxSeq) {
+    const next = scan + 1;
+    if (present.has(next)) {
+      scan = next;
+      cursor = next;
+      continue;
+    }
+    if (coveredThroughSeq !== null && next <= coveredThroughSeq) {
+      scan = next;
+      continue;
+    }
+    break;
+  }
+  return scan >= maxSeq ? null : cursor;
 }
 
 function newerGapCursor(messages: readonly MessageIdentity[], loadedThrough: number | null) {

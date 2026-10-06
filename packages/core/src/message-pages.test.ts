@@ -80,12 +80,27 @@ describe("thread windows", () => {
     ]);
   });
 
-  it("joins when a forward page has nothing newer to add", () => {
+  it("keeps the cursor when a forward page adds nothing past an unscanned gap", () => {
     const opened = openThreadWindow(latest(), page(25, 124));
-    const next = appendNewerThreadPage(opened.snapshot, 124, page(74, 124));
+    const next = appendNewerThreadPage(opened.snapshot, 124, page(74, 124), 174);
+
+    expect(next.newerCursor).toBe(124);
+    expect(next.snapshot).toBe(opened.snapshot);
+    expect(ids(threadWindowMessages(next.snapshot.messages, next.newerCursor))).toEqual(
+      ids(range(25, 124)),
+    );
+  });
+
+  it("joins once coverage reaches the latest snapshot, hidden rows included", () => {
+    const opened = openThreadWindow(latest(), page(25, 124));
+    const next = appendNewerThreadPage(opened.snapshot, 124, page(74, 124), 299);
 
     expect(next.newerCursor).toBeNull();
-    expect(next.snapshot).toBe(opened.snapshot);
+    expect(ids(threadWindowMessages(next.snapshot.messages, next.newerCursor))).toEqual([
+      ...ids(range(25, 124)),
+      ...ids(range(200, 299)),
+      "progress:run",
+    ]);
   });
 
   it("ignores a forward page from another thread", () => {

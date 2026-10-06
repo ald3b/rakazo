@@ -386,6 +386,8 @@ function Thread() {
     messageId: string;
     threadId: string;
     newerCursor: number | null;
+    coveredThroughSeq?: number;
+    probeSeq?: number;
   } | null>(null);
   const jumpScrollTarget = useRef<string | null>(null);
   const activeBotId = useRef(botId);
@@ -965,17 +967,43 @@ function Thread() {
     loadingNewerContent.current = true;
     setLoadingNewer(true);
     const epoch = historyEpoch.current;
+    const probe = pinned.probeSeq ?? pinned.newerCursor + 1;
     try {
       // Pages come back centered on the seq, so the one after the cursor overlaps what is loaded.
-      const page = await rpc<MobileMessagePage>("threads/messages", {
-        ...(groupId ? { groupId } : { botId: botId! }),
-        around: { seq: pinned.newerCursor + 1 },
-      });
+      const page = await rpc<MobileMessagePage & { coveredThroughSeq?: number }>(
+        "threads/messages",
+        {
+          ...(groupId ? { groupId } : { botId: botId! }),
+          around: { seq: probe },
+        },
+      );
       if (epoch !== historyEpoch.current || pinnedAroundRef.current !== pinned || !snapRef.current)
         return;
-      const next = appendNewerThreadPage(snapRef.current, pinned.newerCursor, page);
-      pinnedAroundRef.current = { ...pinned, newerCursor: next.newerCursor };
+      const covered =
+        page.coveredThroughSeq == null
+          ? pinned.coveredThroughSeq
+          : Math.max(pinned.coveredThroughSeq ?? page.coveredThroughSeq, page.coveredThroughSeq);
+      const next = appendNewerThreadPage(
+        snapRef.current,
+        pinned.newerCursor,
+        page,
+        covered ?? null,
+      );
+      const advanced = next.newerCursor !== pinned.newerCursor;
+      let probeSeq: number | undefined;
+      if (next.newerCursor != null) {
+        if (covered != null) probeSeq = covered + 1;
+        else if (advanced) probeSeq = next.newerCursor + 1;
+        else probeSeq = probe + 1;
+      }
+      pinnedAroundRef.current = {
+        ...pinned,
+        newerCursor: next.newerCursor,
+        coveredThroughSeq: covered,
+        probeSeq,
+      };
       commitSnap(next.snapshot);
+      if (next.newerCursor == null && pinnedNearEnd()) showLatest();
     } catch (err) {
       newerLoadFailed.current = true;
       setError(err instanceof Error ? err.message : t("Could not open message"));
@@ -1005,13 +1033,14 @@ function Thread() {
     loadingOlderContent.current = true;
     setLoadingOlder(true);
     const epoch = historyEpoch.current;
+    const pinned = pinnedAroundRef.current;
     try {
       const page = await rpc<MobileMessagePage>("threads/messages", {
         ...(groupId ? { groupId } : { botId: botId! }),
         before: snap.olderCursor,
         includePeerReceipts: true,
       });
-      if (epoch !== historyEpoch.current) {
+      if (epoch !== historyEpoch.current || pinnedAroundRef.current !== pinned) {
         loadingOlderContent.current = false;
         return;
       }
@@ -1648,6 +1677,11 @@ function Thread() {
   function pinnedDistanceFromEnd(event: NativeSyntheticEvent<NativeScrollEvent>) {
     const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
     return contentSize.height - layoutMeasurement.height - contentOffset.y;
+  }
+
+  function pinnedNearEnd() {
+    const { offset, viewport, content } = pinnedScrollMetrics.current;
+    return viewport > 0 && content - viewport - offset <= 80;
   }
 
   function loadNewerNearEnd() {
