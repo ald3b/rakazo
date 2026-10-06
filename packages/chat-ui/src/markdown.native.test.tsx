@@ -121,6 +121,16 @@ function numericWidths(html: string) {
   return [...html.matchAll(/data-width="(\d+(?:\.\d+)?)"/g)].map((match) => Number(match[1]));
 }
 
+function tableRows(html: string) {
+  const document = new DOMParser().parseFromString(html, "text/html");
+  return [...document.querySelectorAll("rn-view[data-border-bottom-width]")].map((row) => ({
+    width: Number(row.getAttribute("data-width")),
+    cells: [...row.querySelectorAll("rn-view[data-max-width]")].map((cell) =>
+      Number(cell.getAttribute("data-width")),
+    ),
+  }));
+}
+
 describe("native markdown tables", () => {
   it("wraps the table in a horizontal scroll view", () => {
     const html = renderToStaticMarkup(<ChatMarkdown>{THREE_COLUMN_TABLE}</ChatMarkdown>);
@@ -129,16 +139,18 @@ describe("native markdown tables", () => {
   });
 
   it("sizes each row from its columns so wide tables scroll instead of collapsing", () => {
-    const narrow = numericWidths(
+    const narrow = tableRows(
       renderToStaticMarkup(<ChatMarkdown>{THREE_COLUMN_TABLE}</ChatMarkdown>),
     );
-    const wide = numericWidths(
-      renderToStaticMarkup(<ChatMarkdown>{SIX_COLUMN_TABLE}</ChatMarkdown>),
-    );
-    const narrowRow = narrow[0] ?? 0;
-    const wideRow = wide[0] ?? 0;
-    expect(wideRow).toBeGreaterThan(narrowRow);
-    expect(wideRow).toBeGreaterThan(0);
+    const wide = tableRows(renderToStaticMarkup(<ChatMarkdown>{SIX_COLUMN_TABLE}</ChatMarkdown>));
+    expect(narrow.length).toBeGreaterThan(0);
+    expect(wide.length).toBeGreaterThan(0);
+    for (const row of [...narrow, ...wide]) {
+      expect(row.width).toBeGreaterThan(0);
+      expect(row.width).toBe(row.cells.reduce((total, width) => total + width, 0));
+    }
+    const narrowWidth = narrow[0]?.width ?? 0;
+    for (const row of wide) expect(row.width).toBeGreaterThan(narrowWidth);
   });
 
   it("renders cell text and keeps inline links tappable inside cells", () => {
@@ -152,12 +164,15 @@ describe("native markdown tables", () => {
 
   it("sizes columns to their content, keeps a column one width, and caps long text", () => {
     const html = renderToStaticMarkup(<ChatMarkdown>{CONTENT_SIZED_TABLE}</ChatMarkdown>);
-    const widths = numericWidths(html);
-    // content, header row, three header cells, body row, three body cells
-    const header = widths.slice(2, 5);
-    const body = widths.slice(6, 9);
-    expect(header).toEqual(body);
-    const [id, city, notes] = header;
+    const rows = tableRows(html);
+    expect(rows).toHaveLength(2);
+    for (const row of rows) {
+      expect(row.cells).toHaveLength(3);
+      expect(row.width).toBe(row.cells.reduce((total, width) => total + width, 0));
+    }
+    const [header, body] = rows;
+    expect(header?.cells).toEqual(body?.cells);
+    const [id, city, notes] = header?.cells ?? [];
     expect(id).toBeLessThan(city ?? 0);
     expect(city).toBeGreaterThan(96);
     expect(city).toBeLessThan(notes ?? 0);
@@ -222,7 +237,9 @@ describe("native markdown tables", () => {
           "",
           CONTENT_SIZED_TABLE,
           "",
-          "> A quote",
+          "> First quoted paragraph.",
+          ">",
+          "> Second quoted paragraph.",
           "",
           "---",
           "",
@@ -231,6 +248,7 @@ describe("native markdown tables", () => {
       </ChatMarkdown>,
     );
     expect(html).toContain('data-gap="10"');
+    expect(html).toMatch(/data-border-left-color="[^"]+"[^>]*data-gap="10"/);
     expect(html).not.toContain('data-margin-top="10"');
     expect(html).not.toContain('data-margin-bottom="9"');
     expect(html).not.toContain('data-margin-bottom="5"');

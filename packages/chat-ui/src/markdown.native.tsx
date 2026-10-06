@@ -1,13 +1,17 @@
-import { type ColorTokens, darkTokens, type ResolvedAppearance } from "@rakazo/ui-tokens";
+import type { ColorTokens, ResolvedAppearance } from "@rakazo/ui-tokens";
+import { darkTokens } from "@rakazo/ui-tokens";
+import type {
+  ASTNode,
+  MarkdownStyleMap,
+  RenderRules,
+} from "@ronradtke/react-native-markdown-display";
 import Markdown, {
-  type ASTNode,
   createMarkdownIt,
   FitImage,
   MarkdownStream,
-  type MarkdownStyleMap,
-  type RenderRules,
 } from "@ronradtke/react-native-markdown-display";
-import { createContext, memo, type ReactNode, useContext, useMemo, useState } from "react";
+import type { ReactNode } from "react";
+import { createContext, memo, useContext, useMemo, useState } from "react";
 import type { StyleProp, ViewStyle } from "react-native";
 import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { ChatMarkdownProps } from "./markdown";
@@ -104,6 +108,7 @@ function markdownStyles(palette: ColorTokens) {
     blockquote: {
       backgroundColor: "transparent",
       borderLeftColor: palette.mutedForeground,
+      gap: BLOCK_GAP,
     },
     table: {
       borderColor: palette.mutedForeground,
