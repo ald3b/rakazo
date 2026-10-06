@@ -116,6 +116,7 @@ import { type MobileArtifactTarget, openMobileArtifact } from "../lib/artifact-o
 import { nextAutoSpeakAction } from "../lib/auto-speak";
 import { confirmDeleteBot } from "../lib/bot-lifecycle";
 import { setCallProviderTranscribe, startCall, useCallSession } from "../lib/call-session";
+import { transparentColor } from "../lib/color";
 import { loadDeviceVoiceEnabled } from "../lib/device-voice";
 import { available as dictationAvailable } from "../lib/dictation";
 import { cancelFocusPrompt, focusPromptThreadActive } from "../lib/focus-prompt";
@@ -289,6 +290,7 @@ export default function ThreadRoute() {
 function Thread() {
   const colorScheme = useResolvedAppearance();
   const tokens = mobileTokens();
+  const transparentBackground = transparentColor(tokens.background);
   const [botActionsOpen, setBotActionsOpen] = useState(false);
   const { t } = useI18n();
   const navigation = useNavigation();
@@ -475,6 +477,7 @@ function Thread() {
       : [];
   const currentBot = botId ? mentionBots.find((bot) => bot.id === botId) : undefined;
   const displayName = currentBot?.name ?? name;
+  const composerPrompt = displayName ? t("Message {name}", { name: displayName }) : t("Message…");
   const notificationThreadId = snap?.threadId ?? requestedThreadId ?? currentBot?.threadId;
   activeThreadId.current = notificationThreadId;
   const currentBotStatus = snap ? snap.run?.status : currentBot?.status;
@@ -1930,7 +1933,7 @@ function Thread() {
           left: 0,
           right: 0,
           height: headerHeight + 24,
-          experimental_backgroundImage: `linear-gradient(to bottom, ${tokens.background} 0%, ${tokens.background} 58%, ${tokens.background}00 100%)`,
+          experimental_backgroundImage: `linear-gradient(to bottom, ${tokens.background} 0%, ${tokens.background} 58%, ${transparentBackground} 100%)`,
         }}
       />
       <View style={{ paddingBottom: keyboardVisible ? 12 : Math.max(insets.bottom + 12, 24) }}>
@@ -1943,7 +1946,7 @@ function Thread() {
             left: -20,
             right: -20,
             height: 24,
-            experimental_backgroundImage: `linear-gradient(to top, ${tokens.background} 0%, ${tokens.background}00 100%)`,
+            experimental_backgroundImage: `linear-gradient(to top, ${tokens.background} 0%, ${transparentBackground} 100%)`,
           }}
         />
         {replyTarget ? (
@@ -2290,15 +2293,13 @@ function Thread() {
                       color: tokens.mutedForeground,
                     }}
                   >
-                    {displayName ? t("Message {name}", { name: displayName }) : t("Message…")}
+                    {composerPrompt}
                   </Text>
                 ) : null}
                 <TextInput
                   value={draft}
                   onChangeText={updateDraft}
-                  accessibilityLabel={
-                    displayName ? t("Message {name}", { name: displayName }) : t("Message")
-                  }
+                  accessibilityLabel={composerPrompt}
                   onKeyPress={(event) => {
                     if (
                       event.nativeEvent.key === "Backspace" &&
@@ -2326,6 +2327,7 @@ function Thread() {
             </View>
             {!canSend && botId && !onCall ? (
               <Pressable
+                accessibilityRole="button"
                 accessibilityLabel={t("Call")}
                 hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
                 onPress={() => void startVoiceCall()}
@@ -2340,6 +2342,7 @@ function Thread() {
               </Pressable>
             ) : (
               <Pressable
+                accessibilityRole="button"
                 accessibilityLabel={t("Send")}
                 disabled={sending || !canSend}
                 hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
