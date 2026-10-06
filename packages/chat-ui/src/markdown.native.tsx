@@ -97,18 +97,33 @@ function markdownStyles(palette: ColorTokens) {
     fence_code: {
       backgroundColor: palette.background,
     },
+    // Bot bubbles are filled with `muted`, which `border` matches in light mode,
+    // so rules drawn inside a message use the muted foreground to stay visible.
     blockquote: {
       backgroundColor: "transparent",
-      borderLeftColor: palette.border,
+      borderLeftColor: palette.mutedForeground,
     },
     table: {
-      borderColor: palette.border,
+      borderColor: palette.mutedForeground,
+      borderWidth: StyleSheet.hairlineWidth,
     },
     tr: {
-      borderColor: palette.border,
+      borderColor: palette.mutedForeground,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+    },
+    // A definite width keeps each cell's flex basis independent of its text when
+    // the horizontal scroll view measures rows, so every row splits its width
+    // into equal columns and cells line up under their headers.
+    th: {
+      width: TABLE_MIN_COLUMN_WIDTH,
+      fontWeight: "600",
+    },
+    td: {
+      width: TABLE_MIN_COLUMN_WIDTH,
     },
     hr: {
-      backgroundColor: palette.border,
+      backgroundColor: palette.mutedForeground,
+      height: StyleSheet.hairlineWidth,
     },
     bullet_list_content: {
       flex: 1,

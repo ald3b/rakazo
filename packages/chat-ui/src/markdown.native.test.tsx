@@ -11,7 +11,8 @@ const linking = vi.hoisted(() => ({
 
 // react-native ships uncompiled Flow source that node cannot load, so tests mock
 // its component surface as marker elements that expose the layout props the
-// render rules set (horizontal scrolling, per-row minimum width).
+// render rules set (horizontal scrolling, per-row minimum width, cell width) and
+// the colors of rules drawn inside a message.
 vi.mock("react-native", async () => {
   const { createElement } = await import("react");
 
@@ -52,9 +53,15 @@ vi.mock("react-native", async () => {
     };
 
   return {
-    View: mockComponent("rn-view", ["minWidth"]),
-    Text: mockComponent("rn-text", ["accessibilityRole", "textDecorationLine"]),
-    ScrollView: mockComponent("rn-scroll-view", ["horizontal"]),
+    View: mockComponent("rn-view", [
+      "minWidth",
+      "width",
+      "borderColor",
+      "borderLeftColor",
+      "backgroundColor",
+    ]),
+    Text: mockComponent("rn-text", ["accessibilityRole", "textDecorationLine", "fontWeight"]),
+    ScrollView: mockComponent("rn-scroll-view", ["horizontal", "borderColor"]),
     Pressable: mockComponent("rn-pressable", ["accessibilityRole", "borderBottomWidth"]),
     TextInput: mockComponent("rn-text-input"),
     Image: mockComponent("rn-image"),
@@ -83,7 +90,7 @@ vi.mock("react-native", async () => {
   };
 });
 
-import { darkTokens } from "@rakazo/ui-tokens";
+import { darkTokens, lightTokens } from "@rakazo/ui-tokens";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { Pressable } from "react-native";
@@ -123,6 +130,36 @@ describe("native markdown tables", () => {
     expect(html).toContain('data-text-decoration-line="underline"');
     expect(html).toContain("docs");
   });
+
+  it("gives every header and body cell the same width so columns line up", () => {
+    // Content-sized cells drift between rows; a fixed basis splits each row evenly.
+    const html = renderToStaticMarkup(<ChatMarkdown>{THREE_COLUMN_TABLE}</ChatMarkdown>);
+    expect(html.match(/data-width="96"/g)).toHaveLength(9);
+    expect(html.match(/data-font-weight="600"/g)).toHaveLength(3);
+  });
+
+  it.each([
+    ["light", lightTokens],
+    ["dark", darkTokens],
+  ] as const)(
+    "draws table, quote and divider rules that show on the %s bot bubble",
+    (scheme, palette) => {
+      const html = renderToStaticMarkup(
+        <ChatMarkdown palette={palette} colorScheme={scheme}>
+          {`${THREE_COLUMN_TABLE}\n\n> A quote\n\n---`}
+        </ChatMarkdown>,
+      );
+      const rule = palette.mutedForeground;
+      expect(html).toMatch(new RegExp(`<rn-scroll-view[^>]*data-border-color="${rule}"`));
+      const rows = html.match(new RegExp(`<rn-view[^>]*data-border-color="${rule}"`, "g"));
+      expect(rows).toHaveLength(3);
+      expect(html).toContain(`data-border-left-color="${rule}"`);
+      expect(html).toContain(`data-background-color="${rule}"`);
+      // The bubble is filled with `muted`; a rule in that color is invisible.
+      expect(html).not.toContain(`data-border-color="${palette.muted}"`);
+      expect(html).not.toContain(`data-border-left-color="${palette.muted}"`);
+    },
+  );
 
   it("applies the same table layout while streaming", () => {
     const html = renderToStaticMarkup(<ChatMarkdown streaming>{SIX_COLUMN_TABLE}</ChatMarkdown>);
