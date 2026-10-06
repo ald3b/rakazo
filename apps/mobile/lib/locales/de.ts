@@ -165,6 +165,7 @@ export const DE_MESSAGES: Record<string, string> = {
   "Skill {name}": "Skill {name}",
   "Skipped {items}": "{items} übersprungen",
   "Speak message": "Nachricht vorlesen",
+  "Select text": "Text auswählen",
   "All bots": "Alle Bots",
   Artifact: "Artefakt",
   Artifacts: "Artefakte",
@@ -414,6 +415,8 @@ export const DE_MESSAGES: Record<string, string> = {
   "{count} tools": "{count} Tools",
   // app/integration-setup.tsx
   "API key": "API-Schlüssel",
+  "Account ID": "Konto-ID",
+  "Gateway ID": "Gateway-ID",
   "Ask the server owner to configure this provider.":
     "Der Serverbetreiber muss diesen Anbieter einrichten.",
   "Client ID": "Client-ID",
