@@ -168,9 +168,7 @@ describe("native markdown tables", () => {
       expect(rows).toHaveLength(3);
       expect(html).toContain(`data-border-left-color="${rule}"`);
       expect(html).toMatch(
-        new RegExp(
-          `<rn-view[^>]*data-background-color="${rule}"[^>]*data-height="${hairline}"`,
-        ),
+        new RegExp(`<rn-view[^>]*data-background-color="${rule}"[^>]*data-height="${hairline}"`),
       );
       // The bubble is filled with `muted`; a rule in that color is invisible.
       expect(html).not.toContain(`data-border-color="${palette.muted}"`);
