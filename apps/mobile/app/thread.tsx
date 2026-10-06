@@ -1017,6 +1017,7 @@ function Thread() {
     } finally {
       loadingNewerContent.current = false;
       setLoadingNewer(false);
+      loadNewerNearEnd();
     }
   }
 
