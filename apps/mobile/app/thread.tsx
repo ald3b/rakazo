@@ -21,6 +21,7 @@ import {
   cloudAgentHttpsUrl,
   formatFileSize,
   formatMessageTime,
+  forwardProbeAfterPage,
   groupVoiceChats,
   isApprovalAskBlock,
   isRunTerminalEvent,
@@ -982,34 +983,35 @@ function Thread() {
       );
       if (epoch !== historyEpoch.current || pinnedAroundRef.current !== pinned || !snapRef.current)
         return;
-      const covered =
-        page.coveredThroughSeq == null
-          ? pinned.coveredThroughSeq
-          : Math.max(pinned.coveredThroughSeq ?? page.coveredThroughSeq, page.coveredThroughSeq);
+      const reported = page.coveredThroughSeq ?? null;
+      const carried =
+        reported == null ? undefined : Math.max(pinned.coveredThroughSeq ?? reported, reported);
       const next = appendNewerThreadPage(
         snapRef.current,
         pinned.newerCursor,
         page,
-        covered ?? null,
+        reported == null ? null : carried,
       );
-      const advanced = next.newerCursor !== pinned.newerCursor;
-      let probeSeq: number | undefined;
-      if (next.newerCursor != null) {
-        const nextProbe = covered != null ? covered + 1 : advanced ? next.newerCursor + 1 : probe;
-        if (!advanced && nextProbe <= probe) newerLoadFailed.current = true;
-        else probeSeq = nextProbe;
-      }
+      const step = forwardProbeAfterPage({
+        probe,
+        newerCursor: pinned.newerCursor,
+        nextCursor: next.newerCursor,
+        reportedCoverage: reported,
+        carriedCoverage: pinned.coveredThroughSeq,
+      });
+      if (step.stalled) newerLoadFailed.current = true;
       pinnedAroundRef.current = {
         ...pinned,
         newerCursor: next.newerCursor,
-        coveredThroughSeq: covered,
-        probeSeq,
+        coveredThroughSeq: step.coverage,
+        probeSeq: step.probe,
       };
       commitSnap(next.snapshot);
       if (next.newerCursor == null) {
         joinPinnedAfterLayout.current = pinnedScrollMetrics.current.content;
       }
     } catch (err) {
+      if (epoch !== historyEpoch.current || pinnedAroundRef.current !== pinned) return;
       newerLoadFailed.current = true;
       setError(err instanceof Error ? err.message : t("Could not open message"));
     } finally {

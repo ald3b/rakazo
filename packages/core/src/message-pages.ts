@@ -58,6 +58,29 @@ export function openThreadWindow<
   };
 }
 
+export function forwardProbeAfterPage(input: {
+  probe: number;
+  newerCursor: number;
+  nextCursor: number | null;
+  reportedCoverage: number | null;
+  carriedCoverage?: number;
+}): { probe?: number; coverage?: number; stalled: boolean } {
+  const coverage =
+    input.reportedCoverage == null
+      ? undefined
+      : Math.max(input.carriedCoverage ?? input.reportedCoverage, input.reportedCoverage);
+  if (input.nextCursor == null) return { coverage, stalled: false };
+  const advanced = input.nextCursor !== input.newerCursor;
+  const nextProbe =
+    input.reportedCoverage != null && coverage != null
+      ? coverage + 1
+      : advanced
+        ? input.nextCursor + 1
+        : input.probe;
+  if (!advanced && nextProbe <= input.probe) return { coverage, stalled: true };
+  return { probe: nextProbe, coverage, stalled: false };
+}
+
 /** Add the next around page. `coveredThroughSeq` is the highest seq that page read. */
 export function appendNewerThreadPage<
   TMessage extends MessageIdentity,

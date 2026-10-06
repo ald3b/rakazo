@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   appendNewerThreadPage,
+  forwardProbeAfterPage,
   leaveThreadWindow,
   openThreadWindow,
   prependThreadHistoryPage,
@@ -114,6 +115,25 @@ describe("thread windows", () => {
     expect(ids(threadWindowMessages(next.snapshot.messages, next.newerCursor))).toEqual(
       ids(range(25, 124)),
     );
+  });
+
+  it("moves the probe from cursor progress when the next page omits coverage", () => {
+    const first = forwardProbeAfterPage({
+      probe: 125,
+      newerCursor: 124,
+      nextCursor: 124,
+      reportedCoverage: 140,
+    });
+    expect(first).toEqual({ probe: 141, coverage: 140, stalled: false });
+
+    const second = forwardProbeAfterPage({
+      probe: first.probe!,
+      newerCursor: 124,
+      nextCursor: 160,
+      reportedCoverage: null,
+      carriedCoverage: first.coverage,
+    });
+    expect(second).toEqual({ probe: 161, stalled: false });
   });
 
   it("joins once coverage reaches the latest snapshot, hidden rows included", () => {
