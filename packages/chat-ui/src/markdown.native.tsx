@@ -8,15 +8,18 @@ import Markdown, {
   type RenderRules,
 } from "@ronradtke/react-native-markdown-display";
 import type { ReactNode } from "react";
-import { memo, useMemo, useState } from "react";
+import { memo, useContext, useMemo, useState } from "react";
 import type { StyleProp, TextStyle, ViewStyle } from "react-native";
 import { Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import type { ChatMarkdownProps } from "./markdown";
 import {
   inlineMarkdownImageSrc,
   linkifyExplicitUrls,
+  markRemoteImageLoaded,
   plainTextLinkParts,
-  sanitizeMarkdownImageUrl,
+  RemoteImagesContext,
+  remoteImageLoaded,
+  remoteMarkdownImage,
   sanitizeMarkdownUrl,
 } from "./markdown";
 
@@ -109,6 +112,42 @@ function markdownStyles(palette: ColorTokens) {
     },
     hr: {
       backgroundColor: palette.border,
+    },
+    // Custom keys. An image label outside a text node inherits no color, so it carries the body color.
+    plain_text: {
+      color: palette.foreground,
+    },
+    // The tap-to-load placeholder for a remote image: a filled, bordered chip that reads as a
+    // control on the muted bot bubble in both themes.
+    image_placeholder: {
+      flexDirection: "row",
+      alignItems: "center",
+      alignSelf: "flex-start",
+      gap: 6,
+      minHeight: 32,
+      maxWidth: "100%",
+      paddingHorizontal: 10,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: palette.border,
+      backgroundColor: palette.background,
+    },
+    image_placeholder_icon: {
+      width: 14,
+      height: 11,
+      borderWidth: 1.5,
+      borderRadius: 2,
+      borderColor: palette.mutedForeground,
+    },
+    image_placeholder_alt: {
+      flexShrink: 1,
+      color: palette.foreground,
+      fontSize: 14,
+    },
+    image_placeholder_host: {
+      flexShrink: 1,
+      color: palette.mutedForeground,
+      fontSize: 13,
     },
   });
 }
@@ -287,37 +326,89 @@ const renderRules: RenderRules = {
         />
       );
     }
-    const label = alt || src;
-    const href = sanitizeMarkdownImageUrl(src);
     const linkParent = enclosingLink(parents);
     // Inside a link the label joins the link text, so a badge still opens its link target.
-    // A blocklink wraps a view, so the label carries the link style itself.
-    if (linkParent) {
-      if (!sanitizeMarkdownUrl(linkParent.attributes.href ?? "")) {
-        return <Text key={node.key}>{label}</Text>;
-      }
+    // A blocklink wraps a view, so the label carries the link style itself when it opens.
+    const labelStyle =
+      linkParent && sanitizeMarkdownUrl(linkParent.attributes.href ?? "")
+        ? styleMap.link
+        : styleMap.plain_text;
+    const remote = remoteMarkdownImage(src);
+    if (remote) {
       return (
-        <Text key={node.key} style={styleMap.link}>
-          {label}
-        </Text>
+        <RemoteMarkdownImage
+          key={node.key}
+          image={remote}
+          alt={alt}
+          title={node.attributes.title}
+          insideLink={Boolean(linkParent)}
+          labelStyle={labelStyle}
+          styleMap={styleMap}
+        />
       );
     }
-    if (!href) return <Text key={node.key}>{label}</Text>;
     return (
-      <Text
-        accessibilityRole="link"
-        accessibilityHint={node.attributes.title}
-        key={node.key}
-        style={styleMap.link}
-        onPress={() => {
-          void openSafeLink(href);
-        }}
-      >
-        {label}
+      <Text key={node.key} style={labelStyle}>
+        {alt || src}
       </Text>
     );
   },
 };
+
+function RemoteMarkdownImage({
+  image,
+  alt,
+  title,
+  insideLink,
+  labelStyle,
+  styleMap,
+}: {
+  image: { href: string; host: string };
+  alt?: string;
+  title?: string;
+  insideLink: boolean;
+  labelStyle: MarkdownStyleMap[string] | undefined;
+  styleMap: MarkdownStyleMap;
+}) {
+  const loadRemote = useContext(RemoteImagesContext);
+  const [loaded, setLoaded] = useState(() => remoteImageLoaded(image.href));
+  if (loadRemote || loaded) {
+    return (
+      <FitImage
+        indicator
+        style={styleMap._VIEW_SAFE_image}
+        source={{ uri: image.href }}
+        accessible={Boolean(alt)}
+        accessibilityLabel={alt}
+      />
+    );
+  }
+  if (insideLink) return <Text style={labelStyle}>{alt || image.host}</Text>;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={alt ? `${alt}, ${image.host}` : image.host}
+      accessibilityHint={title}
+      // A 32pt chip with 6pt slop on each side keeps the 44pt touch target.
+      hitSlop={6}
+      onPress={() => {
+        markRemoteImageLoaded(image.href);
+        setLoaded(true);
+      }}
+      style={styleMap.image_placeholder}
+    >
+      <View style={styleMap.image_placeholder_icon} />
+      {alt ? (
+        <Text numberOfLines={1} style={styleMap.image_placeholder_alt}>
+          {alt}
+        </Text>
+      ) : null}
+      <Text numberOfLines={1} style={styleMap.image_placeholder_host}>
+        {image.host}
+      </Text>
+    </Pressable>
+  );
+}
 
 type LinkifiedTextProps = {
   children: string;
@@ -398,3 +489,4 @@ const layout = StyleSheet.create({
 });
 
 export type { ChatMarkdownProps } from "./markdown";
+export { RemoteImagesContext } from "./markdown";

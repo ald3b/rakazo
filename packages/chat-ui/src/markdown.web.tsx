@@ -5,13 +5,16 @@ import type { HastNode } from "./table-utils";
 import "./markdown.web.css";
 import "./markdown-table.css";
 import { droppedTableHtmlText } from "@rakazo/contracts";
-import { CheckIcon, CopyIcon } from "./icons";
+import { CheckIcon, CopyIcon, ImageIcon } from "./icons";
 import type { ChatMarkdownProps } from "./markdown";
 import {
   closeUnterminatedFence,
   inlineMarkdownImageSrc,
+  markRemoteImageLoaded,
   plainTextLinkParts,
-  sanitizeMarkdownImageUrl,
+  RemoteImagesContext,
+  remoteImageLoaded,
+  remoteMarkdownImage,
   sanitizeMarkdownUrl,
 } from "./markdown";
 import { MarkdownTable, MarkdownTableSourceContext } from "./markdown-table";
@@ -71,17 +74,40 @@ const InsideLinkContext = createContext(false);
 
 function MarkdownImage({ src = "", alt, title }: { src?: string; alt?: string; title?: string }) {
   const insideLink = useContext(InsideLinkContext);
+  const loadRemote = useContext(RemoteImagesContext);
+  const remote = remoteMarkdownImage(src);
+  const [loaded, setLoaded] = useState(() => (remote ? remoteImageLoaded(remote.href) : false));
   if (inlineMarkdownImageSrc(src)) {
     return <img src={src} alt={alt ?? ""} title={title} loading="lazy" />;
   }
-  const label = alt || src;
-  const href = sanitizeMarkdownImageUrl(src);
-  // Inside a link the label joins the link text, so a badge still opens its link target.
-  if (!href || insideLink) return label;
+  if (remote && (loadRemote || loaded)) {
+    return (
+      <img
+        src={remote.href}
+        alt={alt ?? ""}
+        title={title}
+        loading="lazy"
+        referrerPolicy="no-referrer"
+      />
+    );
+  }
+  // Inside a link, even a rejected one, the label joins the link text, so a tap follows the
+  // link instead of loading the image.
+  if (!remote || insideLink) return alt || remote?.host || src;
   return (
-    <a href={href} title={title} target="_blank" rel="noreferrer noopener">
-      {label}
-    </a>
+    <button
+      type="button"
+      className="rk-chat-markdown-image"
+      title={title}
+      onClick={() => {
+        markRemoteImageLoaded(remote.href);
+        setLoaded(true);
+      }}
+    >
+      <ImageIcon />
+      {alt ? <span>{alt}</span> : null}
+      <span className="rk-chat-markdown-image-host">{remote.host}</span>
+    </button>
   );
 }
 
@@ -158,3 +184,4 @@ export const ChatMarkdown = memo(function ChatMarkdown({
 });
 
 export type { ChatMarkdownProps } from "./markdown";
+export { RemoteImagesContext } from "./markdown";
