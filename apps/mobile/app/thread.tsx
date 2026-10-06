@@ -138,7 +138,7 @@ import {
   quotableMessageSegments,
   truncateQuoteExcerpt,
 } from "../lib/message-presentation";
-import { native, useMobileTokens, useResolvedAppearance } from "../lib/native";
+import { native, useMobileTokens, useResolvedAppearance, useThemedStyles } from "../lib/native";
 import {
   threadRouteSpaceOnFocus,
   threadSpaceRequest,
@@ -290,10 +290,50 @@ export default function ThreadRoute() {
   );
 }
 
+function createThreadHeaderStyles() {
+  const tokens = mobileTokens();
+  const transparentBackground = transparentColor(tokens.background);
+  return StyleSheet.create({
+    titleCapsule: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      maxWidth: 220,
+      paddingVertical: 4,
+      paddingStart: 6,
+      paddingEnd: 14,
+      borderRadius: 999,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: tokens.border,
+      backgroundColor: tokens.card,
+    },
+    title: {
+      color: tokens.foreground,
+      fontSize: 18,
+      fontWeight: "600",
+    },
+    headerFade: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      experimental_backgroundImage: `linear-gradient(to bottom, ${tokens.background} 0%, ${tokens.background} 58%, ${transparentBackground} 100%)`,
+    },
+    composerFade: {
+      position: "absolute",
+      bottom: "100%",
+      left: -20,
+      right: -20,
+      height: 24,
+      experimental_backgroundImage: `linear-gradient(to top, ${tokens.background} 0%, ${transparentBackground} 100%)`,
+    },
+  });
+}
+
 function Thread() {
   const colorScheme = useResolvedAppearance();
   const tokens = mobileTokens();
-  const transparentBackground = transparentColor(tokens.background);
+  const styles = useThemedStyles(createThreadHeaderStyles);
   const [botActionsOpen, setBotActionsOpen] = useState(false);
   const { t } = useI18n();
   const navigation = useNavigation();
@@ -657,19 +697,7 @@ function Thread() {
             if (!botId || inGroup) return;
             router.push({ pathname: "/bot-settings", params: { botId } });
           }}
-          style={{
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 10,
-            maxWidth: 220,
-            paddingVertical: 4,
-            paddingStart: 6,
-            paddingEnd: 14,
-            borderRadius: 999,
-            borderWidth: StyleSheet.hairlineWidth,
-            borderColor: tokens.border,
-            backgroundColor: tokens.card,
-          }}
+          style={styles.titleCapsule}
         >
           {!inGroup && currentBot ? (
             <BotAvatar
@@ -680,10 +708,7 @@ function Thread() {
               muted={!currentBot.notifyOnFinish}
             />
           ) : null}
-          <Text
-            numberOfLines={1}
-            style={{ color: tokens.foreground, fontSize: 18, fontWeight: "600" }}
-          >
+          <Text numberOfLines={1} style={styles.title}>
             {displayName || t("Thread")}
           </Text>
         </Pressable>
@@ -736,6 +761,7 @@ function Thread() {
     t,
     tokens,
     colorScheme,
+    styles,
   ]);
 
   function leaveBot() {
@@ -1942,30 +1968,10 @@ function Thread() {
         ) : null}
       </View>
       {/* Fades messages out under the transparent header; the alpha stop keeps the page hue. */}
-      <View
-        pointerEvents="none"
-        style={{
-          position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
-          height: headerHeight + 24,
-          experimental_backgroundImage: `linear-gradient(to bottom, ${tokens.background} 0%, ${tokens.background} 58%, ${transparentBackground} 100%)`,
-        }}
-      />
+      <View pointerEvents="none" style={[styles.headerFade, { height: headerHeight + 24 }]} />
       <View style={{ paddingBottom: keyboardVisible ? 12 : Math.max(insets.bottom + 12, 24) }}>
         {/* Fades messages out above the composer, like the header fade. */}
-        <View
-          pointerEvents="none"
-          style={{
-            position: "absolute",
-            bottom: "100%",
-            left: -20,
-            right: -20,
-            height: 24,
-            experimental_backgroundImage: `linear-gradient(to top, ${tokens.background} 0%, ${transparentBackground} 100%)`,
-          }}
-        />
+        <View pointerEvents="none" style={styles.composerFade} />
         {replyTarget ? (
           <View
             style={{
