@@ -56,12 +56,17 @@ vi.mock("react-native", async () => {
     View: mockComponent("rn-view", [
       "minWidth",
       "width",
+      "maxWidth",
       "borderColor",
       "borderLeftColor",
       "backgroundColor",
       "borderWidth",
       "borderBottomWidth",
       "height",
+      "gap",
+      "marginTop",
+      "marginBottom",
+      "flexShrink",
     ]),
     Text: mockComponent("rn-text", ["accessibilityRole", "textDecorationLine", "fontWeight"]),
     ScrollView: mockComponent("rn-scroll-view", ["horizontal", "borderColor", "borderWidth"]),
@@ -108,6 +113,14 @@ const SIX_COLUMN_TABLE = `| A | B | C | D | E | F |
 | --- | --- | --- | --- | --- | --- |
 | 1 | 2 | 3 | 4 | 5 | 6 |`;
 
+const CONTENT_SIZED_TABLE = `| ID | City | Notes |
+| --- | --- | --- |
+| AL | Montgomery | This note is long enough to wrap inside the column instead of stretching the table without limit and turning the notes into a one letter strip. |`;
+
+function numericWidths(html: string) {
+  return [...html.matchAll(/data-width="(\d+(?:\.\d+)?)"/g)].map((match) => Number(match[1]));
+}
+
 describe("native markdown tables", () => {
   it("wraps the table in a horizontal scroll view", () => {
     const html = renderToStaticMarkup(<ChatMarkdown>{THREE_COLUMN_TABLE}</ChatMarkdown>);
@@ -115,14 +128,17 @@ describe("native markdown tables", () => {
     expect(html).toContain('data-horizontal="true"');
   });
 
-  it("sizes each row from its cell count so wide tables scroll instead of collapsing", () => {
-    // Rows get a minimum width of TABLE_MIN_COLUMN_WIDTH (96) per cell.
-    const narrow = renderToStaticMarkup(<ChatMarkdown>{THREE_COLUMN_TABLE}</ChatMarkdown>);
-    expect(narrow).toContain('data-min-width="288"');
-    expect(narrow).not.toContain('data-min-width="576"');
-
-    const wide = renderToStaticMarkup(<ChatMarkdown>{SIX_COLUMN_TABLE}</ChatMarkdown>);
-    expect(wide).toContain('data-min-width="576"');
+  it("sizes each row from its columns so wide tables scroll instead of collapsing", () => {
+    const narrow = numericWidths(
+      renderToStaticMarkup(<ChatMarkdown>{THREE_COLUMN_TABLE}</ChatMarkdown>),
+    );
+    const wide = numericWidths(
+      renderToStaticMarkup(<ChatMarkdown>{SIX_COLUMN_TABLE}</ChatMarkdown>),
+    );
+    const narrowRow = narrow[0] ?? 0;
+    const wideRow = wide[0] ?? 0;
+    expect(wideRow).toBeGreaterThan(narrowRow);
+    expect(wideRow).toBeGreaterThan(0);
   });
 
   it("renders cell text and keeps inline links tappable inside cells", () => {
@@ -134,11 +150,20 @@ describe("native markdown tables", () => {
     expect(html).toContain("docs");
   });
 
-  it("gives every header and body cell the same width so columns line up", () => {
-    // Content-sized cells drift between rows; a fixed basis splits each row evenly.
-    const html = renderToStaticMarkup(<ChatMarkdown>{THREE_COLUMN_TABLE}</ChatMarkdown>);
-    expect(html.match(/data-width="96"/g)).toHaveLength(9);
+  it("sizes columns to their content, keeps a column one width, and caps long text", () => {
+    const html = renderToStaticMarkup(<ChatMarkdown>{CONTENT_SIZED_TABLE}</ChatMarkdown>);
+    const widths = numericWidths(html);
+    // content, header row, three header cells, body row, three body cells
+    const header = widths.slice(2, 5);
+    const body = widths.slice(6, 9);
+    expect(header).toEqual(body);
+    const [id, city, notes] = header;
+    expect(id).toBeLessThan(city ?? 0);
+    expect(city).toBeGreaterThan(96);
+    expect(city).toBeLessThan(notes ?? 0);
+    expect(notes).toBeLessThan(400);
     expect(html.match(/data-font-weight="600"/g)).toHaveLength(3);
+    expect(html).toContain('data-flex-shrink="0"');
   });
 
   it.each([
@@ -179,7 +204,38 @@ describe("native markdown tables", () => {
   it("applies the same table layout while streaming", () => {
     const html = renderToStaticMarkup(<ChatMarkdown streaming>{SIX_COLUMN_TABLE}</ChatMarkdown>);
     expect(html).toContain("<rn-scroll-view");
-    expect(html).toContain('data-min-width="576"');
+    expect(html).toContain('data-horizontal="true"');
+    const widths = numericWidths(html);
+    expect(widths[0]).toBeGreaterThan(0);
+  });
+
+  it("separates top-level blocks with one gap and no leading or trailing margin", () => {
+    const html = renderToStaticMarkup(
+      <ChatMarkdown>
+        {[
+          "## Rollout",
+          "",
+          "Intro paragraph.",
+          "",
+          "- One",
+          "- Two",
+          "",
+          CONTENT_SIZED_TABLE,
+          "",
+          "> A quote",
+          "",
+          "---",
+          "",
+          "Trailing paragraph.",
+        ].join("\n")}
+      </ChatMarkdown>,
+    );
+    expect(html).toContain('data-gap="10"');
+    expect(html).not.toContain('data-margin-top="10"');
+    expect(html).not.toContain('data-margin-bottom="9"');
+    expect(html).not.toContain('data-margin-bottom="5"');
+    expect(html).toContain('data-margin-top="0"');
+    expect(html).toContain('data-margin-bottom="0"');
   });
 });
 
