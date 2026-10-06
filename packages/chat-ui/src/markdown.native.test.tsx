@@ -212,19 +212,18 @@ describe("native markdown tables", () => {
     });
 
     const rows = () => tableRows(container.innerHTML);
-    const notesHeight = (row: ReturnType<typeof tableRows>[number]) => {
-      const html = container.innerHTML;
-      const document = new DOMParser().parseFromString(html, "text/html");
-      const view = [...document.querySelectorAll("rn-view[data-border-bottom-width]")].find(
-        (candidate) => Number(candidate.getAttribute("data-width")) === row.width,
+    const notesHeights = () =>
+      [
+        ...new DOMParser()
+          .parseFromString(container.innerHTML, "text/html")
+          .querySelectorAll("rn-view[data-border-bottom-width]"),
+      ].map(
+        (view) =>
+          view.querySelector("rn-view[data-max-width]:last-child")?.getAttribute("data-height") ??
+          null,
       );
-      const notes = view?.querySelector("rn-view[data-max-width]:last-child");
-      return notes?.getAttribute("data-height") ?? null;
-    };
-    for (const row of rows()) {
-      expect(row.cells.length).toBeGreaterThan(1);
-      expect(notesHeight(row)).toBe("33");
-    }
+    expect(rows()).toHaveLength(2);
+    expect(notesHeights()).toEqual(["33", "33"]);
 
     const notesStart = (rows()[0]?.cells ?? [])
       .slice(0, -1)
@@ -232,7 +231,7 @@ describe("native markdown tables", () => {
     await act(async () => {
       tableEvents.onScroll?.({ nativeEvent: { contentOffset: { x: notesStart } } });
     });
-    for (const row of rows()) expect(notesHeight(row)).toBeNull();
+    expect(notesHeights()).toEqual([null, null]);
 
     await act(async () => {
       root.unmount();
