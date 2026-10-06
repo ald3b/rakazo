@@ -2820,6 +2820,7 @@ const MessageBubble = memo(function MessageBubble({
   const [peerExpanded, setPeerExpanded] = useState(false);
   const artifactTarget: MobileArtifactTarget = groupId ? { groupId } : { botId };
   const cardBotId = message.botId ?? botId;
+  const computerBotId = message.botId ?? (groupId ? undefined : botId);
   const appConnectBlocks = message.blocks.filter(
     (block): block is Extract<MessageBlock, { kind: "app_connect" }> =>
       block.kind === "app_connect",
@@ -3443,7 +3444,9 @@ const MessageBubble = memo(function MessageBubble({
         <ComputerCard
           key={`computer-${index}`}
           block={block}
-          onOpen={() => onOpenComputer(cardBotId, speaker ?? t("Bot"))}
+          onOpen={
+            computerBotId ? () => onOpenComputer(computerBotId, speaker ?? t("Bot")) : undefined
+          }
           accessibilityActions={actionProps.accessibilityActions}
           onAccessibilityAction={actionProps.onAccessibilityAction}
         />

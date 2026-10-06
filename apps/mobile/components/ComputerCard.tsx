@@ -1,9 +1,41 @@
 import { ChatMarkdown } from "@rakazo/chat-ui/native";
 import type { MessageBlock } from "@rakazo/contracts";
 import type { ViewProps } from "react-native";
-import { Pressable, Text, useWindowDimensions, View } from "react-native";
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { useI18n } from "../lib/i18n";
 import { native, useMobileTokens, useResolvedAppearance } from "../lib/native";
+
+const THREAD_HORIZONTAL_PADDING = 20;
+const MESSAGE_COLUMN_RATIO = 0.9;
+const CARD_MAX_WIDTH = 340;
+
+/** Width of a normal bot row: thread padding, then the 90% column cap. */
+function computerCardWidth(windowWidth: number): number {
+  const contentWidth = Math.max(0, windowWidth - THREAD_HORIZONTAL_PADDING * 2);
+  return Math.min(CARD_MAX_WIDTH, Math.floor(contentWidth * MESSAGE_COLUMN_RATIO));
+}
+
+const styles = StyleSheet.create({
+  button: {
+    alignItems: "center",
+    alignSelf: "flex-start",
+    borderRadius: 999,
+    justifyContent: "center",
+    minHeight: 36,
+    paddingHorizontal: 14,
+  },
+  buttonLabel: { fontSize: 14, fontWeight: "600" },
+  card: {
+    borderRadius: 18,
+    borderWidth: 1,
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+  },
+  header: { flexDirection: "row", gap: 8, justifyContent: "space-between" },
+  state: { flexShrink: 1, fontSize: 13 },
+  title: { fontSize: 15, fontWeight: "600" },
+});
 
 export function ComputerCard({
   block,
@@ -12,44 +44,40 @@ export function ComputerCard({
   onAccessibilityAction,
 }: {
   block: Extract<MessageBlock, { kind: "computer" }>;
-  onOpen: () => void;
+  onOpen?: () => void;
   accessibilityActions?: ViewProps["accessibilityActions"];
   onAccessibilityAction?: ViewProps["onAccessibilityAction"];
 }) {
   const { t } = useI18n();
   const tokens = useMobileTokens();
   const colorScheme = useResolvedAppearance();
-  // Bot rows are content-sized, so a percentage width would shrink to the text.
   const { width: windowWidth } = useWindowDimensions();
 
   return (
     <View
       testID="computer-card"
-      style={{
-        width: Math.min(340, Math.round(windowWidth * 0.8)),
-        borderRadius: 18,
-        borderWidth: 1,
-        borderColor: tokens.border,
-        backgroundColor: tokens.card,
-        paddingHorizontal: 16,
-        paddingVertical: 14,
-        gap: 8,
-      }}
+      style={[
+        styles.card,
+        {
+          width: computerCardWidth(windowWidth),
+          borderColor: tokens.border,
+          backgroundColor: tokens.card,
+        },
+      ]}
     >
-      <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 8 }}>
+      <View style={styles.header}>
         <Text
           accessibilityActions={accessibilityActions}
           onAccessibilityAction={onAccessibilityAction}
-          style={{ color: tokens.foreground, fontSize: 15, fontWeight: "600" }}
+          style={[styles.title, { color: tokens.foreground }]}
         >
           {t("Computer")}
         </Text>
         <Text
-          style={{
-            color: block.state === "Needs you" ? tokens.warning : tokens.success,
-            flexShrink: 1,
-            fontSize: 13,
-          }}
+          style={[
+            styles.state,
+            { color: block.state === "Needs you" ? tokens.warning : tokens.success },
+          ]}
         >
           {block.state}
         </Text>
@@ -59,24 +87,16 @@ export function ComputerCard({
           {block.text}
         </ChatMarkdown>
       ) : null}
-      <Pressable
-        testID="computer-card-open"
-        accessibilityRole="button"
-        onPress={onOpen}
-        style={{
-          alignSelf: "flex-start",
-          minHeight: 36,
-          paddingHorizontal: 14,
-          borderRadius: 999,
-          backgroundColor: native.fillPressed,
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <Text style={{ color: native.label, fontSize: 14, fontWeight: "600" }}>
-          {t("Open computer")}
-        </Text>
-      </Pressable>
+      {onOpen ? (
+        <Pressable
+          testID="computer-card-open"
+          accessibilityRole="button"
+          onPress={onOpen}
+          style={[styles.button, { backgroundColor: native.fillPressed }]}
+        >
+          <Text style={[styles.buttonLabel, { color: native.label }]}>{t("Open computer")}</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
