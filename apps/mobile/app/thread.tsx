@@ -972,6 +972,7 @@ function Thread() {
     setLoadingNewer(true);
     const epoch = historyEpoch.current;
     const probe = pinned.probeSeq ?? pinned.newerCursor + 1;
+    let visibleUnchanged = false;
     try {
       // Pages come back centered on the seq, so the one after the cursor overlaps what is loaded.
       const page = await rpc<MobileMessagePage & { coveredThroughSeq?: number }>(
@@ -983,6 +984,10 @@ function Thread() {
       );
       if (epoch !== historyEpoch.current || pinnedAroundRef.current !== pinned || !snapRef.current)
         return;
+      const visibleBefore = threadWindowMessages(
+        snapRef.current.messages,
+        pinned.newerCursor,
+      ).length;
       const reported = page.coveredThroughSeq ?? null;
       const carried =
         reported == null ? undefined : Math.max(pinned.coveredThroughSeq ?? reported, reported);
@@ -1000,6 +1005,8 @@ function Thread() {
         carriedCoverage: pinned.coveredThroughSeq,
       });
       if (step.stalled) newerLoadFailed.current = true;
+      visibleUnchanged =
+        threadWindowMessages(next.snapshot.messages, next.newerCursor).length === visibleBefore;
       pinnedAroundRef.current = {
         ...pinned,
         newerCursor: next.newerCursor,
@@ -1017,7 +1024,7 @@ function Thread() {
     } finally {
       loadingNewerContent.current = false;
       setLoadingNewer(false);
-      loadNewerNearEnd();
+      if (visibleUnchanged) loadNewerNearEnd();
     }
   }
 
