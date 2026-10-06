@@ -88,6 +88,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppConnectCard } from "../components/AppConnectCard";
 import { AskActions } from "../components/AskActions";
 import { BotAvatar } from "../components/bot-avatar";
+import { ChoiceCard } from "../components/ChoiceCard";
 import type { ImageArtifactPreviewTarget } from "../components/image-artifact-viewer";
 import { InlineImageAttachment } from "../components/inline-image-attachment";
 import { McpApprovalCard } from "../components/McpApprovalCard";
@@ -3586,6 +3587,9 @@ const MessageBubble = memo(function MessageBubble({
     message.role === "bot" ? speakerColorFor(bots, members, message.botId) : undefined;
   const firstContent = segments.findIndex((segment) => segment.kind === "content");
   const lastContent = segments.map((segment) => segment.kind).lastIndexOf("content");
+  const choiceBlocks = message.blocks.filter(
+    (block): block is Extract<MessageBlock, { kind: "choice" }> => block.kind === "choice",
+  );
   return (
     <View style={{ gap: 8, width: "100%" }}>
       {segments.map((segment, index) => (
@@ -3597,6 +3601,15 @@ const MessageBubble = memo(function MessageBubble({
           replyPreview={index === firstContent ? replyPreview : undefined}
           onPlay={message.role === "bot" && index === lastContent ? onPlay : undefined}
           actionProps={actionProps}
+        />
+      ))}
+      {choiceBlocks.map((block, index) => (
+        <ChoiceCard
+          key={`choice-${index}`}
+          botId={cardBotId}
+          block={block}
+          accessibilityActions={actionProps.accessibilityActions}
+          onAccessibilityAction={actionProps.onAccessibilityAction}
         />
       ))}
       {appConnectBlocks.map((block, index) => (

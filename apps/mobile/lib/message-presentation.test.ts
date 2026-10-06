@@ -2,10 +2,13 @@ import type { MessageBlock } from "@rakazo/contracts";
 import { REPLY_QUOTE_MAX_LENGTH } from "@rakazo/contracts";
 import { describe, expect, it } from "vitest";
 import {
+  choiceCardOptions,
+  DISMISSED_CHOICE_ANSWER_ID,
   hasVisibleMessagePresentation,
   isCenteredAgentEvent,
   messagePresentationSegments,
   quotableMessageSegments,
+  threadCardWidth,
   truncateQuoteExcerpt,
 } from "./message-presentation";
 
@@ -103,6 +106,41 @@ describe("mobile message presentation", () => {
         { kind: "text", text: "Done." },
       ]),
     ).toEqual([{ kind: "content", blocks: [{ kind: "text", text: "Done." }] }]);
+  });
+
+  const choice: Extract<MessageBlock, { kind: "choice" }> = {
+    kind: "choice",
+    question: "What do you want me on first?",
+    options: [
+      { id: "day", letter: "A", label: "Day-to-day work" },
+      { id: "inbox", letter: "B", label: "Inbox & email" },
+    ],
+  };
+
+  it("keeps the choice card out of the text bubble", () => {
+    expect(messagePresentationSegments([choice])).toEqual([]);
+    expect(hasVisibleMessagePresentation([choice])).toBe(true);
+    expect(messagePresentationSegments([{ kind: "text", text: "Pick one." }, choice])).toEqual([
+      { kind: "content", blocks: [{ kind: "text", text: "Pick one." }] },
+    ]);
+  });
+
+  it("lists every choice option until one is picked, then only that one", () => {
+    expect(choiceCardOptions(choice)).toEqual(choice.options);
+    expect(choiceCardOptions({ ...choice, answerId: "inbox" })).toEqual([
+      { id: "inbox", letter: "B", label: "Inbox & email" },
+    ]);
+  });
+
+  it("hides a dismissed choice card", () => {
+    const dismissed = { ...choice, answerId: DISMISSED_CHOICE_ANSWER_ID };
+    expect(choiceCardOptions(dismissed)).toEqual([]);
+    expect(hasVisibleMessagePresentation([dismissed])).toBe(false);
+  });
+
+  it("sizes thread cards to the bot row, capped on wide screens", () => {
+    expect(threadCardWidth(393)).toBe(317);
+    expect(threadCardWidth(1024)).toBe(340);
   });
 });
 
