@@ -35,6 +35,115 @@ export function prependThreadHistoryPage<
   };
 }
 
+export interface ThreadWindow<TSnapshot> {
+  snapshot: TSnapshot;
+  /**
+   * Newest seq read contiguously from the opened page. Newer messages in the snapshot come from
+   * the latest page or live events and stay hidden (threadWindowMessages) until paging forward
+   * reaches them, so the transcript never shows a gap. null: history runs through to the latest.
+   */
+  newerCursor: number | null;
+}
+
+/** Open a thread at an older page while keeping the latest page and live events beside it. */
+export function openThreadWindow<
+  TMessage extends MessageIdentity,
+  TSnapshot extends ThreadHistory<TMessage>,
+>(latest: TSnapshot, page: ThreadHistory<TMessage>): ThreadWindow<TSnapshot> {
+  if (latest.threadId !== page.threadId) return { snapshot: latest, newerCursor: null };
+  const messages = mergeMessagesBySeq(latest.messages, page.messages);
+  return {
+    snapshot: { ...latest, messages, olderCursor: page.olderCursor },
+    newerCursor: newerGapCursor(messages, newestSeq(page.messages)),
+  };
+}
+
+/** Add the page fetched around `newerCursor + 1` to an open window. */
+export function appendNewerThreadPage<
+  TMessage extends MessageIdentity,
+  TSnapshot extends ThreadHistory<TMessage>,
+>(
+  snapshot: TSnapshot,
+  newerCursor: number,
+  page: ThreadHistory<TMessage>,
+): ThreadWindow<TSnapshot> {
+  if (snapshot.threadId !== page.threadId) return { snapshot, newerCursor };
+  const newest = newestSeq(page.messages);
+  // Nothing past the cursor: the server has nothing newer to show before the latest messages.
+  if (newest === null || newest <= newerCursor) return { snapshot, newerCursor: null };
+  const messages = mergeMessagesBySeq(snapshot.messages, page.messages);
+  return { snapshot: { ...snapshot, messages }, newerCursor: newerGapCursor(messages, newest) };
+}
+
+export function threadWindowMessages<T extends MessageIdentity>(
+  messages: readonly T[],
+  newerCursor: number | null,
+): readonly T[] {
+  if (newerCursor === null) return messages;
+  return messages.filter((message) => isWindowMessage(message, newerCursor));
+}
+
+/** Leave the window for the latest messages; older history pages back in from there. */
+export function leaveThreadWindow<
+  TMessage extends MessageIdentity,
+  TSnapshot extends ThreadHistory<TMessage>,
+>(snapshot: TSnapshot, newerCursor: number | null): TSnapshot {
+  if (newerCursor === null) return snapshot;
+  const messages = snapshot.messages.filter((message) => !isWindowMessage(message, newerCursor));
+  return {
+    ...snapshot,
+    messages,
+    olderCursor: oldestSeq(messages) ?? newerCursor + 1,
+  };
+}
+
+function isWindowMessage(message: MessageIdentity, newerCursor: number): boolean {
+  return isDurableMessage(message) && typeof message.seq === "number" && message.seq <= newerCursor;
+}
+
+function newerGapCursor(messages: readonly MessageIdentity[], loadedThrough: number | null) {
+  if (loadedThrough === null) return null;
+  const next = oldestSeq(
+    messages.filter((message) => typeof message.seq === "number" && message.seq > loadedThrough),
+  );
+  return next !== null && next > loadedThrough + 1 ? loadedThrough : null;
+}
+
+function newestSeq(messages: readonly MessageIdentity[]): number | null {
+  return messages.reduce<number | null>(
+    (newest, message) =>
+      isDurableMessage(message) && typeof message.seq === "number"
+        ? Math.max(newest ?? message.seq, message.seq)
+        : newest,
+    null,
+  );
+}
+
+function oldestSeq(messages: readonly MessageIdentity[]): number | null {
+  return messages.reduce<number | null>(
+    (oldest, message) =>
+      isDurableMessage(message) && typeof message.seq === "number"
+        ? Math.min(oldest ?? message.seq, message.seq)
+        : oldest,
+    null,
+  );
+}
+
+/** Union by id (incoming wins), ordered by seq; live messages without a seq stay last. */
+function mergeMessagesBySeq<T extends MessageIdentity>(
+  current: readonly T[],
+  incoming: readonly T[],
+): T[] {
+  const incomingIds = new Set(incoming.map((message) => message.id));
+  const merged = [...current.filter((message) => !incomingIds.has(message.id)), ...incoming];
+  return [
+    ...merged
+      .filter((message) => typeof message.seq === "number")
+      .sort((a, b) => (a.seq ?? 0) - (b.seq ?? 0)),
+    ...merged.filter((message) => typeof message.seq !== "number"),
+  ];
+}
+
 export function mergeMessagePages<T extends MessageIdentity>(
   previous: readonly T[],
   recent: readonly T[],
