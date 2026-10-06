@@ -158,6 +158,15 @@ export function remoteImageLoaded(href: string): boolean {
   return loadedRemoteImages.has(href);
 }
 
+/** The current URL only. A link that cannot open stays text, so its image is not requested. */
+export function remoteImageRenders(
+  href: string,
+  loadRemote: boolean,
+  rejectedLink: boolean,
+): boolean {
+  return !rejectedLink && (loadRemote || remoteImageLoaded(href));
+}
+
 export function markRemoteImageLoaded(href: string): void {
   loadedRemoteImages.add(href);
 }

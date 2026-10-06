@@ -18,7 +18,7 @@ import {
   markRemoteImageLoaded,
   plainTextLinkParts,
   RemoteImagesContext,
-  remoteImageLoaded,
+  remoteImageRenders,
   remoteMarkdownImage,
   sanitizeMarkdownUrl,
 } from "./markdown";
@@ -329,10 +329,8 @@ const renderRules: RenderRules = {
     const linkParent = enclosingLink(parents);
     // Inside a link the label joins the link text, so a badge still opens its link target.
     // A blocklink wraps a view, so the label carries the link style itself when it opens.
-    const labelStyle =
-      linkParent && sanitizeMarkdownUrl(linkParent.attributes.href ?? "")
-        ? styleMap.link
-        : styleMap.plain_text;
+    const linkOpens = Boolean(linkParent && sanitizeMarkdownUrl(linkParent.attributes.href ?? ""));
+    const labelStyle = linkOpens ? styleMap.link : styleMap.plain_text;
     const remote = remoteMarkdownImage(src);
     if (remote) {
       return (
@@ -342,6 +340,7 @@ const renderRules: RenderRules = {
           alt={alt}
           title={node.attributes.title}
           insideLink={Boolean(linkParent)}
+          rejectedLink={Boolean(linkParent) && !linkOpens}
           labelStyle={labelStyle}
           styleMap={styleMap}
         />
@@ -355,11 +354,12 @@ const renderRules: RenderRules = {
   },
 };
 
-function RemoteMarkdownImage({
+export function RemoteMarkdownImage({
   image,
   alt,
   title,
   insideLink,
+  rejectedLink,
   labelStyle,
   styleMap,
 }: {
@@ -367,12 +367,14 @@ function RemoteMarkdownImage({
   alt?: string;
   title?: string;
   insideLink: boolean;
+  rejectedLink: boolean;
   labelStyle: MarkdownStyleMap[string] | undefined;
   styleMap: MarkdownStyleMap;
 }) {
   const loadRemote = useContext(RemoteImagesContext);
-  const [loaded, setLoaded] = useState(() => remoteImageLoaded(image.href));
-  if (loadRemote || loaded) {
+  // Bumping this redraws after a tap. Whether the image shows is read from the current URL.
+  const [, setRevision] = useState(0);
+  if (remoteImageRenders(image.href, loadRemote, rejectedLink)) {
     return (
       <FitImage
         indicator
@@ -393,7 +395,7 @@ function RemoteMarkdownImage({
       hitSlop={6}
       onPress={() => {
         markRemoteImageLoaded(image.href);
-        setLoaded(true);
+        setRevision((revision) => revision + 1);
       }}
       style={styleMap.image_placeholder}
     >

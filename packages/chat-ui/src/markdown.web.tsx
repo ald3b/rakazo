@@ -13,7 +13,7 @@ import {
   markRemoteImageLoaded,
   plainTextLinkParts,
   RemoteImagesContext,
-  remoteImageLoaded,
+  remoteImageRenders,
   remoteMarkdownImage,
   sanitizeMarkdownUrl,
 } from "./markdown";
@@ -70,17 +70,21 @@ function CodeBlock(props: React.ComponentPropsWithoutRef<"pre">) {
   );
 }
 
-const InsideLinkContext = createContext(false);
+type EnclosingLink = false | "open" | "rejected";
+
+const InsideLinkContext = createContext<EnclosingLink>(false);
 
 function MarkdownImage({ src = "", alt, title }: { src?: string; alt?: string; title?: string }) {
-  const insideLink = useContext(InsideLinkContext);
+  const enclosingLink = useContext(InsideLinkContext);
   const loadRemote = useContext(RemoteImagesContext);
   const remote = remoteMarkdownImage(src);
-  const [loaded, setLoaded] = useState(() => (remote ? remoteImageLoaded(remote.href) : false));
+  // Bumping this redraws after a tap. Whether the image shows is read from the current URL.
+  const [, setRevision] = useState(0);
+  const insideLink = enclosingLink !== false;
   if (inlineMarkdownImageSrc(src)) {
     return <img src={src} alt={alt ?? ""} title={title} loading="lazy" />;
   }
-  if (remote && (loadRemote || loaded)) {
+  if (remote && remoteImageRenders(remote.href, loadRemote, enclosingLink === "rejected")) {
     return (
       <img
         src={remote.href}
@@ -91,8 +95,7 @@ function MarkdownImage({ src = "", alt, title }: { src?: string; alt?: string; t
       />
     );
   }
-  // Inside a link, even a rejected one, the label joins the link text, so a tap follows the
-  // link instead of loading the image.
+  // Inside a link the label joins the link text, so a tap follows the link.
   if (!remote || insideLink) return alt || remote?.host || src;
   return (
     <button
@@ -101,7 +104,7 @@ function MarkdownImage({ src = "", alt, title }: { src?: string; alt?: string; t
       title={title}
       onClick={() => {
         markRemoteImageLoaded(remote.href);
-        setLoaded(true);
+        setRevision((revision) => revision + 1);
       }}
     >
       <ImageIcon />
@@ -114,12 +117,17 @@ function MarkdownImage({ src = "", alt, title }: { src?: string; alt?: string; t
 const components: Components = {
   a({ node: _node, ...props }) {
     // urlTransform blanks unsafe URLs. Keep their text without a link that opens the app again.
-    const link = props.href ? (
+    const opens = Boolean(props.href);
+    const link = opens ? (
       <a {...props} target="_blank" rel="noreferrer noopener" />
     ) : (
       <span>{props.children}</span>
     );
-    return <InsideLinkContext.Provider value={true}>{link}</InsideLinkContext.Provider>;
+    return (
+      <InsideLinkContext.Provider value={opens ? "open" : "rejected"}>
+        {link}
+      </InsideLinkContext.Provider>
+    );
   },
   img({ node: _node, src, alt, title }) {
     return (

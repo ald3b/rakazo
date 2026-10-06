@@ -91,7 +91,12 @@ import { darkTokens } from "@rakazo/ui-tokens";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { Pressable } from "react-native";
-import { ChatMarkdown, LinkifiedText, RemoteImagesContext } from "./markdown.native";
+import {
+  ChatMarkdown,
+  LinkifiedText,
+  RemoteImagesContext,
+  RemoteMarkdownImage,
+} from "./markdown.native";
 
 const THREE_COLUMN_TABLE = `| Name | Status | Detail |
 | --- | --- | --- |
@@ -242,14 +247,57 @@ describe("native markdown images", () => {
     expect(renderToStaticMarkup(<ChatMarkdown>{markdown}</ChatMarkdown>)).toContain("<rn-stub");
   });
 
+  it("shows a placeholder when a tapped image is replaced with another url", async () => {
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    const image = (href: string) => ({ href, host: "images.example.test" });
+    const render = (href: string) => {
+      root.render(
+        <RemoteMarkdownImage
+          image={image(href)}
+          alt="chart"
+          insideLink={false}
+          rejectedLink={false}
+          labelStyle={undefined}
+          styleMap={{}}
+        />,
+      );
+    };
+    await act(async () => {
+      render("https://images.example.test/native-first.png");
+    });
+    await act(async () => {
+      container.querySelector<HTMLElement>("[data-accessibility-role='button']")?.click();
+    });
+    expect(container.querySelector("rn-stub")).not.toBeNull();
+
+    await act(async () => {
+      render("https://images.example.test/native-second.png");
+    });
+    expect(container.querySelector("rn-stub")).toBeNull();
+    expect(container.querySelector("[data-accessibility-role='button']")).not.toBeNull();
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
+  });
+
   it("loads remote images at once when the reader turned that on", () => {
     const html = renderToStaticMarkup(
       <RemoteImagesContext.Provider value={true}>
-        <ChatMarkdown>{"![chart](https://images.example.test/auto.png)"}</ChatMarkdown>
+        <ChatMarkdown>
+          {
+            "![chart](https://images.example.test/auto.png) [![build](https://badge.example.test/auto.svg)](https://ci.example.test/run)"
+          }
+        </ChatMarkdown>
       </RemoteImagesContext.Provider>,
     );
-    expect(html).toContain("<rn-stub");
-    expect(html).not.toContain("data-accessibility-role");
+    expect(html.match(/<rn-stub/g)).toHaveLength(2);
+    expect(html).toContain('data-accessibility-role="link"');
+    expect(html).not.toContain('data-accessibility-role="button"');
   });
 
   it("shows unopenable image sources and unsafe links as plain text", () => {
@@ -309,6 +357,23 @@ describe("native markdown images", () => {
       root.unmount();
     });
     container.remove();
+  });
+
+  it("keeps an image inside a rejected link as text when automatic loading is on", () => {
+    const html = renderToStaticMarkup(
+      <RemoteImagesContext.Provider value={true}>
+        <ChatMarkdown>
+          {
+            "[![Open](https://example.test/visit)](javascript:alert(1)) [![File](https://example.test/file)](data:text/html,hi)"
+          }
+        </ChatMarkdown>
+      </RemoteImagesContext.Provider>,
+    );
+    expect(html).not.toContain("<rn-stub");
+    expect(html).not.toContain("example.test");
+    expect(html).not.toContain("javascript:");
+    expect(html).toContain(`data-color="${darkTokens.foreground}">Open</rn-text>`);
+    expect(html).toContain(`data-color="${darkTokens.foreground}">File</rn-text>`);
   });
 
   it("shows an image inside a rejected link as plain text", () => {
