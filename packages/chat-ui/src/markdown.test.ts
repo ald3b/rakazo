@@ -5,6 +5,7 @@ import {
   inlineMarkdownImageSrc,
   linkifyExplicitUrls,
   plainTextLinkParts,
+  sanitizeMarkdownImageUrl,
   sanitizeMarkdownUrl,
 } from "./markdown";
 
@@ -119,6 +120,23 @@ describe("sanitizeMarkdownUrl", () => {
     expect(sanitizeMarkdownUrl("javascript:alert(1)", true)).toBeUndefined();
     expect(sanitizeMarkdownUrl("data:text/html,<script>alert(1)</script>", true)).toBeUndefined();
     expect(sanitizeMarkdownUrl("/docs")).toBeUndefined();
+  });
+});
+
+describe("sanitizeMarkdownImageUrl", () => {
+  it("allows absolute http(s) image sources", () => {
+    expect(sanitizeMarkdownImageUrl(" https://example.test/a.png ")).toBe(
+      "https://example.test/a.png",
+    );
+    expect(sanitizeMarkdownImageUrl("HTTP://example.test/a.png")).toBe("HTTP://example.test/a.png");
+  });
+
+  it("rejects schemes a browser link would open outside http(s)", () => {
+    expect(sanitizeMarkdownImageUrl("mailto:user@example.test")).toBeUndefined();
+    expect(sanitizeMarkdownImageUrl("tel:+15551212")).toBeUndefined();
+    expect(sanitizeMarkdownImageUrl("javascript:alert(1)")).toBeUndefined();
+    expect(sanitizeMarkdownImageUrl("data:text/html,hi")).toBeUndefined();
+    expect(sanitizeMarkdownImageUrl("/api/v1/p.gif")).toBeUndefined();
   });
 });
 

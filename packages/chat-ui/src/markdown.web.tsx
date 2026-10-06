@@ -11,6 +11,7 @@ import {
   closeUnterminatedFence,
   inlineMarkdownImageSrc,
   plainTextLinkParts,
+  sanitizeMarkdownImageUrl,
   sanitizeMarkdownUrl,
 } from "./markdown";
 import { MarkdownTable, MarkdownTableSourceContext } from "./markdown-table";
@@ -74,7 +75,7 @@ function MarkdownImage({ src = "", alt, title }: { src?: string; alt?: string; t
     return <img src={src} alt={alt ?? ""} title={title} loading="lazy" />;
   }
   const label = alt || src;
-  const href = sanitizeMarkdownUrl(src);
+  const href = sanitizeMarkdownImageUrl(src);
   // Inside a link the label joins the link text, so a badge still opens its link target.
   if (!href || insideLink) return label;
   return (
@@ -87,12 +88,12 @@ function MarkdownImage({ src = "", alt, title }: { src?: string; alt?: string; t
 const components: Components = {
   a({ node: _node, ...props }) {
     // urlTransform blanks unsafe URLs. Keep their text without a link that opens the app again.
-    if (!props.href) return <span>{props.children}</span>;
-    return (
-      <InsideLinkContext.Provider value={true}>
-        <a {...props} target="_blank" rel="noreferrer noopener" />
-      </InsideLinkContext.Provider>
+    const link = props.href ? (
+      <a {...props} target="_blank" rel="noreferrer noopener" />
+    ) : (
+      <span>{props.children}</span>
     );
+    return <InsideLinkContext.Provider value={true}>{link}</InsideLinkContext.Provider>;
   },
   img({ node: _node, src, alt, title }) {
     return (

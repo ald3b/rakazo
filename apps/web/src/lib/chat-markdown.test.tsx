@@ -83,6 +83,42 @@ describe("ChatMarkdown", () => {
     );
   });
 
+  it("keeps an image inside a rejected link as plain text", () => {
+    const html = renderToStaticMarkup(
+      <ChatMarkdown>
+        {
+          "[![Open](https://example.test/visit)](javascript:alert(1)) [![File](https://example.test/file)](data:text/html,hi)"
+        }
+      </ChatMarkdown>,
+    );
+
+    expect(html).not.toContain("<img");
+    expect(html).not.toContain("<a");
+    expect(html).not.toContain("example.test");
+    expect(html).not.toContain("javascript:");
+    expect(html).toContain("<span>Open</span>");
+    expect(html).toContain("<span>File</span>");
+  });
+
+  it("shows mailto and tel image sources as text and keeps mailto links", () => {
+    const html = renderToStaticMarkup(
+      <ChatMarkdown>
+        {
+          "[mail](mailto:user@example.test) ![Contact](mailto:user@example.test) ![Call](tel:+15551212)"
+        }
+      </ChatMarkdown>,
+    );
+
+    expect(html).not.toContain("<img");
+    expect(html).not.toContain("tel:");
+    expect(html.match(/<a /g)).toHaveLength(1);
+    expect(html).toContain(
+      '<a href="mailto:user@example.test" target="_blank" rel="noreferrer noopener">mail</a>',
+    );
+    expect(html).toContain("Contact");
+    expect(html).toContain("Call");
+  });
+
   it("renders embedded image data inline", () => {
     const html = renderToStaticMarkup(
       <ChatMarkdown>{"![dot](data:image/png;base64,iVBORw0KGgo=)"}</ChatMarkdown>,

@@ -112,6 +112,15 @@ export function sanitizeMarkdownUrl(url: string, allowRelative = false): string 
   return undefined;
 }
 
+const imageLinkProtocols = new Set(["http", "https"]);
+
+export function sanitizeMarkdownImageUrl(url: string): string | undefined {
+  const href = sanitizeMarkdownUrl(url);
+  if (!href) return undefined;
+  const protocol = href.match(protocolPattern)?.[1]?.toLowerCase();
+  return protocol && imageLinkProtocols.has(protocol) ? href : undefined;
+}
+
 const inlineImagePattern = /^data:image\/(?:png|gif|jpe?g|webp);base64,[a-z\d+/=]+$/i;
 const MAX_INLINE_IMAGE_URL_LENGTH = 1024 * 1024;
 
