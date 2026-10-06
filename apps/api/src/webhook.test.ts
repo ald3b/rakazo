@@ -25,7 +25,13 @@ function createDeps(
       webhookSecretId: string | null;
       thread: { id: string } | null;
     } | null;
-    secret?: { ciphertext: string; kind: string; userId: string; spaceId: string } | null;
+    secret?: {
+      id: string;
+      ciphertext: string;
+      kind: string;
+      userId: string;
+      spaceId: string;
+    } | null;
     load?: (ciphertext: string) => string;
     routines?: Array<{ id: string; name: string; prompt: string }>;
   } = {},
@@ -47,6 +53,7 @@ function createDeps(
   const secret =
     overrides.secret === undefined
       ? {
+          id: "secret-1",
           ciphertext: "cipher",
           kind: WEBHOOK_SECRET_KIND,
           userId: "user-1",
@@ -75,7 +82,7 @@ function createDeps(
       },
     } as unknown as WebhookDeps["prisma"],
     secrets: {
-      load: overrides.load ?? (() => SECRET),
+      loadAsync: async (ciphertext: string) => (overrides.load ?? (() => SECRET))(ciphertext),
     } as unknown as WebhookDeps["secrets"],
     events: { sendUserMessage },
     jobs: { enqueue } as unknown as WebhookDeps["jobs"],
@@ -615,5 +622,131 @@ describe("GitHub event HTTP route", () => {
     expect(res.status).toBe(413);
     expect(deps.prisma.bot.findUnique).not.toHaveBeenCalled();
     expect(deps.sendUserMessage).not.toHaveBeenCalled();
+  });
+});
+
+describe("webhook secret decryption", () => {
+  function signedGithubDelivery(raw: string, secret: string) {
+    return {
+      method: "POST" as const,
+      headers: {
+        "content-type": "application/json",
+        "x-github-event": "push",
+        "x-github-delivery": "delivery-1",
+        "x-hub-signature-256": `sha256=${createHmac("sha256", secret).update(raw).digest("hex")}`,
+      },
+      body: raw,
+    };
+  }
+
+  function bearerDelivery(secret: string) {
+    return {
+      method: "POST" as const,
+      headers: { authorization: `Bearer ${secret}`, "content-type": "application/json" },
+      body: JSON.stringify({ event: "ping" }),
+    };
+  }
+
+  it("decrypts a bot's secret once across unauthenticated requests on both routes", async () => {
+    const load = vi.fn(() => SECRET);
+    const deps = createDeps({
+      load,
+      routines: [{ id: "routine-1", name: "Review pushes", prompt: "Inspect the change" }],
+    });
+    const app = mount(deps);
+    const raw = JSON.stringify({ ref: "refs/heads/main" });
+
+    for (let i = 0; i < 5; i++) {
+      const webhook = await app.request("/api/v1/bots/bot-1/webhook", bearerDelivery("wrong"));
+      const github = await app.request(
+        "/api/v1/bots/bot-1/github",
+        signedGithubDelivery(raw, "wrong"),
+      );
+      expect(webhook.status).toBe(401);
+      expect(github.status).toBe(401);
+    }
+    expect(load).toHaveBeenCalledTimes(1);
+
+    expect((await app.request("/api/v1/bots/bot-1/webhook", bearerDelivery(SECRET))).status).toBe(
+      200,
+    );
+    expect(
+      (await app.request("/api/v1/bots/bot-1/github", signedGithubDelivery(raw, SECRET))).status,
+    ).toBe(200);
+    expect(deps.sendUserMessage).toHaveBeenCalledTimes(2);
+    expect(load).toHaveBeenCalledTimes(1);
+  });
+
+  it("shares one decrypt between concurrent requests for a cold secret", async () => {
+    const load = vi.fn(() => SECRET);
+    const app = mount(createDeps({ load }));
+
+    const responses = await Promise.all(
+      Array.from({ length: 5 }, () =>
+        app.request("/api/v1/bots/bot-1/webhook", bearerDelivery("wrong")),
+      ),
+    );
+
+    expect(responses.map((res) => res.status)).toEqual([401, 401, 401, 401, 401]);
+    expect(load).toHaveBeenCalledTimes(1);
+  });
+
+  it("forgets a secret once its bot is gone", async () => {
+    const load = vi.fn(() => SECRET);
+    const deps = createDeps({ load });
+    const app = mount(deps);
+    const bot = await deps.prisma.bot.findUnique({ where: { id: "bot-1" } });
+
+    expect((await app.request("/api/v1/bots/bot-1/webhook", bearerDelivery(SECRET))).status).toBe(
+      200,
+    );
+    vi.mocked(deps.prisma.bot.findUnique).mockResolvedValueOnce(null);
+    expect((await app.request("/api/v1/bots/bot-1/webhook", bearerDelivery(SECRET))).status).toBe(
+      401,
+    );
+    vi.mocked(deps.prisma.bot.findUnique).mockResolvedValue(bot);
+    expect((await app.request("/api/v1/bots/bot-1/webhook", bearerDelivery(SECRET))).status).toBe(
+      200,
+    );
+    expect(load).toHaveBeenCalledTimes(2);
+  });
+
+  it("decrypts a rotated secret instead of accepting the previous one", async () => {
+    const load = vi.fn((ciphertext: string) => (ciphertext === "cipher" ? SECRET : "rotated"));
+    const deps = createDeps({ load });
+    const app = mount(deps);
+
+    expect((await app.request("/api/v1/bots/bot-1/webhook", bearerDelivery(SECRET))).status).toBe(
+      200,
+    );
+    vi.mocked(deps.prisma.secret.findUnique).mockResolvedValue({
+      id: "secret-2",
+      ciphertext: "cipher-2",
+      kind: WEBHOOK_SECRET_KIND,
+      userId: "user-1",
+      spaceId: "ws-1",
+    } as never);
+
+    expect((await app.request("/api/v1/bots/bot-1/webhook", bearerDelivery(SECRET))).status).toBe(
+      401,
+    );
+    expect(
+      (await app.request("/api/v1/bots/bot-1/webhook", bearerDelivery("rotated"))).status,
+    ).toBe(200);
+  });
+
+  it("does not retry a secret that fails to decrypt on every request", async () => {
+    const load = vi.fn((): string => {
+      throw new Error("Unsupported state or unable to authenticate data");
+    });
+    const deps = createDeps({ load });
+    const app = mount(deps);
+
+    for (let i = 0; i < 3; i++) {
+      expect((await app.request("/api/v1/bots/bot-1/webhook", bearerDelivery(SECRET))).status).toBe(
+        401,
+      );
+    }
+    expect(load).toHaveBeenCalledTimes(1);
   });
 });

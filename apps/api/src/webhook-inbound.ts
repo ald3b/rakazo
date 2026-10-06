@@ -91,9 +91,46 @@ export function parseWebhookPayload(
   return { text: trimmed };
 }
 
+const WEBHOOK_SECRET_CACHE_MAX = 1_000;
+
+/** Webhook secrets by bot id; the decrypt promise is shared so concurrent misses decrypt once. */
+export type WebhookSecretCache = Map<
+  string,
+  { secretId: string; ciphertext: string; plaintext: Promise<string | null> }
+>;
+
+// Checking a bearer or GitHub signature needs the plaintext, and a v2 secret decrypt runs scrypt
+// (~50 ms), so decrypting on every request let unauthenticated callers exhaust the API. Decrypt
+// each secret once, off the event loop, and forget it once a delivery finds it rotated or gone.
+function loadWebhookSecret(
+  secrets: WebhookDeps["secrets"],
+  cache: WebhookSecretCache,
+  botId: string,
+  secret: { id: string; ciphertext: string },
+): Promise<string | null> {
+  const cached = cache.get(botId);
+  const entry =
+    cached?.secretId === secret.id && cached.ciphertext === secret.ciphertext
+      ? cached
+      : {
+          secretId: secret.id,
+          ciphertext: secret.ciphertext,
+          plaintext: secrets.loadAsync(secret.ciphertext, secret.id).catch(() => null),
+        };
+  // Re-insert so the least recently delivered bot is evicted first.
+  cache.delete(botId);
+  cache.set(botId, entry);
+  if (cache.size > WEBHOOK_SECRET_CACHE_MAX) {
+    const oldest = cache.keys().next().value;
+    if (oldest !== undefined) cache.delete(oldest);
+  }
+  return entry.plaintext;
+}
+
 /** Load the bot webhook secret target, or null when the bot/secret is missing or invalid. */
 export async function loadWebhookTarget(
   deps: Pick<WebhookDeps, "prisma" | "secrets">,
+  cache: WebhookSecretCache,
   botId: string,
 ): Promise<WebhookTarget | null> {
   const bot = await deps.prisma.bot.findUnique({
@@ -107,21 +144,27 @@ export async function loadWebhookTarget(
     },
   });
 
-  if (!bot?.thread || !bot.webhookSecretId) return null;
+  if (!bot?.thread || !bot.webhookSecretId) {
+    cache.delete(botId);
+    return null;
+  }
 
   const secret = await deps.prisma.secret.findUnique({
     where: { id: bot.webhookSecretId },
     select: { id: true, ciphertext: true, kind: true, userId: true, spaceId: true },
   });
-  if (!secret || secret.kind !== WEBHOOK_SECRET_KIND) return null;
-  if (secret.userId !== bot.userId || secret.spaceId !== bot.spaceId) return null;
-
-  let expected: string;
-  try {
-    expected = deps.secrets.load(secret.ciphertext, secret.id);
-  } catch {
+  if (
+    !secret ||
+    secret.kind !== WEBHOOK_SECRET_KIND ||
+    secret.userId !== bot.userId ||
+    secret.spaceId !== bot.spaceId
+  ) {
+    cache.delete(botId);
     return null;
   }
+
+  const expected = await loadWebhookSecret(deps.secrets, cache, botId, secret);
+  if (expected === null) return null;
   return {
     bot: {
       id: bot.id,
