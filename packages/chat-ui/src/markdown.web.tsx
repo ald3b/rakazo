@@ -80,11 +80,11 @@ function MarkdownImage({ src = "", alt, title }: { src?: string; alt?: string; t
   const remote = remoteMarkdownImage(src);
   // Bumping this redraws after a tap. Whether the image shows is read from the current URL.
   const [, setRevision] = useState(0);
-  const insideLink = enclosingLink !== false;
+  const rejectedLink = enclosingLink === "rejected";
   if (inlineMarkdownImageSrc(src)) {
     return <img src={src} alt={alt ?? ""} title={title} loading="lazy" />;
   }
-  if (remote && remoteImageRenders(remote.href, loadRemote, enclosingLink === "rejected")) {
+  if (remote && remoteImageRenders(remote.href, loadRemote, rejectedLink)) {
     return (
       <img
         src={remote.href}
@@ -95,14 +95,15 @@ function MarkdownImage({ src = "", alt, title }: { src?: string; alt?: string; t
       />
     );
   }
-  // Inside a link the label joins the link text, so a tap follows the link.
-  if (!remote || insideLink) return alt || remote?.host || src;
+  if (!remote || rejectedLink) return alt || remote?.host || src;
   return (
     <button
       type="button"
       className="rk-chat-markdown-image"
       title={title}
-      onClick={() => {
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
         markRemoteImageLoaded(remote.href);
         setRevision((revision) => revision + 1);
       }}

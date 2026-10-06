@@ -45,7 +45,12 @@ vi.mock("react-native", async () => {
         {
           ...rest,
           ...data,
-          onClick: typeof onPress === "function" ? () => void (onPress as () => void)() : undefined,
+          onClick:
+            typeof onPress === "function"
+              ? (event: { preventDefault(): void; stopPropagation(): void }) => {
+                  (onPress as (pressEvent: typeof event) => void)(event);
+                }
+              : undefined,
         },
         children as ReactNode,
       );
@@ -258,7 +263,6 @@ describe("native markdown images", () => {
         <RemoteMarkdownImage
           image={image(href)}
           alt="chart"
-          insideLink={false}
           rejectedLink={false}
           labelStyle={undefined}
           styleMap={{}}
@@ -315,25 +319,16 @@ describe("native markdown images", () => {
     expect(html).toContain("example.test/p.gif");
   });
 
-  it("keeps an image inside a link as that link's text", async () => {
-    const html = renderToStaticMarkup(
-      <ChatMarkdown>
-        {"[![build](https://badge.example.test/b.svg)](https://ci.example.test/run)"}
-      </ChatMarkdown>,
-    );
+  it("loads an image inside an open link from its placeholder without following the link", async () => {
+    const markdown =
+      "See [![build](https://badge.example.test/tap-linked.svg)](https://ci.example.test/tap-linked) now";
+    const html = renderToStaticMarkup(<ChatMarkdown>{markdown}</ChatMarkdown>);
     expect(html).not.toContain("<rn-stub");
+    expect(html).not.toContain("tap-linked.svg");
     expect(html.match(/data-accessibility-role="link"/g)).toHaveLength(1);
-    expect(html).toContain('data-text-decoration-line="underline"');
+    expect(html).toContain('data-accessibility-role="button"');
     expect(html).toContain("build");
-
-    const inline = renderToStaticMarkup(
-      <ChatMarkdown>
-        {"See [![build](https://badge.example.test/b.svg)](https://ci.example.test/run) now"}
-      </ChatMarkdown>,
-    );
-    expect(inline).not.toContain("<rn-stub");
-    expect(inline.match(/data-accessibility-role="link"/g)).toHaveLength(1);
-    expect(inline).toContain("build");
+    expect(html).toContain("badge.example.test");
 
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     linking.openURL.mockClear();
@@ -341,18 +336,33 @@ describe("native markdown images", () => {
     document.body.appendChild(container);
     const root = createRoot(container);
     await act(async () => {
-      root.render(
-        <ChatMarkdown>
-          {"[![build](https://badge.example.test/b.svg)](https://ci.example.test/run)"}
-        </ChatMarkdown>,
-      );
+      root.render(<ChatMarkdown>{markdown}</ChatMarkdown>);
     });
+    expect(container.querySelector("rn-stub")).toBeNull();
+
+    const link = container.querySelector<HTMLElement>("[data-accessibility-role='link']");
     await act(async () => {
-      container.querySelector<HTMLElement>("[data-accessibility-role='link']")?.click();
+      link?.click();
     });
     await vi.waitFor(() => {
-      expect(linking.openURL).toHaveBeenCalledWith("https://ci.example.test/run");
+      expect(linking.openURL).toHaveBeenCalledWith("https://ci.example.test/tap-linked");
     });
+    expect(container.querySelector("rn-stub")).toBeNull();
+
+    linking.openURL.mockClear();
+    const button = link?.querySelector<HTMLElement>("[data-accessibility-role='button']");
+    let activation: MouseEvent | undefined;
+    button?.addEventListener("click", (event) => {
+      activation = event;
+    });
+    await act(async () => {
+      button?.click();
+    });
+    expect(activation?.defaultPrevented).toBe(true);
+    expect(container.querySelector("rn-stub")).not.toBeNull();
+    expect(container.querySelector("[data-accessibility-role='button']")).toBeNull();
+    expect(linking.openURL).not.toHaveBeenCalled();
+
     await act(async () => {
       root.unmount();
     });

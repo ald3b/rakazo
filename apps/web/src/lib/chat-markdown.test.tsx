@@ -93,7 +93,7 @@ describe("ChatMarkdown", () => {
     expect(html).toContain("p");
   });
 
-  it("keeps an image inside a link as that link's text", () => {
+  it("shows an image inside an open link as a placeholder that does not request it", () => {
     const html = renderToStaticMarkup(
       <ChatMarkdown>
         {"[![build](https://badge.example.test/b.svg)](https://ci.example.test/run)"}
@@ -101,10 +101,13 @@ describe("ChatMarkdown", () => {
     );
 
     expect(html).not.toContain("<img");
-    expect(html).not.toContain("badge.example.test");
+    expect(html).not.toContain("badge.example.test/b.svg");
     expect(html).toContain(
-      '<a href="https://ci.example.test/run" target="_blank" rel="noreferrer noopener">build</a>',
+      '<a href="https://ci.example.test/run" target="_blank" rel="noreferrer noopener">',
     );
+    expect(html).toContain('class="rk-chat-markdown-image"');
+    expect(html).toContain(">build</span>");
+    expect(html).toContain("badge.example.test");
   });
 
   it("keeps an image inside a rejected link as plain text", () => {

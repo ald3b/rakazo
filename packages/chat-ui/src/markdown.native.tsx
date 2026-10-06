@@ -158,6 +158,11 @@ async function openSafeLink(url: string) {
   if (await Linking.canOpenURL(safeUrl)) await Linking.openURL(safeUrl);
 }
 
+function openMarkdownLink(href: string, event: { defaultPrevented: boolean }) {
+  if (event.defaultPrevented) return;
+  void openSafeLink(href);
+}
+
 function enclosingLink(parents: readonly ASTNode[]) {
   return parents.find((parent) => parent.type === "link" || parent.type === "blocklink");
 }
@@ -285,9 +290,7 @@ const renderRules: RenderRules = {
         accessibilityRole="link"
         key={node.key}
         style={styleMap.link}
-        onPress={() => {
-          void openSafeLink(href);
-        }}
+        onPress={(event) => openMarkdownLink(href, event)}
       >
         {children}
       </Text>
@@ -300,9 +303,7 @@ const renderRules: RenderRules = {
       <Pressable
         accessibilityRole="link"
         key={node.key}
-        onPress={() => {
-          void openSafeLink(href);
-        }}
+        onPress={(event) => openMarkdownLink(href, event)}
         style={styleMap.blocklink}
       >
         <View style={styleMap.image}>{children}</View>
@@ -327,8 +328,6 @@ const renderRules: RenderRules = {
       );
     }
     const linkParent = enclosingLink(parents);
-    // Inside a link the label joins the link text, so a badge still opens its link target.
-    // A blocklink wraps a view, so the label carries the link style itself when it opens.
     const linkOpens = Boolean(linkParent && sanitizeMarkdownUrl(linkParent.attributes.href ?? ""));
     const labelStyle = linkOpens ? styleMap.link : styleMap.plain_text;
     const remote = remoteMarkdownImage(src);
@@ -339,7 +338,6 @@ const renderRules: RenderRules = {
           image={remote}
           alt={alt}
           title={node.attributes.title}
-          insideLink={Boolean(linkParent)}
           rejectedLink={Boolean(linkParent) && !linkOpens}
           labelStyle={labelStyle}
           styleMap={styleMap}
@@ -358,7 +356,6 @@ export function RemoteMarkdownImage({
   image,
   alt,
   title,
-  insideLink,
   rejectedLink,
   labelStyle,
   styleMap,
@@ -366,7 +363,6 @@ export function RemoteMarkdownImage({
   image: { href: string; host: string };
   alt?: string;
   title?: string;
-  insideLink: boolean;
   rejectedLink: boolean;
   labelStyle: MarkdownStyleMap[string] | undefined;
   styleMap: MarkdownStyleMap;
@@ -385,7 +381,7 @@ export function RemoteMarkdownImage({
       />
     );
   }
-  if (insideLink) return <Text style={labelStyle}>{alt || image.host}</Text>;
+  if (rejectedLink) return <Text style={labelStyle}>{alt || image.host}</Text>;
   return (
     <Pressable
       accessibilityRole="button"
@@ -393,7 +389,9 @@ export function RemoteMarkdownImage({
       accessibilityHint={title}
       // A 32pt chip with 6pt slop on each side keeps the 44pt touch target.
       hitSlop={6}
-      onPress={() => {
+      onPress={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
         markRemoteImageLoaded(image.href);
         setRevision((revision) => revision + 1);
       }}
