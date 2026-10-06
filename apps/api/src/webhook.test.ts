@@ -32,7 +32,7 @@ function createDeps(
       userId: string;
       spaceId: string;
     } | null;
-    load?: (ciphertext: string) => string;
+    load?: (ciphertext: string) => string | Promise<string>;
     routines?: Array<{ id: string; name: string; prompt: string }>;
   } = {},
 ): WebhookDeps & {
@@ -715,17 +715,38 @@ describe("webhook secret decryption", () => {
     const load = vi.fn((ciphertext: string) => (ciphertext === "cipher" ? SECRET : "rotated"));
     const deps = createDeps({ load });
     const app = mount(deps);
+    const bot = await deps.prisma.bot.findUnique({ where: { id: "bot-1" } });
+    if (!bot) throw new Error("missing bot");
+    const secrets = new Map([
+      [
+        "secret-1",
+        {
+          id: "secret-1",
+          ciphertext: "cipher",
+          kind: WEBHOOK_SECRET_KIND,
+          userId: "user-1",
+          spaceId: "ws-1",
+        },
+      ],
+      [
+        "secret-2",
+        {
+          id: "secret-2",
+          ciphertext: "cipher-2",
+          kind: WEBHOOK_SECRET_KIND,
+          userId: "user-1",
+          spaceId: "ws-1",
+        },
+      ],
+    ]);
+    vi.mocked(deps.prisma.secret.findUnique).mockImplementation(
+      (async (args: { where: { id: string } }) => secrets.get(args.where.id) ?? null) as never,
+    );
 
     expect((await app.request("/api/v1/bots/bot-1/webhook", bearerDelivery(SECRET))).status).toBe(
       200,
     );
-    vi.mocked(deps.prisma.secret.findUnique).mockResolvedValue({
-      id: "secret-2",
-      ciphertext: "cipher-2",
-      kind: WEBHOOK_SECRET_KIND,
-      userId: "user-1",
-      spaceId: "ws-1",
-    } as never);
+    bot.webhookSecretId = "secret-2";
 
     expect((await app.request("/api/v1/bots/bot-1/webhook", bearerDelivery(SECRET))).status).toBe(
       401,
@@ -733,6 +754,62 @@ describe("webhook secret decryption", () => {
     expect(
       (await app.request("/api/v1/bots/bot-1/webhook", bearerDelivery("rotated"))).status,
     ).toBe(200);
+    expect(load).toHaveBeenCalledTimes(2);
+    expect(deps.prisma.secret.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "secret-2" } }),
+    );
+  });
+
+  it("rejects a secret that was rotated while its decrypt was in flight", async () => {
+    let finishDecrypt: (plaintext: string) => void = () => undefined;
+    let webhookSecretId = "secret-1";
+    const load = vi.fn(
+      () =>
+        new Promise<string>((resolve) => {
+          finishDecrypt = resolve;
+        }),
+    );
+    const deps = createDeps({ load });
+    const app = mount(deps);
+    vi.mocked(deps.prisma.bot.findUnique).mockImplementation((async () => ({
+      id: "bot-1",
+      spaceId: "ws-1",
+      userId: "user-1",
+      webhookSecretId,
+      thread: { id: "thread-1" },
+    })) as never);
+
+    const pending = app.request("/api/v1/bots/bot-1/webhook", bearerDelivery(SECRET));
+    await vi.waitFor(() => expect(load).toHaveBeenCalledTimes(1));
+    webhookSecretId = "secret-2";
+    finishDecrypt(SECRET);
+
+    expect((await pending).status).toBe(401);
+    expect(deps.sendUserMessage).not.toHaveBeenCalled();
+  });
+
+  it("retries a secret after a transient decrypt failure", async () => {
+    const load = vi
+      .fn<() => string>()
+      .mockImplementationOnce(() => {
+        throw new Error(
+          "Invalid scrypt params: error:030000AC:digital envelope routines::memory limit exceeded",
+        );
+      })
+      .mockImplementation(() => SECRET);
+    const deps = createDeps({ load });
+    const app = mount(deps);
+
+    expect((await app.request("/api/v1/bots/bot-1/webhook", bearerDelivery(SECRET))).status).toBe(
+      401,
+    );
+    expect((await app.request("/api/v1/bots/bot-1/webhook", bearerDelivery(SECRET))).status).toBe(
+      200,
+    );
+    expect((await app.request("/api/v1/bots/bot-1/webhook", bearerDelivery(SECRET))).status).toBe(
+      200,
+    );
+    expect(load).toHaveBeenCalledTimes(2);
   });
 
   it("does not retry a secret that fails to decrypt on every request", async () => {
