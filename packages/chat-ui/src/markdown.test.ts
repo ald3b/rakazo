@@ -2,6 +2,7 @@ import { createRequire } from "node:module";
 import { describe, expect, it } from "vitest";
 import {
   closeUnterminatedFence,
+  inlineMarkdownImageSrc,
   linkifyExplicitUrls,
   plainTextLinkParts,
   sanitizeMarkdownUrl,
@@ -118,6 +119,28 @@ describe("sanitizeMarkdownUrl", () => {
     expect(sanitizeMarkdownUrl("javascript:alert(1)", true)).toBeUndefined();
     expect(sanitizeMarkdownUrl("data:text/html,<script>alert(1)</script>", true)).toBeUndefined();
     expect(sanitizeMarkdownUrl("/docs")).toBeUndefined();
+  });
+});
+
+describe("inlineMarkdownImageSrc", () => {
+  it("keeps embedded raster image data", () => {
+    expect(inlineMarkdownImageSrc(" data:image/png;base64,iVBORw0KGgo= ")).toBe(
+      "data:image/png;base64,iVBORw0KGgo=",
+    );
+    expect(inlineMarkdownImageSrc("data:image/jpeg;base64,/9j/4AAQ")).toBe(
+      "data:image/jpeg;base64,/9j/4AAQ",
+    );
+  });
+
+  it("rejects anything that would fetch, run, or exceed the size cap", () => {
+    expect(inlineMarkdownImageSrc("https://attacker.example.test/p.gif?d=secret")).toBeUndefined();
+    expect(inlineMarkdownImageSrc("/api/v1/p.gif")).toBeUndefined();
+    expect(inlineMarkdownImageSrc("//attacker.example.test/p.gif")).toBeUndefined();
+    expect(inlineMarkdownImageSrc("data:image/svg+xml;base64,PHN2Zz4=")).toBeUndefined();
+    expect(inlineMarkdownImageSrc("data:text/html;base64,PHNjcmlwdD4=")).toBeUndefined();
+    expect(
+      inlineMarkdownImageSrc(`data:image/png;base64,${"A".repeat(1024 * 1024)}`),
+    ).toBeUndefined();
   });
 });
 

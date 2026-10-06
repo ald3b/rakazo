@@ -112,6 +112,21 @@ export function sanitizeMarkdownUrl(url: string, allowRelative = false): string 
   return undefined;
 }
 
+const inlineImagePattern = /^data:image\/(?:png|gif|jpe?g|webp);base64,[a-z\d+/=]+$/i;
+const MAX_INLINE_IMAGE_URL_LENGTH = 1024 * 1024;
+
+/**
+ * Markdown images in bot output never fetch: an image URL can carry conversation data to any
+ * host the moment a reply renders, with no click. Only embedded raster data stays an image;
+ * renderers show any other image as a link the reader can choose to open.
+ */
+export function inlineMarkdownImageSrc(url: string): string | undefined {
+  const value = url.trim();
+  return value.length <= MAX_INLINE_IMAGE_URL_LENGTH && inlineImagePattern.test(value)
+    ? value
+    : undefined;
+}
+
 export function closeUnterminatedFence(markdown: string): string {
   let openFence: { marker: "`" | "~"; length: number } | undefined;
 
