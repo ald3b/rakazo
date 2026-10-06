@@ -115,6 +115,8 @@ export default function Models() {
   const [oauthPending, setOauthPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // Find models reports under its own button; every other result goes below Save.
+  const [probeFeedback, setProbeFeedback] = useState(false);
   const oauthAbortRef = useRef<AbortController | null>(null);
   const oauthLoginIdRef = useRef<string | null>(null);
   const oauthCodeSubmittingRef = useRef(false);
@@ -284,6 +286,12 @@ export default function Models() {
   useEffect(() => {
     if (noModelMatches) AccessibilityInfo.announceForAccessibility(t("No matching models"));
   }, [noModelMatches, t]);
+
+  // VoiceOver stays on the button that was tapped, so read its result out too.
+  useEffect(() => {
+    const message = error ?? notice;
+    if (message) AccessibilityInfo.announceForAccessibility(message);
+  }, [error, notice]);
   const isOpenAiCompatible = provider === OPENAI_COMPATIBLE_PROVIDER_ID;
   const credential = credentials.find((entry) => entry.provider === provider);
   const currentEntry = catalog.find(
@@ -375,8 +383,10 @@ export default function Models() {
 
   async function probeServerModels() {
     if (!baseUrl.trim()) return;
+    Keyboard.dismiss();
     setError(null);
     setNotice(null);
+    setProbeFeedback(true);
     await modelProbe.probe({
       baseUrl,
       apiKey,
@@ -402,8 +412,10 @@ export default function Models() {
     if (!selected || !credential) return;
     const activeModelId = isOpenAiCompatible ? modelId.trim() : selected.id;
     if (isOpenAiCompatible && !activeModelId) return;
+    Keyboard.dismiss();
     setError(null);
     setNotice(null);
+    setProbeFeedback(false);
     setPending("default");
     try {
       await rpc("models/setDefault", {
@@ -485,6 +497,12 @@ export default function Models() {
     } else if (apiKey.trim().length < 8) {
       return;
     }
+    // The result shows under this button, so lower the keyboard, and clear the
+    // last one so a rejected limit never shows beside "Saved.".
+    Keyboard.dismiss();
+    setError(null);
+    setNotice(null);
+    setProbeFeedback(false);
     const parsedMaxTokens = maxTokens.trim() ? parseModelMaxTokens(maxTokens) : undefined;
     if ((isOpenAiCompatible || maxTokens.trim()) && parsedMaxTokens === undefined) {
       setError(
@@ -520,8 +538,6 @@ export default function Models() {
       return;
     }
     if (isOpenAiCompatible && parsedMaxTokens === undefined) return;
-    setError(null);
-    setNotice(null);
     setPending("connect");
     try {
       await rpc(
@@ -660,6 +676,13 @@ export default function Models() {
     }
   }
 
+  const feedback = (
+    <>
+      {error ? <Text style={styles.error}>{error}</Text> : null}
+      {notice ? <Text style={styles.notice}>{notice}</Text> : null}
+    </>
+  );
+
   const compatConfig = isOpenAiCompatible ? (
     <>
       <Text style={styles.sectionTitle}>{t("Server URL")}</Text>
@@ -696,6 +719,7 @@ export default function Models() {
       >
         <Text style={styles.outlineLabel}>{probing ? t("Finding…") : t("Find models")}</Text>
       </Pressable>
+      {probeFeedback ? feedback : null}
       <Text style={[styles.sectionTitle, { marginTop: 12 }]}>{t("Model")}</Text>
       {probeModels.length && probeModels.includes(modelId) ? (
         <View style={styles.card}>
@@ -1284,9 +1308,6 @@ export default function Models() {
           </Text>
         </View>
 
-        {error ? <Text style={styles.error}>{error}</Text> : null}
-        {notice ? <Text style={styles.notice}>{notice}</Text> : null}
-
         <Text style={styles.sectionTitle}>{t("Providers")}</Text>
         <View style={styles.card}>
           {connectedGroups.length ? (
@@ -1369,6 +1390,7 @@ export default function Models() {
               {compatConfig}
               {compatKeySection}
               {saveRow}
+              {probeFeedback ? null : feedback}
             </>
           ) : credential ? (
             <>
@@ -1377,6 +1399,7 @@ export default function Models() {
               {catalogModelCard}
               {saveRow}
               <View style={styles.maintenanceSection}>{catalogConnectionControls}</View>
+              {feedback}
             </>
           ) : (
             <>
@@ -1384,11 +1407,14 @@ export default function Models() {
                 {t("Connect this provider to use it as your personal model.")}
               </Text>
               {catalogConnectionControls}
+              {feedback}
               <Text style={styles.sectionTitle}>{t("Model")}</Text>
               {catalogModelCard}
             </>
           )
-        ) : null}
+        ) : (
+          feedback
+        )}
       </ScrollView>
     </SafeAreaView>
   );
