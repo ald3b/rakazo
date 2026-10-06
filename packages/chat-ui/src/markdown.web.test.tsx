@@ -68,7 +68,7 @@ describe("web markdown remote images", () => {
     container.remove();
   });
 
-  it("loads an image inside an open link from its placeholder without following the link", async () => {
+  it("loads a linked image from a placeholder that is not inside the anchor", async () => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     const markdown =
       "See [![build](https://badge.example.test/tap-linked.svg)](https://ci.example.test/tap-linked) now";
@@ -80,31 +80,25 @@ describe("web markdown remote images", () => {
     });
     expect(container.querySelector("img")).toBeNull();
     expect(container.innerHTML).not.toContain("tap-linked.svg");
+    expect(container.querySelector("a button")).toBeNull();
 
+    const button = container.querySelector("button");
     const link = container.querySelector("a");
-    const button = link?.querySelector("button");
-    expect(link?.getAttribute("href")).toBe("https://ci.example.test/tap-linked");
+    expect(button?.closest("a")).toBeNull();
     expect(button?.textContent).toContain("build");
     expect(button?.textContent).toContain("badge.example.test");
+    expect(link?.getAttribute("href")).toBe("https://ci.example.test/tap-linked");
+    expect(link?.textContent).toBe("ci.example.test");
+    expect(container.querySelectorAll("a")).toHaveLength(1);
 
-    let activation: MouseEvent | undefined;
-    button?.addEventListener("click", (event) => {
-      activation = event;
-    });
-    const reachedWindow = vi.fn();
-    window.addEventListener("click", reachedWindow);
     await act(async () => {
       button?.click();
     });
-    window.removeEventListener("click", reachedWindow);
-
-    expect(activation?.defaultPrevented).toBe(true);
-    expect(reachedWindow).not.toHaveBeenCalled();
-    const image = container.querySelector("img");
+    const image = container.querySelector("a img");
     expect(image?.getAttribute("src")).toBe("https://badge.example.test/tap-linked.svg");
     expect(image?.getAttribute("referrerpolicy")).toBe("no-referrer");
+    expect(container.querySelector("a button")).toBeNull();
     expect(container.querySelector("button")).toBeNull();
-    expect(link?.getAttribute("href")).toBe("https://ci.example.test/tap-linked");
 
     await act(async () => {
       root.unmount();

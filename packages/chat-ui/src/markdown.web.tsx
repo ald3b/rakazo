@@ -74,6 +74,77 @@ type EnclosingLink = false | "open" | "rejected";
 
 const InsideLinkContext = createContext<EnclosingLink>(false);
 
+type MarkdownHast = {
+  type?: string;
+  tagName?: string;
+  value?: string;
+  properties?: Record<string, unknown>;
+  children?: MarkdownHast[];
+};
+
+function hastString(value: unknown): string | undefined {
+  return typeof value === "string" && value ? value : undefined;
+}
+
+function linkHost(href: string): string {
+  try {
+    return new URL(href).host || href;
+  } catch {
+    return href;
+  }
+}
+
+function soleRemoteImage(node: MarkdownHast | undefined):
+  | {
+      href: string;
+      host: string;
+      alt?: string;
+      title?: string;
+    }
+  | undefined {
+  const parts = (node?.children ?? []).filter((child) => {
+    if (child.type === "text") return Boolean(child.value?.trim());
+    return child.type === "element";
+  });
+  const only = parts.length === 1 ? parts[0] : undefined;
+  if (only?.tagName !== "img") return undefined;
+  const remote = remoteMarkdownImage(hastString(only.properties?.src) ?? "");
+  if (!remote) return undefined;
+  return {
+    ...remote,
+    alt: hastString(only.properties?.alt),
+    title: hastString(only.properties?.title),
+  };
+}
+
+function RemoteImageButton({
+  image,
+  alt,
+  title,
+  onLoad,
+}: {
+  image: { href: string; host: string };
+  alt?: string;
+  title?: string;
+  onLoad: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className="rk-chat-markdown-image"
+      title={title}
+      onClick={() => {
+        markRemoteImageLoaded(image.href);
+        onLoad();
+      }}
+    >
+      <ImageIcon />
+      {alt ? <span>{alt}</span> : null}
+      <span className="rk-chat-markdown-image-host">{image.host}</span>
+    </button>
+  );
+}
+
 function MarkdownImage({ src = "", alt, title }: { src?: string; alt?: string; title?: string }) {
   const enclosingLink = useContext(InsideLinkContext);
   const loadRemote = useContext(RemoteImagesContext);
@@ -95,41 +166,84 @@ function MarkdownImage({ src = "", alt, title }: { src?: string; alt?: string; t
       />
     );
   }
-  if (!remote || rejectedLink) return alt || remote?.host || src;
+  if (!remote || enclosingLink !== false) return alt || remote?.host || src;
   return (
-    <button
-      type="button"
-      className="rk-chat-markdown-image"
+    <RemoteImageButton
+      image={remote}
+      alt={alt}
       title={title}
-      onClick={(event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        markRemoteImageLoaded(remote.href);
-        setRevision((revision) => revision + 1);
-      }}
-    >
-      <ImageIcon />
-      {alt ? <span>{alt}</span> : null}
-      <span className="rk-chat-markdown-image-host">{remote.host}</span>
-    </button>
+      onLoad={() => setRevision((revision) => revision + 1)}
+    />
+  );
+}
+
+function LinkedRemoteImage({
+  href,
+  image,
+  alt,
+  title,
+}: {
+  href: string;
+  image: { href: string; host: string };
+  alt?: string;
+  title?: string;
+}) {
+  const loadRemote = useContext(RemoteImagesContext);
+  const [, setRevision] = useState(0);
+  if (remoteImageRenders(image.href, loadRemote, false)) {
+    return (
+      <a href={href} target="_blank" rel="noreferrer noopener">
+        <img
+          src={image.href}
+          alt={alt ?? ""}
+          title={title}
+          loading="lazy"
+          referrerPolicy="no-referrer"
+        />
+      </a>
+    );
+  }
+  return (
+    <span className="rk-chat-markdown-linked-image">
+      <RemoteImageButton
+        image={image}
+        alt={alt}
+        title={title}
+        onLoad={() => setRevision((revision) => revision + 1)}
+      />
+      <a href={href} target="_blank" rel="noreferrer noopener">
+        {linkHost(href)}
+      </a>
+    </span>
+  );
+}
+
+function MarkdownAnchor({
+  node,
+  ...props
+}: React.ComponentPropsWithoutRef<"a"> & { node?: MarkdownHast }) {
+  const loadRemote = useContext(RemoteImagesContext);
+  const href = typeof props.href === "string" ? props.href : "";
+  const image = href ? soleRemoteImage(node) : undefined;
+  if (image && !remoteImageRenders(image.href, loadRemote, false)) {
+    return <LinkedRemoteImage href={href} image={image} alt={image.alt} title={image.title} />;
+  }
+  // urlTransform blanks unsafe URLs. Keep their text without a link that opens the app again.
+  const opens = Boolean(props.href);
+  const link = opens ? (
+    <a {...props} target="_blank" rel="noreferrer noopener" />
+  ) : (
+    <span>{props.children}</span>
+  );
+  return (
+    <InsideLinkContext.Provider value={opens ? "open" : "rejected"}>
+      {link}
+    </InsideLinkContext.Provider>
   );
 }
 
 const components: Components = {
-  a({ node: _node, ...props }) {
-    // urlTransform blanks unsafe URLs. Keep their text without a link that opens the app again.
-    const opens = Boolean(props.href);
-    const link = opens ? (
-      <a {...props} target="_blank" rel="noreferrer noopener" />
-    ) : (
-      <span>{props.children}</span>
-    );
-    return (
-      <InsideLinkContext.Provider value={opens ? "open" : "rejected"}>
-        {link}
-      </InsideLinkContext.Provider>
-    );
-  },
+  a: MarkdownAnchor,
   img({ node: _node, src, alt, title }) {
     return (
       <MarkdownImage src={typeof src === "string" ? src : undefined} alt={alt} title={title} />

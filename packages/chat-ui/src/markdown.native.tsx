@@ -149,6 +149,12 @@ function markdownStyles(palette: ColorTokens) {
       color: palette.mutedForeground,
       fontSize: 13,
     },
+    linked_image: {
+      width: "100%",
+      maxWidth: "100%",
+      alignItems: "flex-start",
+      gap: 4,
+    },
   });
 }
 
@@ -161,6 +167,31 @@ async function openSafeLink(url: string) {
 function openMarkdownLink(href: string, event: { defaultPrevented: boolean }) {
   if (event.defaultPrevented) return;
   void openSafeLink(href);
+}
+
+function linkHost(href: string): string {
+  try {
+    return new URL(href).host || href;
+  } catch {
+    return href;
+  }
+}
+
+function soleRemoteImage(node: ASTNode):
+  | {
+      remote: { href: string; host: string };
+      alt?: string;
+      title?: string;
+    }
+  | undefined {
+  const parts = node.children.filter(
+    (child) => child.type !== "text" || child.content.trim() !== "",
+  );
+  const only = parts.length === 1 && parts[0]?.type === "image" ? parts[0] : undefined;
+  if (!only) return undefined;
+  const remote = remoteMarkdownImage(only.attributes.src ?? "");
+  if (!remote) return undefined;
+  return { remote, alt: only.attributes.alt, title: only.attributes.title };
 }
 
 function enclosingLink(parents: readonly ASTNode[]) {
@@ -282,34 +313,9 @@ const renderRules: RenderRules = {
       {children}
     </View>
   ),
-  link: (node, children, _parent, styleMap) => {
-    const href = sanitizeMarkdownUrl(node.attributes.href ?? "");
-    if (!href) return <Text key={node.key}>{children}</Text>;
-    return (
-      <Text
-        accessibilityRole="link"
-        key={node.key}
-        style={styleMap.link}
-        onPress={(event) => openMarkdownLink(href, event)}
-      >
-        {children}
-      </Text>
-    );
-  },
-  blocklink: (node, children, _parent, styleMap) => {
-    const href = sanitizeMarkdownUrl(node.attributes.href ?? "");
-    if (!href) return <Text key={node.key}>{children}</Text>;
-    return (
-      <Pressable
-        accessibilityRole="link"
-        key={node.key}
-        onPress={(event) => openMarkdownLink(href, event)}
-        style={styleMap.blocklink}
-      >
-        <View style={styleMap.image}>{children}</View>
-      </Pressable>
-    );
-  },
+  link: (node, children, _parent, styleMap) => renderMarkdownLink(node, children, styleMap, false),
+  blocklink: (node, children, _parent, styleMap) =>
+    renderMarkdownLink(node, children, styleMap, true),
   // Replaces the library rule, which loads any http(s) image and prefixes https:// to the rest.
   image: (node, _children, parents, styleMap) => {
     const src = node.attributes.src ?? "";
@@ -338,6 +344,7 @@ const renderRules: RenderRules = {
           image={remote}
           alt={alt}
           title={node.attributes.title}
+          insideLink={Boolean(linkParent)}
           rejectedLink={Boolean(linkParent) && !linkOpens}
           labelStyle={labelStyle}
           styleMap={styleMap}
@@ -352,20 +359,129 @@ const renderRules: RenderRules = {
   },
 };
 
+function renderMarkdownLink(
+  node: ASTNode,
+  children: ReactNode[],
+  styleMap: MarkdownStyleMap,
+  block: boolean,
+) {
+  const href = sanitizeMarkdownUrl(node.attributes.href ?? "");
+  if (!href) return <Text key={node.key}>{children}</Text>;
+  const image = soleRemoteImage(node);
+  if (image) {
+    return (
+      <LinkedRemoteImage
+        key={node.key}
+        href={href}
+        image={image.remote}
+        alt={image.alt}
+        title={image.title}
+        styleMap={styleMap}
+      />
+    );
+  }
+  if (!block) {
+    return (
+      <Text
+        accessibilityRole="link"
+        key={node.key}
+        style={styleMap.link}
+        onPress={(event) => openMarkdownLink(href, event)}
+      >
+        {children}
+      </Text>
+    );
+  }
+  return (
+    <Pressable
+      accessibilityRole="link"
+      key={node.key}
+      onPress={(event) => openMarkdownLink(href, event)}
+      style={styleMap.blocklink}
+    >
+      <View style={styleMap.image}>{children}</View>
+    </Pressable>
+  );
+}
+
+function LinkedRemoteImage({
+  href,
+  image,
+  alt,
+  title,
+  styleMap,
+}: {
+  href: string;
+  image: { href: string; host: string };
+  alt?: string;
+  title?: string;
+  styleMap: MarkdownStyleMap;
+}) {
+  const loadRemote = useContext(RemoteImagesContext);
+  const [, setRevision] = useState(0);
+  if (remoteImageRenders(image.href, loadRemote, false)) {
+    return (
+      <Pressable
+        accessibilityRole="link"
+        onPress={() => {
+          void openSafeLink(href);
+        }}
+        style={styleMap.blocklink}
+      >
+        <View style={styleMap.image}>
+          <FitImage
+            indicator
+            style={styleMap._VIEW_SAFE_image}
+            source={{ uri: image.href }}
+            accessible={Boolean(alt)}
+            accessibilityLabel={alt}
+          />
+        </View>
+      </Pressable>
+    );
+  }
+  return (
+    <View style={styleMap.linked_image}>
+      <RemoteMarkdownImage
+        image={image}
+        alt={alt}
+        title={title}
+        rejectedLink={false}
+        labelStyle={styleMap.plain_text}
+        styleMap={styleMap}
+        onLoad={() => setRevision((revision) => revision + 1)}
+      />
+      <Text
+        accessibilityRole="link"
+        style={styleMap.link}
+        onPress={() => {
+          void openSafeLink(href);
+        }}
+      >
+        {linkHost(href)}
+      </Text>
+    </View>
+  );
+}
+
 export function RemoteMarkdownImage({
   image,
   alt,
   title,
+  insideLink = false,
   rejectedLink,
   labelStyle,
   styleMap,
+  onLoad,
 }: {
   image: { href: string; host: string };
   alt?: string;
   title?: string;
+  insideLink?: boolean;
   rejectedLink: boolean;
   labelStyle: MarkdownStyleMap[string] | undefined;
   styleMap: MarkdownStyleMap;
+  onLoad?: () => void;
 }) {
   const loadRemote = useContext(RemoteImagesContext);
   // Bumping this redraws after a tap. Whether the image shows is read from the current URL.
@@ -381,7 +497,7 @@ export function RemoteMarkdownImage({
       />
     );
   }
-  if (rejectedLink) return <Text style={labelStyle}>{alt || image.host}</Text>;
+  if (rejectedLink || insideLink) return <Text style={labelStyle}>{alt || image.host}</Text>;
   return (
     <Pressable
       accessibilityRole="button"
@@ -393,6 +509,7 @@ export function RemoteMarkdownImage({
         event.preventDefault();
         event.stopPropagation();
         markRemoteImageLoaded(image.href);
+        onLoad?.();
         setRevision((revision) => revision + 1);
       }}
       style={styleMap.image_placeholder}

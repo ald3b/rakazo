@@ -102,9 +102,9 @@ describe("ChatMarkdown", () => {
 
     expect(html).not.toContain("<img");
     expect(html).not.toContain("badge.example.test/b.svg");
-    expect(html).toContain(
-      '<a href="https://ci.example.test/run" target="_blank" rel="noreferrer noopener">',
-    );
+    const anchor = html.match(/<a\b[^>]*>[\s\S]*?<\/a>/)?.[0] ?? "";
+    expect(anchor).not.toContain("<button");
+    expect(anchor).toContain("ci.example.test");
     expect(html).toContain('class="rk-chat-markdown-image"');
     expect(html).toContain(">build</span>");
     expect(html).toContain("badge.example.test");

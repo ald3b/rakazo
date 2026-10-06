@@ -319,16 +319,25 @@ describe("native markdown images", () => {
     expect(html).toContain("example.test/p.gif");
   });
 
-  it("loads an image inside an open link from its placeholder without following the link", async () => {
+  it("lays out a linked image placeholder as a block beside the link", async () => {
     const markdown =
       "See [![build](https://badge.example.test/tap-linked.svg)](https://ci.example.test/tap-linked) now";
     const html = renderToStaticMarkup(<ChatMarkdown>{markdown}</ChatMarkdown>);
     expect(html).not.toContain("<rn-stub");
     expect(html).not.toContain("tap-linked.svg");
-    expect(html.match(/data-accessibility-role="link"/g)).toHaveLength(1);
-    expect(html).toContain('data-accessibility-role="button"');
-    expect(html).toContain("build");
-    expect(html).toContain("badge.example.test");
+    const holder = document.createElement("div");
+    holder.innerHTML = html;
+    const button = holder.querySelector<HTMLElement>("[data-accessibility-role='button']");
+    const link = holder.querySelector<HTMLElement>("[data-accessibility-role='link']");
+    expect(button?.closest("rn-text")).toBeNull();
+    expect(button?.closest("[data-accessibility-role='link']")).toBeNull();
+    expect(button?.parentElement?.tagName.toLowerCase()).toBe("rn-view");
+    expect(button?.parentElement?.getAttribute("data-flex")).toBeNull();
+    expect(button?.parentElement).toBe(link?.parentElement);
+    expect(link?.contains(button)).toBe(false);
+    expect(link?.textContent).toBe("ci.example.test");
+    expect(holder.textContent).toContain("See ");
+    expect(holder.textContent).toContain(" now");
 
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
     linking.openURL.mockClear();
@@ -340,9 +349,9 @@ describe("native markdown images", () => {
     });
     expect(container.querySelector("rn-stub")).toBeNull();
 
-    const link = container.querySelector<HTMLElement>("[data-accessibility-role='link']");
+    const liveLink = container.querySelector<HTMLElement>("[data-accessibility-role='link']");
     await act(async () => {
-      link?.click();
+      liveLink?.click();
     });
     await vi.waitFor(() => {
       expect(linking.openURL).toHaveBeenCalledWith("https://ci.example.test/tap-linked");
@@ -350,16 +359,14 @@ describe("native markdown images", () => {
     expect(container.querySelector("rn-stub")).toBeNull();
 
     linking.openURL.mockClear();
-    const button = link?.querySelector<HTMLElement>("[data-accessibility-role='button']");
-    let activation: MouseEvent | undefined;
-    button?.addEventListener("click", (event) => {
-      activation = event;
-    });
+    const liveButton = container.querySelector<HTMLElement>("[data-accessibility-role='button']");
+    expect(liveButton?.closest("[data-accessibility-role='link']")).toBeNull();
     await act(async () => {
-      button?.click();
+      liveButton?.click();
     });
-    expect(activation?.defaultPrevented).toBe(true);
-    expect(container.querySelector("rn-stub")).not.toBeNull();
+    const image = container.querySelector("rn-stub");
+    expect(image).not.toBeNull();
+    expect(image?.closest("[data-accessibility-role='link']")).not.toBeNull();
     expect(container.querySelector("[data-accessibility-role='button']")).toBeNull();
     expect(linking.openURL).not.toHaveBeenCalled();
 
