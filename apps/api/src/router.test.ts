@@ -378,7 +378,7 @@ describe("thread stream authorization", () => {
             }),
       return: vi.fn(async () => ({ done: true as const, value: undefined })),
     };
-    const emit = (seq: number, text: string) => {
+    const emit = (seq: number, text: string, extra?: Partial<ProductEvent>) => {
       const event: ProductEvent = {
         id: `event-${seq}`,
         spaceId: "workspace-1",
@@ -388,6 +388,7 @@ describe("thread stream authorization", () => {
         type: "thread.message.created",
         createdAt: new Date().toISOString(),
         payload: { text },
+        ...extra,
       };
       if (waiting) {
         waiting({ done: false, value: event });
@@ -403,6 +404,9 @@ describe("thread stream authorization", () => {
           thread: { id: "thread-1" },
           computer: null,
         }),
+      },
+      run: {
+        findUnique: vi.fn().mockResolvedValue({ trigger: "bot_message" }),
       },
     } as unknown as PrismaClient;
     const deps = {
@@ -452,6 +456,37 @@ describe("thread stream authorization", () => {
     const ended = expect(stream.next()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     await vi.advanceTimersByTimeAsync(HEARTBEAT_MS);
     await ended;
+    expect(follow.return).toHaveBeenCalled();
+  });
+
+  it("re-checks authorization before skipping filtered peer events", async () => {
+    const { client, emit, follow, stillAuthorized } = threadStream();
+    const stream = await client.threads.subscribe({ botId: "bot-1", cursor: -1 });
+
+    emit(1, "before");
+    await expect(stream.next()).resolves.toMatchObject({ value: { seq: 1 } });
+    expect(stillAuthorized).not.toHaveBeenCalled();
+
+    vi.setSystemTime(Date.now() + SESSION_RECHECK_MS);
+    stillAuthorized.mockResolvedValue(false);
+    emit(2, "hidden", { type: "thread.progress", runId: "run-peer", payload: {} });
+    const pending = stream.next();
+    const outcome = await Promise.race([
+      pending.then(
+        () => "yielded" as const,
+        () => "rejected" as const,
+      ),
+      (async () => {
+        for (let step = 0; step < 30; step++) {
+          await Promise.resolve();
+          await vi.advanceTimersByTimeAsync(0);
+        }
+        return "still-open" as const;
+      })(),
+    ]);
+    expect(outcome).toBe("rejected");
+    await expect(pending).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    expect(stillAuthorized).toHaveBeenCalledTimes(1);
     expect(follow.return).toHaveBeenCalled();
   });
 });
