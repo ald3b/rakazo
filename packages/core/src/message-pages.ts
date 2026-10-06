@@ -74,7 +74,8 @@ export function appendNewerThreadPage<
     newest !== null && newest > newerCursor
       ? mergeMessagesBySeq(snapshot.messages, page.messages)
       : snapshot.messages;
-  const cursor = forwardCursor(messages, newerCursor, coveredThroughSeq ?? null);
+  const covered = coveredThroughSeq ?? overlappingPageCoverage(page, newerCursor);
+  const cursor = forwardCursor(messages, newerCursor, covered);
   if (messages === snapshot.messages && cursor === newerCursor) return { snapshot, newerCursor };
   return {
     snapshot: messages === snapshot.messages ? snapshot : { ...snapshot, messages },
@@ -144,6 +145,23 @@ function newerGapCursor(messages: readonly MessageIdentity[], loadedThrough: num
     messages.filter((message) => typeof message.seq === "number" && message.seq > loadedThrough),
   );
   return next !== null && next > loadedThrough + 1 ? loadedThrough : null;
+}
+
+function overlappingPageCoverage(
+  page: ThreadHistory<MessageIdentity>,
+  newerCursor: number,
+): number | null {
+  let oldest: number | null = null;
+  let newest: number | null = null;
+  for (const message of page.messages) {
+    if (!isDurableMessage(message) || typeof message.seq !== "number") continue;
+    if (oldest === null || message.seq < oldest) oldest = message.seq;
+    if (newest === null || message.seq > newest) newest = message.seq;
+  }
+  if (newest === null || oldest === null || newest <= newerCursor || oldest > newerCursor + 1) {
+    return null;
+  }
+  return newest;
 }
 
 function newestSeq(messages: readonly MessageIdentity[]): number | null {

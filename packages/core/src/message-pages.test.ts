@@ -91,6 +91,31 @@ describe("thread windows", () => {
     );
   });
 
+  it("skips filtered seqs inside a page that still overlaps the cursor", () => {
+    const opened = openThreadWindow(latest(), page(25, 124));
+    const next = appendNewerThreadPage(opened.snapshot, 124, {
+      threadId: "thread",
+      messages: [...range(100, 124), ...range(126, 140)],
+      olderCursor: 100,
+    });
+
+    expect(next.newerCursor).toBe(140);
+    expect(ids(threadWindowMessages(next.snapshot.messages, next.newerCursor))).toEqual([
+      ...ids(range(25, 124)),
+      ...ids(range(126, 140)),
+    ]);
+  });
+
+  it("does not skip a gap to a page that starts past the cursor", () => {
+    const opened = openThreadWindow(latest(), page(25, 124));
+    const next = appendNewerThreadPage(opened.snapshot, 124, page(180, 190));
+
+    expect(next.newerCursor).toBe(124);
+    expect(ids(threadWindowMessages(next.snapshot.messages, next.newerCursor))).toEqual(
+      ids(range(25, 124)),
+    );
+  });
+
   it("joins once coverage reaches the latest snapshot, hidden rows included", () => {
     const opened = openThreadWindow(latest(), page(25, 124));
     const next = appendNewerThreadPage(opened.snapshot, 124, page(74, 124), 299);

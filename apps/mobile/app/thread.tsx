@@ -410,6 +410,7 @@ function Thread() {
     expandedHistoryThread.current = null;
     pinnedAroundRef.current = null;
     jumpScrollTarget.current = null;
+    joinPinnedAfterLayout.current = null;
     loadingOlderContent.current = false;
     setThreadScrollState(scrollBehavior.current.state());
   }, [threadKey]);
@@ -469,6 +470,7 @@ function Thread() {
   // A failed newer page waits for the next drag instead of retrying on every scroll event.
   const newerLoadFailed = useRef(false);
   const pinnedScrollMetrics = useRef({ offset: 0, viewport: 0, content: 0 });
+  const joinPinnedAfterLayout = useRef<number | null>(null);
   const [markdownPreview, setMarkdownPreview] = useState<MarkdownArtifactPreviewTarget | null>(
     null,
   );
@@ -951,6 +953,7 @@ function Thread() {
       : null;
     jumpScrollTarget.current = targetInPage ? target.messageId : null;
     newerLoadFailed.current = false;
+    joinPinnedAfterLayout.current = null;
     pinnedScrollMetrics.current = { offset: 0, viewport: 0, content: 0 };
     commitSnap(opened?.snapshot ?? snap);
   }
@@ -992,9 +995,9 @@ function Thread() {
       const advanced = next.newerCursor !== pinned.newerCursor;
       let probeSeq: number | undefined;
       if (next.newerCursor != null) {
-        if (covered != null) probeSeq = covered + 1;
-        else if (advanced) probeSeq = next.newerCursor + 1;
-        else probeSeq = probe + 1;
+        const nextProbe = covered != null ? covered + 1 : advanced ? next.newerCursor + 1 : probe;
+        if (!advanced && nextProbe <= probe) newerLoadFailed.current = true;
+        else probeSeq = nextProbe;
       }
       pinnedAroundRef.current = {
         ...pinned,
@@ -1003,7 +1006,9 @@ function Thread() {
         probeSeq,
       };
       commitSnap(next.snapshot);
-      if (next.newerCursor == null && pinnedNearEnd()) showLatest();
+      if (next.newerCursor == null) {
+        joinPinnedAfterLayout.current = pinnedScrollMetrics.current.content;
+      }
     } catch (err) {
       newerLoadFailed.current = true;
       setError(err instanceof Error ? err.message : t("Could not open message"));
@@ -1016,6 +1021,7 @@ function Thread() {
   function showLatest() {
     const pinned = pinnedAroundRef.current;
     pinnedAroundRef.current = null;
+    joinPinnedAfterLayout.current = null;
     jumpScrollTarget.current = null;
     expandedHistoryThread.current = null;
     // The live list mounts at the latest message.
@@ -2025,6 +2031,14 @@ function Thread() {
             }}
             onContentSizeChange={(_, height) => {
               pinnedScrollMetrics.current.content = height;
+              const armedAt = joinPinnedAfterLayout.current;
+              if (armedAt != null && height !== armedAt) {
+                joinPinnedAfterLayout.current = null;
+                if (pinnedAroundRef.current?.newerCursor == null && pinnedNearEnd()) {
+                  showLatest();
+                  return;
+                }
+              }
               loadNewerNearEnd();
             }}
             onScroll={(event) => {
