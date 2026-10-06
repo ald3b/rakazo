@@ -12,13 +12,8 @@ import { openScreenCapability } from "@rakazo/core/node/screen-capability";
 import type { PrismaClient } from "@rakazo/db";
 import { createLogger, createTestSink, installLogger } from "@rakazo/logging";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-  createRouter,
-  enqueueBotIntroRun,
-  HEARTBEAT_MS,
-  type RouterDeps,
-  SESSION_RECHECK_MS,
-} from "./router.js";
+import type { RouterDeps } from "./router.js";
+import { createRouter, enqueueBotIntroRun, HEARTBEAT_MS, SESSION_RECHECK_MS } from "./router.js";
 
 describe("account preferences", () => {
   function preferencesDeps(avatarStyle: string) {
