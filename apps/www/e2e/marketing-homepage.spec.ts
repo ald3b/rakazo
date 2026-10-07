@@ -77,4 +77,25 @@ test.describe("marketing homepage", () => {
     );
     await captureScreenshot(page, testInfo, "04-marketing-zh-get-started");
   });
+
+  test("footer links to the terms with billing and refunds", async ({ page }, testInfo) => {
+    await page.goto("/");
+    await page.getByRole("contentinfo").getByRole("link", { name: "Terms" }).click();
+    await expect(page).toHaveURL(/\/terms\/$/);
+    await expect(page.getByRole("heading", { level: 1, name: "Terms of Service" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Cancellation and refunds" })).toBeVisible();
+    await expect(page.getByRole("contentinfo")).toContainText("Inbox Zero Inc.");
+    await captureScreenshot(page, testInfo, "05-marketing-terms");
+  });
+});
+
+test.describe("marketing not-found page", () => {
+  test("is noindex with no canonical or og:url", async ({ page }) => {
+    await page.goto("/this-page-does-not-exist/");
+    await page.waitForLoadState("load");
+
+    await expect(page.locator('meta[name="robots"]')).toHaveAttribute("content", "noindex");
+    await expect(page.locator('link[rel="canonical"]')).toHaveCount(0);
+    await expect(page.locator('meta[property="og:url"]')).toHaveCount(0);
+  });
 });

@@ -88,6 +88,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppConnectCard } from "../components/AppConnectCard";
 import { AskActions } from "../components/AskActions";
 import { BotAvatar } from "../components/bot-avatar";
+import { ComputerCard } from "../components/ComputerCard";
 import type { ImageArtifactPreviewTarget } from "../components/image-artifact-viewer";
 import { InlineImageAttachment } from "../components/inline-image-attachment";
 import { McpApprovalCard } from "../components/McpApprovalCard";
@@ -95,6 +96,7 @@ import {
   MarkdownArtifactPreview,
   type MarkdownArtifactPreviewTarget,
 } from "../components/markdown-artifact-preview";
+import { MessageContextMenu } from "../components/message-context-menu";
 import { NativeSymbol } from "../components/native-symbol";
 import { SelectTextSheet } from "../components/select-text-sheet";
 import { VoiceChatCard } from "../components/VoiceChatCard";
@@ -138,6 +140,7 @@ import {
   setOpenNotificationThread,
 } from "../lib/live-notifications";
 import { presentMessageActionSheet } from "../lib/message-action-sheet";
+import { buildMessageContextMenu, messageMenuReaction } from "../lib/message-context-menu";
 import {
   hasVisibleMessagePresentation,
   isCenteredAgentEvent,
@@ -1544,6 +1547,12 @@ function Thread() {
     [router],
   );
 
+  const openComputer = useCallback(
+    (id: string, botName: string) =>
+      router.push({ pathname: "/computer", params: { botId: id, name: botName } }),
+    [router],
+  );
+
   const speak = useCallback(
     (message: MobileMessage) => {
       const startIndex = visibleMessages.findIndex((candidate) => candidate.id === message.id);
@@ -1742,22 +1751,38 @@ function Thread() {
     }
   }
 
-  function messageActionProps(message: MobileMessage): MessageActionProps {
+  function messageActionProps(message: MobileMessage): {
+    actionProps: MessageActionProps;
+    menu: ReturnType<typeof buildMessageContextMenu>;
+    onMenuAction: (id: string) => void;
+  } {
     const messageText = selectableMobileMessageText(message);
+    const includeQuote =
+      !message.id.startsWith("progress:") &&
+      quotableMessageSegments(message.role, message.blocks).length > 0;
+    const includeReact = canReactToThreadMessage(message);
+    // The call already reads replies aloud; a second voice would talk over it.
+    const includeSpeak = message.role === "bot" && !onCall && Boolean(blockText(message));
+    const includeSelect = messageText.trim().length > 0;
+    const reply = () => {
+      setReplyTarget(message);
+      setReplyQuote(null);
+    };
+    const quote = () => setQuoteTarget(message);
+    const speakMessage = () => void speak(message);
+    const select = () =>
+      setSelectableText(
+        message.role === "user" ? messageText : selectableTextFromMarkdown(messageText),
+      );
+    const copy = () => {
+      const text = copyableMobileMessageText(message);
+      if (text) void Clipboard.setStringAsync(text).catch(() => undefined);
+    };
+    const react = (reaction: MessageReaction) => void reactToMessage(message, reaction);
     const actions = [
-      {
-        name: "reply",
-        text: t("Reply"),
-        onPress: () => {
-          setReplyTarget(message);
-          setReplyQuote(null);
-        },
-      },
-      ...(!message.id.startsWith("progress:") &&
-      quotableMessageSegments(message.role, message.blocks).length > 0
-        ? [{ name: "quote", text: t("Quote"), onPress: () => setQuoteTarget(message) }]
-        : []),
-      ...(canReactToThreadMessage(message)
+      { name: "reply", text: t("Reply"), onPress: reply },
+      ...(includeQuote ? [{ name: "quote", text: t("Quote"), onPress: quote }] : []),
+      ...(includeReact
         ? [
             {
               name: "react",
@@ -1768,59 +1793,70 @@ function Thread() {
                   more: t("More"),
                   colorScheme,
                   actions: MESSAGE_REACTIONS.map((emoji) => ({
-                    name: emoji,
                     text: emoji,
-                    onPress: () => void reactToMessage(message, emoji),
+                    onPress: () => react(emoji),
                   })),
                 }),
             },
           ]
         : []),
-      // The call already reads replies aloud; a second voice would talk over it.
-      ...(message.role === "bot" && !onCall && blockText(message)
-        ? [{ name: "speak", text: t("Speak message"), onPress: () => void speak(message) }]
-        : []),
-      ...(messageText.trim()
-        ? [
-            {
-              name: "select",
-              text: t("Select text"),
-              onPress: () =>
-                setSelectableText(
-                  message.role === "user" ? messageText : selectableTextFromMarkdown(messageText),
-                ),
-            },
-          ]
-        : []),
-      {
-        name: "copy",
-        text: t("Copy"),
-        onPress: () => {
-          const text = copyableMobileMessageText(message);
-          if (text) void Clipboard.setStringAsync(text).catch(() => undefined);
-        },
-      },
+      ...(includeSpeak ? [{ name: "speak", text: t("Speak message"), onPress: speakMessage }] : []),
+      ...(includeSelect ? [{ name: "select", text: t("Select text"), onPress: select }] : []),
+      { name: "copy", text: t("Copy"), onPress: copy },
     ];
+    const menu = buildMessageContextMenu({
+      labels: {
+        reply: t("Reply"),
+        copy: t("Copy"),
+        react: t("React"),
+        quote: t("Quote"),
+        speak: t("Speak message"),
+        select: t("Select text"),
+      },
+      reactions: MESSAGE_REACTIONS,
+      include: {
+        quote: includeQuote,
+        react: includeReact,
+        speak: includeSpeak,
+        select: includeSelect,
+      },
+    });
+    const openSheet = () =>
+      presentMessageActionSheet({
+        actions,
+        title: message.createdAt
+          ? formatMessageTime(message.createdAt, dateLocaleForUi())
+          : undefined,
+        cancel: t("Cancel"),
+        more: t("More"),
+        colorScheme,
+      });
     return {
-      onLongPress: () =>
-        presentMessageActionSheet({
-          actions,
-          title: message.createdAt
-            ? formatMessageTime(message.createdAt, dateLocaleForUi())
-            : undefined,
-          cancel: t("Cancel"),
-          more: t("More"),
-          colorScheme,
-        }),
-      accessibilityActions: actions.map((action) => ({ name: action.name, label: action.text })),
-      onAccessibilityAction: (event) => {
-        actions.find((action) => action.name === event.nativeEvent.actionName)?.onPress();
+      menu,
+      onMenuAction: (id) => {
+        const reaction = messageMenuReaction(id);
+        if (reaction && (MESSAGE_REACTIONS as readonly string[]).includes(reaction)) {
+          react(reaction as MessageReaction);
+          return;
+        }
+        if (id === "reply") reply();
+        if (id === "copy") copy();
+        if (id === "quote") quote();
+        if (id === "speak") speakMessage();
+        if (id === "select") select();
+      },
+      actionProps: {
+        onLongPress: Platform.OS === "ios" ? undefined : openSheet,
+        accessibilityActions: actions.map((action) => ({ name: action.name, label: action.text })),
+        onAccessibilityAction: (event) => {
+          actions.find((action) => action.name === event.nativeEvent.actionName)?.onPress();
+        },
       },
     };
   }
 
   function renderMessageRow(message: MobileMessage, options?: { enableJump?: boolean }) {
-    const actionProps = messageActionProps(message);
+    const { actionProps, menu, onMenuAction } = messageActionProps(message);
     const messageReactions = reactionView.reactions.get(message.id);
     const activityBotId =
       !inGroup && message.role === "bot" && message.id.startsWith("progress:")
@@ -1882,7 +1918,12 @@ function Thread() {
             flexShrink: 1,
           }}
         >
-          <Pressable accessible={false} onLongPress={actionProps.onLongPress}>
+          <MessageContextMenu
+            actions={menu}
+            colorScheme={colorScheme}
+            onAction={onMenuAction}
+            onLongPress={actionProps.onLongPress}
+          >
             <MessageBubble
               botId={botId ?? snap?.members?.[0]?.botId ?? ""}
               groupId={groupId}
@@ -1896,6 +1937,7 @@ function Thread() {
               canAnswer={message.id === answerableAskMessageId}
               onAnswer={answerMessage}
               onOpenBot={openBot}
+              onOpenComputer={openComputer}
               onPreviewMarkdown={setMarkdownPreview}
               onPlay={onCall ? undefined : () => speak(message)}
               onPreviewImage={(target) =>
@@ -1906,7 +1948,7 @@ function Thread() {
               }
               actionProps={actionProps}
             />
-          </Pressable>
+          </MessageContextMenu>
           {messageReactions ? (
             <View
               style={{
@@ -2954,6 +2996,7 @@ const MessageBubble = memo(function MessageBubble({
   canAnswer,
   onAnswer,
   onOpenBot,
+  onOpenComputer,
   onPreviewMarkdown,
   onPlay,
   onPreviewImage,
@@ -2969,6 +3012,7 @@ const MessageBubble = memo(function MessageBubble({
   canAnswer: boolean;
   onAnswer: (message: MobileMessage, answer: string, username?: string) => Promise<void>;
   onOpenBot: (botId: string, name: string) => void;
+  onOpenComputer: (botId: string, name: string) => void;
   onPreviewMarkdown: (target: MarkdownArtifactPreviewTarget) => void;
   onPlay?: () => void;
   onPreviewImage: (target: ImageArtifactPreviewTarget) => void;
@@ -2980,6 +3024,7 @@ const MessageBubble = memo(function MessageBubble({
   const [peerExpanded, setPeerExpanded] = useState(false);
   const artifactTarget: MobileArtifactTarget = groupId ? { groupId } : { botId };
   const cardBotId = message.botId ?? botId;
+  const computerBotId = message.botId ?? (groupId ? undefined : botId);
   const appConnectBlocks = message.blocks.filter(
     (block): block is Extract<MessageBlock, { kind: "app_connect" }> =>
       block.kind === "app_connect",
@@ -3586,6 +3631,9 @@ const MessageBubble = memo(function MessageBubble({
     message.role === "bot" ? speakerColorFor(bots, members, message.botId) : undefined;
   const firstContent = segments.findIndex((segment) => segment.kind === "content");
   const lastContent = segments.map((segment) => segment.kind).lastIndexOf("content");
+  const computerBlocks = message.blocks.filter(
+    (block): block is Extract<MessageBlock, { kind: "computer" }> => block.kind === "computer",
+  );
   return (
     <View style={{ gap: 8, width: "100%" }}>
       {segments.map((segment, index) => (
@@ -3597,6 +3645,17 @@ const MessageBubble = memo(function MessageBubble({
           replyPreview={index === firstContent ? replyPreview : undefined}
           onPlay={message.role === "bot" && index === lastContent ? onPlay : undefined}
           actionProps={actionProps}
+        />
+      ))}
+      {computerBlocks.map((block, index) => (
+        <ComputerCard
+          key={`computer-${index}`}
+          block={block}
+          onOpen={
+            computerBotId ? () => onOpenComputer(computerBotId, speaker ?? t("Bot")) : undefined
+          }
+          accessibilityActions={actionProps.accessibilityActions}
+          onAccessibilityAction={actionProps.onAccessibilityAction}
         />
       ))}
       {appConnectBlocks.map((block, index) => (

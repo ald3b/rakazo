@@ -726,23 +726,29 @@ export async function rpc<T>(
       cancelResponseBody(res);
       throw new Error(t("Update your server to use AI data sharing in this mobile version."));
     }
-    const parsed = await readBoundedJsonResponse<{ json?: T; error?: { message?: string } }>(
+    const parsed: { json?: T } = await readBoundedJsonResponse<{ json?: T }>(
       res,
       MAX_MOBILE_RPC_RESPONSE_BYTES,
       controller.signal,
     ).catch((error: unknown) => {
+      // A proxy, or a server without this procedure, can fail with a body that is not JSON.
+      if (!res.ok && error instanceof SyntaxError) return {};
       throw abortReason(error);
     });
-    if (!res.ok || parsed.error) {
-      const message = parsed.error?.message ?? `rpc ${proc} failed`;
-      const unauthorized = res.status === 401 || /unauthorized/i.test(message);
+    if (!res.ok) {
+      // oRPC sends a failure as `{ json: { code, status, message } }`; the message is the
+      // server's user-facing copy.
+      const error = parsed.json as { message?: unknown } | undefined;
+      const message =
+        typeof error?.message === "string" && error.message ? error.message : `rpc ${proc} failed`;
+      const unauthorized = res.status === 401;
       // Without a Space header a 401 means the server no longer accepts the
       // session itself; Space recovery below probes the same way. Clearing it
       // bumps the session generation, so only the first rejection of a session
       // acts, and a 401 sent before a newer sign-in or a password change on
       // this device cannot clear the session that replaced it.
       if (
-        res.status === 401 &&
+        unauthorized &&
         !requestSpaceId &&
         requestHeaders.authorization &&
         !options.requestContext &&
