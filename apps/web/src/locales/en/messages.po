@@ -1406,6 +1406,8 @@ msgstr "Could not open terminal"
 msgid "Could not play a test clip"
 msgstr "Could not play a test clip"
 
+#: src/lib/computer-sandbox.ts
+#: src/lib/user-error.ts
 #: src/pages/AccountSettingsOverlay.tsx
 #: src/pages/Auth.tsx
 msgid "Could not reach the server"
@@ -1930,9 +1932,17 @@ msgstr "Ends {day}"
 msgid "Engage when... Ignore..."
 msgstr "Engage when... Ignore..."
 
+#: src/lib/user-error.ts
+msgid "Enter a password"
+msgstr "Enter a password"
+
 #: src/pages/shell/bot-credentials.tsx
 msgid "Enter a username and password"
 msgstr "Enter a username and password"
+
+#: src/lib/user-error.ts
+msgid "Enter a valid email"
+msgstr "Enter a valid email"
 
 #: src/pages/ModelSettingsOverlay.tsx
 #: src/pages/Onboarding.tsx
@@ -2397,6 +2407,10 @@ msgstr "Load more"
 #: src/pages/RoutineRunHistory.tsx
 msgid "Load older runs"
 msgstr "Load older runs"
+
+#: src/pages/AccountSettingsOverlay.tsx
+msgid "Load web images automatically"
+msgstr "Load web images automatically"
 
 #: src/pages/ActivityList.tsx
 msgid "Loading activity…"
@@ -3738,6 +3752,7 @@ msgstr "Show transcript"
 #: src/pages/Auth.tsx
 #: src/pages/ModelSettingsOverlay.tsx
 #: src/pages/Onboarding.tsx
+#: src/pages/Welcome.tsx
 msgid "Sign in"
 msgstr "Sign in"
 
@@ -3788,6 +3803,10 @@ msgstr "Slack not enabled"
 #: src/components/SoftwareUpdateSection.tsx
 msgid "Software update"
 msgstr "Software update"
+
+#: src/lib/user-error.ts
+msgid "Something went wrong. Try again."
+msgstr "Something went wrong. Try again."
 
 #: src/pages/shell/bot-panel.tsx
 msgid "Space default"

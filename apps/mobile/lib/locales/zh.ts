@@ -158,7 +158,6 @@ export const ZH_MESSAGES: Record<string, string> = {
   "Connect Executor": "连接 Executor",
   "Connect MCP server {name}": "连接 MCP 服务器 {name}",
   "Connect Treg": "连接 Treg",
-  "Connect this provider to use it as your personal model.": "连接此提供商，将其用作你的个人模型。",
   Connected: "已连接",
   "Connected · {label}": "已连接 · {label}",
   "Connected and using {label}.": "已连接并正在使用 {label}。",
@@ -213,6 +212,10 @@ export const ZH_MESSAGES: Record<string, string> = {
   "Could not open message": "无法打开消息",
   "Could not play a sample": "无法播放示例",
   "Could not play that clip.": "无法播放该音频。",
+  "Could not reach the server": "无法连接服务器",
+  "Enter a password": "请输入密码",
+  "Enter a valid email": "请输入有效的邮箱地址",
+  "Something went wrong. Try again.": "出了点问题，请重试。",
   "Could not reach that server": "无法连接到该服务器",
   "Could not reach this model server": "无法连接到此模型服务器",
   "Could not remove source": "无法移除此来源",
@@ -417,6 +420,7 @@ export const ZH_MESSAGES: Record<string, string> = {
   "Resetting…": "正在重置…",
   Restore: "恢复",
   "Stream replies": "流式回复",
+  "Load web images automatically": "自动加载网络图片",
   "Restore the last saved workspace. Unsaved work on the computer is lost.":
     "恢复上次保存的工作区。电脑上未保存的工作将会丢失。",
   "Resume notifications": "恢复通知",
@@ -518,7 +522,6 @@ export const ZH_MESSAGES: Record<string, string> = {
     "工作已停止，但线程无法刷新：{detail}",
   "You have control": "你已接管控制",
   "Your account": "你的账户",
-  "Stored securely. Never shown here.": "已安全存储。不会显示在这里。",
   Actions: "操作",
   Active: "启用",
   Add: "添加",
@@ -671,4 +674,14 @@ export const ZH_MESSAGES: Record<string, string> = {
   "Your phone's built-in voice — free, no account needed": "手机自带的语音 — 免费，无需账户",
   "Speaks with your phone's own text-to-speech instead of a connected provider.":
     "使用手机自带的语音朗读，而不是已连接的语音服务。",
+  // ai-data-sharing
+  "AI data sharing": "AI 数据共享",
+  "Allow {name} on mobile": "在手机上允许 {name}",
+  "Could not load permissions.": "无法加载权限。",
+  "No AI services configured.": "未配置 AI 服务。",
+  "Privacy policy": "隐私政策",
+  "Provider privacy policy": "服务商隐私政策",
+  "Withdraw all mobile permissions": "撤销所有手机端权限",
+  "Withdrawal applies to new mobile actions. Stop existing runs and disable routines separately.":
+    "撤销仅适用于新的手机端操作。请另行停止正在进行的运行并停用例程。",
 };

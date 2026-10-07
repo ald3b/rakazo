@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { rm } from "node:fs/promises";
 import { ORPCError, onError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import type {
@@ -33,10 +32,12 @@ import {
   createRunSandbox,
   createRunSecretWriter,
   createWebProvider,
+  deletePushToken,
   destroyBot,
   EmailEmulator,
   EncryptedSecretStore,
   ExpoPushProvider,
+  endSessionPushToken,
   GraphileJobPublisher,
   InMemoryJobQueue,
   InMemoryRealtimeFanout,
@@ -56,7 +57,6 @@ import {
   PostgresRealtimeFanout,
   pipedreamConfigFromEnv,
   piSessionsRoot,
-  pushTokenPath,
   reconcileCloudAgents,
   reconcileComputerUpdates,
   removePiUserSessions,
@@ -69,14 +69,17 @@ import {
   toTeamChatInbound,
 } from "@rakazo/adapters";
 import { createAuth, isBlockedAuthPath, loopbackTwinOrigins } from "@rakazo/auth";
+import type { Actor } from "@rakazo/contracts";
 import { signupAllowlistBootUpdate, signupPolicyFromEnv } from "@rakazo/core";
 import type { Pool, PrismaClient } from "@rakazo/db";
 import {
   createDb,
   createPool,
   createThreadEvents,
+  IsolationError,
   parsePositiveInteger,
   provisionMessagingIdentity,
+  pushSessionExpiresAt,
   requireMembership,
 } from "@rakazo/db";
 import type { Logger } from "@rakazo/logging";
@@ -361,7 +364,9 @@ export async function createApp(
       : new PiAgentRuntime({
           sessionRoot: env.piSessionRecording ? piSessionsRoot(env.dataDir) : undefined,
         });
-  const notifications = new ExpoPushProvider(env.dataDir);
+  const notifications = new ExpoPushProvider(env.dataDir, (sessionId) =>
+    pushSessionExpiresAt(prisma, sessionId),
+  );
   const auth = createAuth(prisma, {
     secret: env.authSecret,
     baseURL: env.authUrl,
@@ -396,7 +401,20 @@ export async function createApp(
         ),
       );
       await removePiUserSessions(env.dataDir, userId);
-      await rm(pushTokenPath(env.dataDir, userId), { force: true }).catch(() => undefined);
+      await deletePushToken(env.dataDir, userId).catch((error) =>
+        getLogger().error("push token removal failed", error),
+      );
+    },
+    // The session change already happened, so a token file failure must not fail sign-out.
+    afterDeleteSession: async (session) => {
+      await endSessionPushToken(env.dataDir, session.userId, session.id).catch((error) =>
+        getLogger().error("push token removal failed", error),
+      );
+    },
+    afterReplaceSession: async (previous, session) => {
+      await endSessionPushToken(env.dataDir, session.userId, previous.id, session.id).catch(
+        (error) => getLogger().error("push token session update failed", error),
+      );
     },
   });
   // One provider instance so emulator launches and polls share the same Map.
@@ -567,17 +585,18 @@ export async function createApp(
     return auth.handler(c.req.raw);
   });
   mountLocalSettings(app, { token: env.desktopStackToken, prisma, rpc });
-  const sessionActor = async (request: Request) => {
+  const requestSession = async (request: Request) => {
     const session = await auth.api.getSession({ headers: sessionHeaders(request) });
     if (!session?.user) return null;
-    return requireMembership(
-      prisma,
-      session.user.id,
-      request.headers.get("x-rakazo-space-id"),
-    ).catch(() => null);
+    const actor = await actorFromMembership(
+      requireMembership(prisma, session.user.id, request.headers.get("x-rakazo-space-id")),
+    );
+    return actor && { actor, sessionId: session.session.id };
   };
+  const sessionActor = async (request: Request) => (await requestSession(request))?.actor ?? null;
   app.use("/rpc/*", async (c, next) => {
-    const actor = await sessionActor(c.req.raw);
+    const session = await requestSession(c.req.raw);
+    const actor = session?.actor ?? null;
     if (actor) {
       enrichLogContext({ "user.id": actor.userId, "space.id": actor.spaceId });
     }
@@ -585,8 +604,10 @@ export async function createApp(
       prefix: "/rpc",
       context: {
         actor,
+        sessionId: session?.sessionId,
         signal: c.req.raw.signal,
         // Same user in the same space, so leaving the space also ends a stream.
+        // A database failure rejects this check; only a missing membership is unauthorized.
         stillAuthorized: async () => {
           const current = await sessionActor(c.req.raw);
           return Boolean(
@@ -974,6 +995,20 @@ function originVariants(origin: string): string[] {
     return variants;
   }
   return variants;
+}
+
+/**
+ * No membership is no actor, which the RPC layer answers as 401. A database
+ * failure, including the deployment-settings lookup, must stay a server error
+ * so a blip does not look like a rejected session.
+ */
+export async function actorFromMembership(membership: Promise<Actor>): Promise<Actor | null> {
+  try {
+    return await membership;
+  } catch (error) {
+    if (error instanceof IsolationError) return null;
+    throw error;
+  }
 }
 
 function sessionHeaders(request: Request) {

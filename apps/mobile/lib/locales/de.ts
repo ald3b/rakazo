@@ -292,8 +292,6 @@ export const DE_MESSAGES: Record<string, string> = {
   "Configured by deployment": "Durch die Bereitstellung konfiguriert",
   "Connect API key": "API-Schlüssel verbinden",
   "Connect MCP server {name}": "MCP-Server „{name}“ verbinden",
-  "Connect this provider to use it as your personal model.":
-    "Verbinde diesen Anbieter, um ihn als persönliches Modell zu verwenden.",
   "Connected and using {label}.": "Verbunden, {label} ist aktiv.",
   "Connected · {label}": "Verbunden · {label}",
   "Connected. Its tools are available from your next message.":
@@ -342,7 +340,6 @@ export const DE_MESSAGES: Record<string, string> = {
   "Show less": "Weniger anzeigen",
   "Sign in": "Anmelden",
   "Starting…": "Wird gestartet…",
-  "Stored securely. Never shown here.": "Sicher gespeichert. Hier nie angezeigt.",
   Submit: "Absenden",
   "Supports images": "Unterstützt Bilder",
   "Supports thinking": "Unterstützt Denkmodus",
@@ -497,6 +494,7 @@ export const DE_MESSAGES: Record<string, string> = {
   "Scheduled tasks": "Geplante Aufgaben",
   "Sign out": "Abmelden",
   "Stream replies": "Antworten streamen",
+  "Load web images automatically": "Webbilder automatisch laden",
   System: "System",
   "This permanently deletes your account, bots, conversations, memories, files, and saved connections. This cannot be undone.":
     "Das löscht dein Konto, deine Bots, Unterhaltungen, Erinnerungen, Dateien und gespeicherten Verbindungen endgültig. Das lässt sich nicht rückgängig machen.",
@@ -650,6 +648,11 @@ export const DE_MESSAGES: Record<string, string> = {
   "Use an http or https URL": "Verwende eine http- oder https-URL",
   // lib/live-notifications.ts
   "Android blocked notifications.": "Android hat Benachrichtigungen blockiert.",
+  // lib/user-error.ts
+  "Could not reach the server": "Server konnte nicht erreicht werden",
+  "Enter a password": "Gib ein Passwort ein",
+  "Enter a valid email": "Gib eine gültige E-Mail-Adresse ein",
+  "Something went wrong. Try again.": "Etwas ist schiefgelaufen. Versuche es erneut.",
   // lib/voice.ts
   "Could not play that clip.": "Dieser Clip konnte nicht abgespielt werden.",
   // app/models.tsx
@@ -686,4 +689,14 @@ export const DE_MESSAGES: Record<string, string> = {
   Transcript: "Transkript",
   Unmute: "Stummschaltung aufheben",
   "Voice chat": "Sprachchat",
+  // ai-data-sharing
+  "AI data sharing": "KI-Datenfreigabe",
+  "Allow {name} on mobile": "{name} auf dem Handy erlauben",
+  "Could not load permissions.": "Berechtigungen konnten nicht geladen werden.",
+  "No AI services configured.": "Keine KI-Dienste eingerichtet.",
+  "Privacy policy": "Datenschutzerklärung",
+  "Provider privacy policy": "Datenschutzerklärung des Anbieters",
+  "Withdraw all mobile permissions": "Alle mobilen Berechtigungen widerrufen",
+  "Withdrawal applies to new mobile actions. Stop existing runs and disable routines separately.":
+    "Der Widerruf gilt für neue mobile Aktionen. Beende laufende Ausführungen und deaktiviere Routinen separat.",
 };

@@ -19,6 +19,10 @@ import { SoftwareUpdateSection } from "../components/SoftwareUpdateSection";
 import { authClient } from "../lib/auth";
 import { getActiveUiLocale, setUiLocale } from "../lib/i18n";
 import {
+  getRemoteImagesPreference,
+  setRemoteImagesPreference,
+} from "../lib/remote-images-preference";
+import {
   getResponseStreamingPreference,
   setResponseStreamingPreference,
 } from "../lib/response-streaming";
@@ -32,6 +36,7 @@ import {
   setUiAppearance,
 } from "../lib/ui-appearance";
 import { UI_LOCALE_LABELS, UI_LOCALES, type UiLocale } from "../lib/ui-locale";
+import { authErrorText } from "../lib/user-error";
 
 export type SettingsGeneralProps = {
   email?: string | null;
@@ -66,6 +71,10 @@ export function GeneralSettingsPanels({
     () => getToolActivityPreference() === "on",
   );
   const showToolActivityId = useId();
+  const [loadRemoteImages, setLoadRemoteImages] = useState(
+    () => getRemoteImagesPreference() === "on",
+  );
+  const loadRemoteImagesId = useId();
   const [avatarPending, setAvatarPending] = useState(false);
   const [avatarError, setAvatarError] = useState<string | null>(null);
 
@@ -222,6 +231,24 @@ export function GeneralSettingsPanels({
               <Trans>Show tool activity</Trans>
             </Label>
           </div>
+          <div className="flex items-start gap-3 pt-4">
+            <Switch
+              id={loadRemoteImagesId}
+              data-testid="remote-images-toggle"
+              className="mt-0.5"
+              checked={loadRemoteImages}
+              onCheckedChange={(checked) => {
+                setLoadRemoteImages(checked);
+                setRemoteImagesPreference(checked ? "on" : "off");
+              }}
+            />
+            <Label
+              htmlFor={loadRemoteImagesId}
+              className="text-[14px] font-normal text-foreground/75"
+            >
+              <Trans>Load web images automatically</Trans>
+            </Label>
+          </div>
           <ApprovalRulesSettings />
         </div>
       </details>
@@ -325,7 +352,7 @@ function ChangePasswordSection({ email }: { email?: string | null }) {
         revokeOtherSessions: true,
       });
       if (result.error) {
-        setError(result.error.message ?? t`Could not change password`);
+        setError(authErrorText(result.error, t`Could not change password`));
         return;
       }
       setCurrentPassword("");
