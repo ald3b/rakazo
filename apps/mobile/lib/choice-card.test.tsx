@@ -111,14 +111,14 @@ describe("ChoiceCard", () => {
     container = undefined;
   });
 
-  function render(block: ChoiceBlock = choice) {
+  function render(block: ChoiceBlock = choice, onDismissed?: () => void) {
     if (!container) {
       container = document.createElement("div");
       document.body.append(container);
       root = createRoot(container);
     }
     act(() => {
-      root?.render(<ChoiceCard botId="bot-1" block={block} />);
+      root?.render(<ChoiceCard botId="bot-1" block={block} onDismissed={onDismissed} />);
     });
     return container;
   }
@@ -143,7 +143,8 @@ describe("ChoiceCard", () => {
 
   it("dismisses through onboarding/dismissFocus and hides the card", async () => {
     rpc.mockResolvedValue({});
-    const view = render();
+    const onDismissed = vi.fn();
+    const view = render(choice, onDismissed);
 
     await act(async () => {
       button(view, "Dismiss").click();
@@ -151,6 +152,7 @@ describe("ChoiceCard", () => {
     });
 
     expect(rpc).toHaveBeenCalledWith("onboarding/dismissFocus", { botId: "bot-1" });
+    expect(onDismissed).toHaveBeenCalledTimes(1);
     expect(view.querySelector("[data-testid='choice-card']")).toBeNull();
   });
 

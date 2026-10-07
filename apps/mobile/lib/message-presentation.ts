@@ -43,6 +43,26 @@ function isDismissedChoice(block: MessageBlock): boolean {
   return block.kind === "choice" && block.answerId === DISMISSED_CHOICE_ANSWER_ID;
 }
 
+/**
+ * Mark choices the reader just dismissed, before the thread snapshot stores that answer.
+ * A message that was only that card then drops out of the thread instead of leaving an empty row.
+ */
+export function applyLocalChoiceDismissals(
+  blocks: readonly MessageBlock[],
+  dismissedQuestions: ReadonlySet<string>,
+): readonly MessageBlock[] {
+  if (dismissedQuestions.size === 0) return blocks;
+  let changed = false;
+  const next = blocks.map((block) => {
+    if (block.kind === "choice" && !block.answerId && dismissedQuestions.has(block.question)) {
+      changed = true;
+      return { ...block, answerId: DISMISSED_CHOICE_ANSWER_ID };
+    }
+    return block;
+  });
+  return changed ? next : blocks;
+}
+
 /** Options a choice card lists: all of them until answered, then only the picked one. */
 export function choiceCardOptions(block: ChoiceBlock): ChoiceBlock["options"] {
   return block.answerId

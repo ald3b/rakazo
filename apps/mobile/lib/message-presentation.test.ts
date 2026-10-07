@@ -2,6 +2,7 @@ import type { MessageBlock } from "@rakazo/contracts";
 import { REPLY_QUOTE_MAX_LENGTH } from "@rakazo/contracts";
 import { describe, expect, it } from "vitest";
 import {
+  applyLocalChoiceDismissals,
   choiceCardOptions,
   DISMISSED_CHOICE_ANSWER_ID,
   hasVisibleMessagePresentation,
@@ -136,6 +137,20 @@ describe("mobile message presentation", () => {
     const dismissed = { ...choice, answerId: DISMISSED_CHOICE_ANSWER_ID };
     expect(choiceCardOptions(dismissed)).toEqual([]);
     expect(hasVisibleMessagePresentation([dismissed])).toBe(false);
+  });
+
+  it("hides a locally dismissed choice before the snapshot stores it", () => {
+    const dismissed = new Set([choice.question]);
+    expect(hasVisibleMessagePresentation(applyLocalChoiceDismissals([choice], dismissed))).toBe(
+      false,
+    );
+    expect(
+      hasVisibleMessagePresentation(
+        applyLocalChoiceDismissals([{ kind: "text", text: "Still here." }, choice], dismissed),
+      ),
+    ).toBe(true);
+    const blocks = [choice];
+    expect(applyLocalChoiceDismissals(blocks, new Set())).toBe(blocks);
   });
 
   it("sizes thread cards to the bot row, capped on wide screens", () => {

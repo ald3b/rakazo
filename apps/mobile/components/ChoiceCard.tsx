@@ -49,11 +49,13 @@ const styles = StyleSheet.create({
 export function ChoiceCard({
   botId,
   block,
+  onDismissed,
   accessibilityActions,
   onAccessibilityAction,
 }: {
   botId: string;
   block: Extract<MessageBlock, { kind: "choice" }>;
+  onDismissed?: () => void;
   accessibilityActions?: ViewProps["accessibilityActions"];
   onAccessibilityAction?: ViewProps["onAccessibilityAction"];
 }) {
@@ -77,6 +79,7 @@ export function ChoiceCard({
         await rpc("onboarding/choose", { botId, optionId });
       }
       setLocalAnswerId(optionId);
+      if (optionId === DISMISSED_CHOICE_ANSWER_ID) onDismissed?.();
     } catch (reason) {
       Alert.alert(
         t("Could not complete action"),

@@ -143,6 +143,7 @@ import {
 import { presentMessageActionSheet } from "../lib/message-action-sheet";
 import { buildMessageContextMenu, messageMenuReaction } from "../lib/message-context-menu";
 import {
+  applyLocalChoiceDismissals,
   hasVisibleMessagePresentation,
   isCenteredAgentEvent,
   messagePresentationSegments,
@@ -479,14 +480,22 @@ function Thread() {
   const [markdownPreview, setMarkdownPreview] = useState<MarkdownArtifactPreviewTarget | null>(
     null,
   );
+  const [dismissedChoiceQuestions, setDismissedChoiceQuestions] = useState<
+    ReadonlyMap<string, ReadonlySet<string>>
+  >(() => new Map());
   const reactionView = useMemo(
     () =>
       projectMessageReactions(
-        userVisibleMessages(snap?.messages ?? [], { includePeerReceipts: true }).filter((message) =>
-          hasVisibleMessagePresentation(message.blocks),
-        ),
+        userVisibleMessages(snap?.messages ?? [], { includePeerReceipts: true })
+          .map((message) => {
+            const dismissed = dismissedChoiceQuestions.get(message.id);
+            if (!dismissed) return message;
+            const blocks = applyLocalChoiceDismissals(message.blocks, dismissed);
+            return blocks === message.blocks ? message : { ...message, blocks: [...blocks] };
+          })
+          .filter((message) => hasVisibleMessagePresentation(message.blocks)),
       ),
-    [snap?.messages],
+    [dismissedChoiceQuestions, snap?.messages],
   );
   const visibleMessages = reactionView.visibleMessages;
   const latestMessageId = visibleMessages.at(-1)?.id ?? null;
@@ -1939,6 +1948,17 @@ function Thread() {
               onAnswer={answerMessage}
               onOpenBot={openBot}
               onOpenComputer={openComputer}
+              onChoiceDismissed={(question) => {
+                setDismissedChoiceQuestions((current) => {
+                  const existing = current.get(message.id);
+                  if (existing?.has(question)) return current;
+                  const next = new Map(current);
+                  const questions = new Set(existing);
+                  questions.add(question);
+                  next.set(message.id, questions);
+                  return next;
+                });
+              }}
               onPreviewMarkdown={setMarkdownPreview}
               onPreviewImage={(target) =>
                 router.push({
@@ -3010,6 +3030,7 @@ const MessageBubble = memo(function MessageBubble({
   onAnswer,
   onOpenBot,
   onOpenComputer,
+  onChoiceDismissed,
   onPreviewMarkdown,
   onPreviewImage,
   actionProps,
@@ -3025,6 +3046,7 @@ const MessageBubble = memo(function MessageBubble({
   onAnswer: (message: MobileMessage, answer: string, username?: string) => Promise<void>;
   onOpenBot: (botId: string, name: string) => void;
   onOpenComputer: (botId: string, name: string) => void;
+  onChoiceDismissed?: (question: string) => void;
   onPreviewMarkdown: (target: MarkdownArtifactPreviewTarget) => void;
   onPreviewImage: (target: ImageArtifactPreviewTarget) => void;
   actionProps: MessageActionProps;
@@ -3661,6 +3683,7 @@ const MessageBubble = memo(function MessageBubble({
           key={`choice-${index}`}
           botId={cardBotId}
           block={block}
+          onDismissed={onChoiceDismissed ? () => onChoiceDismissed(block.question) : undefined}
           accessibilityActions={actionProps.accessibilityActions}
           onAccessibilityAction={actionProps.onAccessibilityAction}
         />
