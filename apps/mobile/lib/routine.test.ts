@@ -48,4 +48,8 @@ describe("routineStatusLine", () => {
       ),
     ).toBe("Paused · Every Monday at 9:00 AM, Webhook · Europe/Berlin");
   });
+
+  it("omits the trigger segment when there are no triggers", () => {
+    expect(routineStatusLine(routine({}))).toBe("Active · UTC");
+  });
 });
