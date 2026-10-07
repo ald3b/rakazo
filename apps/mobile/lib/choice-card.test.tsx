@@ -168,9 +168,14 @@ describe("ChoiceCard", () => {
 
     await act(async () => {
       button(view, "Day-to-day work").click();
+      button(view, "Inbox & email").click();
     });
 
     expect(rpc).toHaveBeenCalledTimes(1);
+    expect(rpc).toHaveBeenCalledWith("onboarding/choose", {
+      botId: "bot-1",
+      optionId: "day",
+    });
     expect(button(view, "Day-to-day work").disabled).toBe(true);
     expect(button(view, "Inbox & email").disabled).toBe(true);
     expect(button(view, "Dismiss").disabled).toBe(true);

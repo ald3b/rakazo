@@ -1,5 +1,5 @@
 import type { MessageBlock } from "@rakazo/contracts";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { ViewProps } from "react-native";
 import { Alert, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { rpc } from "../lib/api";
@@ -63,6 +63,8 @@ export function ChoiceCard({
   const tokens = useMobileTokens();
   const { width: windowWidth } = useWindowDimensions();
   const [busy, setBusy] = useState(false);
+  // Set in the handler, so a second tap cannot pass before the buttons re-render disabled.
+  const pending = useRef(false);
   // Shows the outcome before the thread stream delivers the updated block.
   const [localAnswerId, setLocalAnswerId] = useState<string>();
   const answerId = block.answerId ?? localAnswerId;
@@ -70,7 +72,8 @@ export function ChoiceCard({
 
   // Dismissing records the server's dismissed answer id, so both outcomes share this path.
   async function submit(optionId: string) {
-    if (busy || answerId) return;
+    if (pending.current || answerId) return;
+    pending.current = true;
     setBusy(true);
     try {
       if (optionId === DISMISSED_CHOICE_ANSWER_ID) {
@@ -86,6 +89,7 @@ export function ChoiceCard({
         reason instanceof Error ? reason.message : t("Please try again."),
       );
     } finally {
+      pending.current = false;
       setBusy(false);
     }
   }
