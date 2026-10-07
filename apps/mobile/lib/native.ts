@@ -23,9 +23,16 @@ function subscribeDarkerSystemColors(listener: () => void): () => void {
   darkerSystemColorsListeners.add(listener);
   if (Platform.OS === "ios" && !watchingDarkerSystemColors) {
     watchingDarkerSystemColors = true;
-    AccessibilityInfo.addEventListener("darkerSystemColorsChanged", setDarkerSystemColors);
+    // The initial read can resolve after a change event; the event is newer, so it wins.
+    let changed = false;
+    AccessibilityInfo.addEventListener("darkerSystemColorsChanged", (enabled) => {
+      changed = true;
+      setDarkerSystemColors(enabled);
+    });
     void AccessibilityInfo.isDarkerSystemColorsEnabled()
-      .then(setDarkerSystemColors)
+      .then((enabled) => {
+        if (!changed) setDarkerSystemColors(enabled);
+      })
       .catch(() => undefined);
   }
   return () => {

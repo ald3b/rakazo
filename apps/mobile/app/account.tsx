@@ -74,7 +74,8 @@ import { ACCOUNT_UI_LOCALES, UI_LOCALE_LABELS } from "../lib/ui-locale";
 import { errorText } from "../lib/user-error";
 
 // Restore/Delete reach 44 pt through hit slop, not height, so the bot name stays first in
-// VoiceOver's top-to-bottom order.
+// VoiceOver's top-to-bottom order. Their container is 44 pt tall because touches outside a
+// parent's frame never reach its children's hit slop.
 const ARCHIVED_ACTION_HIT_SLOP = { top: 12, bottom: 12 };
 
 /** Render account settings, including the entry point for voice configuration. */
@@ -715,10 +716,15 @@ function createAccountStyles() {
     archivedActions: {
       flexDirection: "row",
       alignItems: "center",
+      minHeight: 44,
+      // The row's 12 pt padding absorbs the extra height, so the row keeps its 52 pt.
+      marginVertical: -8,
     },
     archivedActionsStacked: {
       flexWrap: "wrap",
       marginStart: -8,
+      // Under the title there is no row padding to absorb it.
+      marginVertical: 0,
     },
     archivedAction: {
       paddingHorizontal: 8,
