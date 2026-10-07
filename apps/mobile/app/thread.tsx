@@ -14,18 +14,22 @@ import {
 import type { ThreadItem } from "@rakazo/core";
 import {
   abortableDelay,
+  appendNewerThreadPage,
   attachmentsForThread,
   buildComposerMentionOptions,
   type ComposerMention,
   cloudAgentHttpsUrl,
   formatFileSize,
   formatMessageTime,
+  forwardProbeAfterPage,
   groupVoiceChats,
   isApprovalAskBlock,
   isRunTerminalEvent,
   isSecretAskBlock,
   latestAnswerableAskMessageId,
+  leaveThreadWindow,
   mentionChipKey,
+  openThreadWindow,
   plainTextFromMarkdown,
   projectMessageReactions,
   resolveComposerSendPlan,
@@ -34,6 +38,7 @@ import {
   type SlashActionId,
   selectedAskActionLabel,
   serializeComposerPrompt,
+  threadWindowMessages,
   truncateSlashDescription,
   userVisibleMessages,
   withLiveStreamingProgress,
@@ -83,6 +88,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppConnectCard } from "../components/AppConnectCard";
 import { AskActions } from "../components/AskActions";
 import { BotAvatar } from "../components/bot-avatar";
+import { ComputerCard } from "../components/ComputerCard";
 import type { ImageArtifactPreviewTarget } from "../components/image-artifact-viewer";
 import { InlineImageAttachment } from "../components/inline-image-attachment";
 import { McpApprovalCard } from "../components/McpApprovalCard";
@@ -90,6 +96,7 @@ import {
   MarkdownArtifactPreview,
   type MarkdownArtifactPreviewTarget,
 } from "../components/markdown-artifact-preview";
+import { MessageContextMenu } from "../components/message-context-menu";
 import { NativeSymbol } from "../components/native-symbol";
 import { SelectTextSheet } from "../components/select-text-sheet";
 import { VoiceChatCard } from "../components/VoiceChatCard";
@@ -133,6 +140,7 @@ import {
   setOpenNotificationThread,
 } from "../lib/live-notifications";
 import { presentMessageActionSheet } from "../lib/message-action-sheet";
+import { buildMessageContextMenu, messageMenuReaction } from "../lib/message-context-menu";
 import {
   hasVisibleMessagePresentation,
   isCenteredAgentEvent,
@@ -381,8 +389,9 @@ function Thread() {
     groupId?: string;
     messageId: string;
     threadId: string;
-    messages: readonly MobileMessage[];
-    olderCursor: number | null;
+    newerCursor: number | null;
+    coveredThroughSeq?: number;
+    probeSeq?: number;
   } | null>(null);
   const jumpScrollTarget = useRef<string | null>(null);
   const activeBotId = useRef(botId);
@@ -405,6 +414,7 @@ function Thread() {
     expandedHistoryThread.current = null;
     pinnedAroundRef.current = null;
     jumpScrollTarget.current = null;
+    joinPinnedAfterLayout.current = null;
     loadingOlderContent.current = false;
     setThreadScrollState(scrollBehavior.current.state());
   }, [threadKey]);
@@ -459,6 +469,12 @@ function Thread() {
   const [error, setError] = useState<string | null>(null);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [selectableText, setSelectableText] = useState<string | null>(null);
+  const [loadingNewer, setLoadingNewer] = useState(false);
+  const loadingNewerContent = useRef(false);
+  // A failed newer page waits for the next drag instead of retrying on every scroll event.
+  const newerLoadFailed = useRef(false);
+  const pinnedScrollMetrics = useRef({ offset: 0, viewport: 0, content: 0 });
+  const joinPinnedAfterLayout = useRef<number | null>(null);
   const [markdownPreview, setMarkdownPreview] = useState<MarkdownArtifactPreviewTarget | null>(
     null,
   );
@@ -929,22 +945,106 @@ function Thread() {
     if (target.groupId && activeGroupId.current !== target.groupId) return;
     if (target.botId && activeBotId.current !== target.botId) return;
     const targetInPage = page.messages.some((message) => message.id === target.messageId);
+    const opened = targetInPage ? openThreadWindow(snap, page) : null;
     expandedHistoryThread.current = targetInPage ? page.threadId : null;
-    pinnedAroundRef.current = targetInPage
+    pinnedAroundRef.current = opened
       ? {
           ...threadTarget,
           messageId: target.messageId,
           threadId: page.threadId,
-          messages: [...page.messages],
-          olderCursor: page.olderCursor,
+          newerCursor: opened.newerCursor,
         }
       : null;
     jumpScrollTarget.current = targetInPage ? target.messageId : null;
-    commitSnap({
-      ...snap,
-      messages: targetInPage ? [...page.messages] : snap.messages,
-      olderCursor: targetInPage ? page.olderCursor : snap.olderCursor,
-    });
+    newerLoadFailed.current = false;
+    joinPinnedAfterLayout.current = null;
+    pinnedScrollMetrics.current = { offset: 0, viewport: 0, content: 0 };
+    commitSnap(opened?.snapshot ?? snap);
+  }
+
+  async function loadNewerMessages() {
+    const pinned = pinnedAroundRef.current;
+    if (
+      (!botId && !groupId) ||
+      pinned?.newerCursor == null ||
+      loadingNewerContent.current ||
+      newerLoadFailed.current
+    )
+      return;
+    loadingNewerContent.current = true;
+    setLoadingNewer(true);
+    const epoch = historyEpoch.current;
+    const probe = pinned.probeSeq ?? pinned.newerCursor + 1;
+    let visibleUnchanged = false;
+    try {
+      // Pages come back centered on the seq, so the one after the cursor overlaps what is loaded.
+      const page = await rpc<MobileMessagePage & { coveredThroughSeq?: number }>(
+        "threads/messages",
+        {
+          ...(groupId ? { groupId } : { botId: botId! }),
+          around: { seq: probe },
+        },
+      );
+      if (epoch !== historyEpoch.current || pinnedAroundRef.current !== pinned || !snapRef.current)
+        return;
+      const visibleBefore = threadWindowMessages(
+        snapRef.current.messages,
+        pinned.newerCursor,
+      ).length;
+      const reported = page.coveredThroughSeq ?? null;
+      const carried =
+        reported == null ? undefined : Math.max(pinned.coveredThroughSeq ?? reported, reported);
+      const next = appendNewerThreadPage(
+        snapRef.current,
+        pinned.newerCursor,
+        page,
+        reported == null ? null : carried,
+      );
+      const step = forwardProbeAfterPage({
+        probe,
+        newerCursor: pinned.newerCursor,
+        nextCursor: next.newerCursor,
+        reportedCoverage: reported,
+        carriedCoverage: pinned.coveredThroughSeq,
+      });
+      if (step.stalled) newerLoadFailed.current = true;
+      visibleUnchanged =
+        threadWindowMessages(next.snapshot.messages, next.newerCursor).length === visibleBefore;
+      pinnedAroundRef.current = {
+        ...pinned,
+        newerCursor: next.newerCursor,
+        coveredThroughSeq: step.coverage,
+        probeSeq: step.probe,
+      };
+      commitSnap(next.snapshot);
+      if (next.newerCursor == null) {
+        joinPinnedAfterLayout.current = pinnedScrollMetrics.current.content;
+      }
+    } catch (err) {
+      if (epoch !== historyEpoch.current || pinnedAroundRef.current !== pinned) return;
+      newerLoadFailed.current = true;
+      setError(err instanceof Error ? err.message : t("Could not open message"));
+    } finally {
+      loadingNewerContent.current = false;
+      setLoadingNewer(false);
+      if (visibleUnchanged) loadNewerNearEnd();
+    }
+  }
+
+  function showLatest() {
+    const pinned = pinnedAroundRef.current;
+    pinnedAroundRef.current = null;
+    joinPinnedAfterLayout.current = null;
+    jumpScrollTarget.current = null;
+    expandedHistoryThread.current = null;
+    // The live list mounts at the latest message.
+    scrollBehavior.current.jumpToLatest();
+    setThreadScrollState(scrollBehavior.current.state());
+    commitSnap(
+      snapRef.current && pinned
+        ? leaveThreadWindow(snapRef.current, pinned.newerCursor)
+        : snapRef.current,
+    );
   }
 
   async function loadOlderMessages() {
@@ -952,13 +1052,14 @@ function Thread() {
     loadingOlderContent.current = true;
     setLoadingOlder(true);
     const epoch = historyEpoch.current;
+    const pinned = pinnedAroundRef.current;
     try {
       const page = await rpc<MobileMessagePage>("threads/messages", {
         ...(groupId ? { groupId } : { botId: botId! }),
         before: snap.olderCursor,
         includePeerReceipts: true,
       });
-      if (epoch !== historyEpoch.current) {
+      if (epoch !== historyEpoch.current || pinnedAroundRef.current !== pinned) {
         loadingOlderContent.current = false;
         return;
       }
@@ -1378,6 +1479,8 @@ function Thread() {
         return;
       }
       if (isCurrentTarget(botTarget, groupTarget)) {
+        // A sent message lands at the latest end, past an older page opened from search.
+        if (pinnedAroundRef.current) showLatest();
         void refresh().catch(() => undefined);
       }
     } catch (err) {
@@ -1441,6 +1544,12 @@ function Thread() {
   const openBot = useCallback(
     (id: string, botName: string) =>
       router.push({ pathname: "/thread", params: { botId: id, name: botName } }),
+    [router],
+  );
+
+  const openComputer = useCallback(
+    (id: string, botName: string) =>
+      router.push({ pathname: "/computer", params: { botId: id, name: botName } }),
     [router],
   );
 
@@ -1580,6 +1689,7 @@ function Thread() {
         ((pinnedTarget.botId && pinnedTarget.botId === botId) ||
           (pinnedTarget.groupId && pinnedTarget.groupId === groupId))),
   );
+  const pinnedNewerCursor = showPinnedPage ? (pinnedTarget?.newerCursor ?? null) : null;
 
   function performScroll(action: ThreadScrollAction) {
     if (!action || showPinnedPage) return;
@@ -1587,6 +1697,34 @@ function Thread() {
       offset: 0,
       animated: action === "smooth" && !reducedMotion,
     });
+  }
+
+  function pinnedDistanceFromEnd(event: NativeSyntheticEvent<NativeScrollEvent>) {
+    const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+    return contentSize.height - layoutMeasurement.height - contentOffset.y;
+  }
+
+  function pinnedNearEnd() {
+    const { offset, viewport, content } = pinnedScrollMetrics.current;
+    return viewport > 0 && content - viewport - offset <= 80;
+  }
+
+  function loadNewerNearEnd() {
+    const { offset, viewport, content } = pinnedScrollMetrics.current;
+    // Fetch the next page while a screen of this one is still left to read; a page shorter
+    // than the screen never scrolls, so layout and content changes check too.
+    if (viewport > 0 && content - viewport - offset < viewport) void loadNewerMessages();
+  }
+
+  function updatePinnedScroll(event: NativeSyntheticEvent<NativeScrollEvent>) {
+    // Once the page reaches the latest message, the end of it is the live thread.
+    if (
+      pinnedNewerCursor === null &&
+      !jumpScrollTarget.current &&
+      pinnedDistanceFromEnd(event) <= 80
+    ) {
+      showLatest();
+    }
   }
 
   function updateUserScroll(event: NativeSyntheticEvent<NativeScrollEvent>) {
@@ -1613,22 +1751,38 @@ function Thread() {
     }
   }
 
-  function messageActionProps(message: MobileMessage): MessageActionProps {
+  function messageActionProps(message: MobileMessage): {
+    actionProps: MessageActionProps;
+    menu: ReturnType<typeof buildMessageContextMenu>;
+    onMenuAction: (id: string) => void;
+  } {
     const messageText = selectableMobileMessageText(message);
+    const includeQuote =
+      !message.id.startsWith("progress:") &&
+      quotableMessageSegments(message.role, message.blocks).length > 0;
+    const includeReact = canReactToThreadMessage(message);
+    // The call already reads replies aloud; a second voice would talk over it.
+    const includeSpeak = message.role === "bot" && !onCall && Boolean(blockText(message));
+    const includeSelect = messageText.trim().length > 0;
+    const reply = () => {
+      setReplyTarget(message);
+      setReplyQuote(null);
+    };
+    const quote = () => setQuoteTarget(message);
+    const speakMessage = () => void speak(message);
+    const select = () =>
+      setSelectableText(
+        message.role === "user" ? messageText : selectableTextFromMarkdown(messageText),
+      );
+    const copy = () => {
+      const text = copyableMobileMessageText(message);
+      if (text) void Clipboard.setStringAsync(text).catch(() => undefined);
+    };
+    const react = (reaction: MessageReaction) => void reactToMessage(message, reaction);
     const actions = [
-      {
-        name: "reply",
-        text: t("Reply"),
-        onPress: () => {
-          setReplyTarget(message);
-          setReplyQuote(null);
-        },
-      },
-      ...(!message.id.startsWith("progress:") &&
-      quotableMessageSegments(message.role, message.blocks).length > 0
-        ? [{ name: "quote", text: t("Quote"), onPress: () => setQuoteTarget(message) }]
-        : []),
-      ...(canReactToThreadMessage(message)
+      { name: "reply", text: t("Reply"), onPress: reply },
+      ...(includeQuote ? [{ name: "quote", text: t("Quote"), onPress: quote }] : []),
+      ...(includeReact
         ? [
             {
               name: "react",
@@ -1639,59 +1793,70 @@ function Thread() {
                   more: t("More"),
                   colorScheme,
                   actions: MESSAGE_REACTIONS.map((emoji) => ({
-                    name: emoji,
                     text: emoji,
-                    onPress: () => void reactToMessage(message, emoji),
+                    onPress: () => react(emoji),
                   })),
                 }),
             },
           ]
         : []),
-      // The call already reads replies aloud; a second voice would talk over it.
-      ...(message.role === "bot" && !onCall && blockText(message)
-        ? [{ name: "speak", text: t("Speak message"), onPress: () => void speak(message) }]
-        : []),
-      ...(messageText.trim()
-        ? [
-            {
-              name: "select",
-              text: t("Select text"),
-              onPress: () =>
-                setSelectableText(
-                  message.role === "user" ? messageText : selectableTextFromMarkdown(messageText),
-                ),
-            },
-          ]
-        : []),
-      {
-        name: "copy",
-        text: t("Copy"),
-        onPress: () => {
-          const text = copyableMobileMessageText(message);
-          if (text) void Clipboard.setStringAsync(text).catch(() => undefined);
-        },
-      },
+      ...(includeSpeak ? [{ name: "speak", text: t("Speak message"), onPress: speakMessage }] : []),
+      ...(includeSelect ? [{ name: "select", text: t("Select text"), onPress: select }] : []),
+      { name: "copy", text: t("Copy"), onPress: copy },
     ];
+    const menu = buildMessageContextMenu({
+      labels: {
+        reply: t("Reply"),
+        copy: t("Copy"),
+        react: t("React"),
+        quote: t("Quote"),
+        speak: t("Speak message"),
+        select: t("Select text"),
+      },
+      reactions: MESSAGE_REACTIONS,
+      include: {
+        quote: includeQuote,
+        react: includeReact,
+        speak: includeSpeak,
+        select: includeSelect,
+      },
+    });
+    const openSheet = () =>
+      presentMessageActionSheet({
+        actions,
+        title: message.createdAt
+          ? formatMessageTime(message.createdAt, dateLocaleForUi())
+          : undefined,
+        cancel: t("Cancel"),
+        more: t("More"),
+        colorScheme,
+      });
     return {
-      onLongPress: () =>
-        presentMessageActionSheet({
-          actions,
-          title: message.createdAt
-            ? formatMessageTime(message.createdAt, dateLocaleForUi())
-            : undefined,
-          cancel: t("Cancel"),
-          more: t("More"),
-          colorScheme,
-        }),
-      accessibilityActions: actions.map((action) => ({ name: action.name, label: action.text })),
-      onAccessibilityAction: (event) => {
-        actions.find((action) => action.name === event.nativeEvent.actionName)?.onPress();
+      menu,
+      onMenuAction: (id) => {
+        const reaction = messageMenuReaction(id);
+        if (reaction && (MESSAGE_REACTIONS as readonly string[]).includes(reaction)) {
+          react(reaction as MessageReaction);
+          return;
+        }
+        if (id === "reply") reply();
+        if (id === "copy") copy();
+        if (id === "quote") quote();
+        if (id === "speak") speakMessage();
+        if (id === "select") select();
+      },
+      actionProps: {
+        onLongPress: Platform.OS === "ios" ? undefined : openSheet,
+        accessibilityActions: actions.map((action) => ({ name: action.name, label: action.text })),
+        onAccessibilityAction: (event) => {
+          actions.find((action) => action.name === event.nativeEvent.actionName)?.onPress();
+        },
       },
     };
   }
 
   function renderMessageRow(message: MobileMessage, options?: { enableJump?: boolean }) {
-    const actionProps = messageActionProps(message);
+    const { actionProps, menu, onMenuAction } = messageActionProps(message);
     const messageReactions = reactionView.reactions.get(message.id);
     const activityBotId =
       !inGroup && message.role === "bot" && message.id.startsWith("progress:")
@@ -1753,7 +1918,12 @@ function Thread() {
             flexShrink: 1,
           }}
         >
-          <Pressable accessible={false} onLongPress={actionProps.onLongPress}>
+          <MessageContextMenu
+            actions={menu}
+            colorScheme={colorScheme}
+            onAction={onMenuAction}
+            onLongPress={actionProps.onLongPress}
+          >
             <MessageBubble
               botId={botId ?? snap?.members?.[0]?.botId ?? ""}
               groupId={groupId}
@@ -1767,6 +1937,7 @@ function Thread() {
               canAnswer={message.id === answerableAskMessageId}
               onAnswer={answerMessage}
               onOpenBot={openBot}
+              onOpenComputer={openComputer}
               onPreviewMarkdown={setMarkdownPreview}
               onPlay={onCall ? undefined : () => speak(message)}
               onPreviewImage={(target) =>
@@ -1777,7 +1948,7 @@ function Thread() {
               }
               actionProps={actionProps}
             />
-          </Pressable>
+          </MessageContextMenu>
           {messageReactions ? (
             <View
               style={{
@@ -1905,10 +2076,47 @@ function Thread() {
             style={{ flex: 1 }}
             contentContainerStyle={{ paddingTop: headerHeight + 8, paddingBottom: 16 }}
             maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+            scrollEventThrottle={16}
+            onLayout={(event) => {
+              pinnedScrollMetrics.current.viewport = event.nativeEvent.layout.height;
+              loadNewerNearEnd();
+            }}
+            onContentSizeChange={(_, height) => {
+              pinnedScrollMetrics.current.content = height;
+              const armedAt = joinPinnedAfterLayout.current;
+              if (armedAt != null && height !== armedAt) {
+                joinPinnedAfterLayout.current = null;
+                if (pinnedAroundRef.current?.newerCursor == null && pinnedNearEnd()) {
+                  showLatest();
+                  return;
+                }
+              }
+              loadNewerNearEnd();
+            }}
+            onScroll={(event) => {
+              const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+              pinnedScrollMetrics.current = {
+                offset: contentOffset.y,
+                viewport: layoutMeasurement.height,
+                content: contentSize.height,
+              };
+              loadNewerNearEnd();
+            }}
+            onScrollBeginDrag={() => {
+              newerLoadFailed.current = false;
+            }}
+            onScrollEndDrag={updatePinnedScroll}
+            onMomentumScrollEnd={updatePinnedScroll}
           >
             {loadEarlierControl}
-            {visibleMessages.map((message) => renderMessageRow(message, { enableJump: true }))}
-            {workingFooter}
+            {threadWindowMessages(visibleMessages, pinnedNewerCursor).map((message) =>
+              renderMessageRow(message, { enableJump: true }),
+            )}
+            {pinnedNewerCursor === null ? (
+              workingFooter
+            ) : loadingNewer ? (
+              <ActivityIndicator color={tokens.mutedForeground} style={{ marginVertical: 12 }} />
+            ) : null}
           </ScrollView>
         ) : (
           <FlatList
@@ -1964,13 +2172,17 @@ function Thread() {
             }
           />
         )}
-        {!showPinnedPage && threadScrollState.detached ? (
+        {showPinnedPage || threadScrollState.detached ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={
               threadScrollState.unread ? t("Jump to latest, new messages") : t("Jump to latest")
             }
             onPress={() => {
+              if (showPinnedPage) {
+                showLatest();
+                return;
+              }
               performScroll(scrollBehavior.current.jumpToLatest());
               setThreadScrollState(scrollBehavior.current.state());
             }}
@@ -2784,6 +2996,7 @@ const MessageBubble = memo(function MessageBubble({
   canAnswer,
   onAnswer,
   onOpenBot,
+  onOpenComputer,
   onPreviewMarkdown,
   onPlay,
   onPreviewImage,
@@ -2799,6 +3012,7 @@ const MessageBubble = memo(function MessageBubble({
   canAnswer: boolean;
   onAnswer: (message: MobileMessage, answer: string, username?: string) => Promise<void>;
   onOpenBot: (botId: string, name: string) => void;
+  onOpenComputer: (botId: string, name: string) => void;
   onPreviewMarkdown: (target: MarkdownArtifactPreviewTarget) => void;
   onPlay?: () => void;
   onPreviewImage: (target: ImageArtifactPreviewTarget) => void;
@@ -2810,6 +3024,7 @@ const MessageBubble = memo(function MessageBubble({
   const [peerExpanded, setPeerExpanded] = useState(false);
   const artifactTarget: MobileArtifactTarget = groupId ? { groupId } : { botId };
   const cardBotId = message.botId ?? botId;
+  const computerBotId = message.botId ?? (groupId ? undefined : botId);
   const appConnectBlocks = message.blocks.filter(
     (block): block is Extract<MessageBlock, { kind: "app_connect" }> =>
       block.kind === "app_connect",
@@ -3416,6 +3631,9 @@ const MessageBubble = memo(function MessageBubble({
     message.role === "bot" ? speakerColorFor(bots, members, message.botId) : undefined;
   const firstContent = segments.findIndex((segment) => segment.kind === "content");
   const lastContent = segments.map((segment) => segment.kind).lastIndexOf("content");
+  const computerBlocks = message.blocks.filter(
+    (block): block is Extract<MessageBlock, { kind: "computer" }> => block.kind === "computer",
+  );
   return (
     <View style={{ gap: 8, width: "100%" }}>
       {segments.map((segment, index) => (
@@ -3427,6 +3645,17 @@ const MessageBubble = memo(function MessageBubble({
           replyPreview={index === firstContent ? replyPreview : undefined}
           onPlay={message.role === "bot" && index === lastContent ? onPlay : undefined}
           actionProps={actionProps}
+        />
+      ))}
+      {computerBlocks.map((block, index) => (
+        <ComputerCard
+          key={`computer-${index}`}
+          block={block}
+          onOpen={
+            computerBotId ? () => onOpenComputer(computerBotId, speaker ?? t("Bot")) : undefined
+          }
+          accessibilityActions={actionProps.accessibilityActions}
+          onAccessibilityAction={actionProps.onAccessibilityAction}
         />
       ))}
       {appConnectBlocks.map((block, index) => (
