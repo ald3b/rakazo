@@ -1,6 +1,15 @@
 import { Cron } from "croner";
 
 const WEEKDAYS = "1-5";
+const WEEKDAY_NAMES = [
+  "Sunday",
+  "Monday",
+  "Tuesday",
+  "Wednesday",
+  "Thursday",
+  "Friday",
+  "Saturday",
+] as const;
 
 export const ONCE_ROUTINE_CRON = "@once";
 
@@ -160,6 +169,13 @@ export function formatSchedule(preset: CronPreset): string {
 
 export function formatCron(cron: string): string {
   if (isOneShotRoutineCron(cron)) return "One-time";
+  // The editor presets only know Monday as a weekly day; name any single
+  // weekday here so agent-made schedules don't fall back to the raw cron.
+  const weekly = /^(\d+)\s+(\d+)\s+\*\s+\*\s+([0-6])$/.exec(cron.trim());
+  if (weekly) {
+    const time = formatClock(Number(weekly[2]), Number(weekly[1]));
+    return `Every ${WEEKDAY_NAMES[Number(weekly[3])]} at ${time}`;
+  }
   return formatSchedule(presetFromCron(cron));
 }
 

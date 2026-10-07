@@ -5,6 +5,7 @@ import { ActivityIndicator, Pressable, ScrollView, Text, View } from "react-nati
 import { rpc } from "../lib/api";
 import { useI18n } from "../lib/i18n";
 import { useMobileTokens } from "../lib/native";
+import { routineStatusLine } from "../lib/routine";
 
 export default function RoutineDetail() {
   const tokens = useMobileTokens();
@@ -64,34 +65,10 @@ export default function RoutineDetail() {
               borderColor: tokens.border,
               backgroundColor: tokens.card,
               padding: 18,
-              gap: 8,
             }}
           >
-            <Text style={{ color: tokens.foreground, fontSize: 20, fontWeight: "600" }}>
-              {routine.name}
-            </Text>
-            <Text
-              style={{
-                color: routine.active ? tokens.success : tokens.mutedForeground,
-                fontSize: 14,
-              }}
-            >
-              {[
-                routine.active ? t("Active") : t("Paused"),
-                [
-                  ...routine.crons,
-                  ...(routine.webhookEnabled ? [t("Webhook")] : []),
-                  ...(routine.githubEnabled ? [t("Git event")] : []),
-                  ...(routine.messageProvider === "slack"
-                    ? [t("Slack message")]
-                    : routine.messageProvider === "teams"
-                      ? [t("Teams message")]
-                      : routine.messageProvider
-                        ? [t("Message event")]
-                        : []),
-                ].join(", "),
-                routine.timezone,
-              ].join(" · ")}
+            <Text style={{ color: tokens.mutedForeground, fontSize: 14 }}>
+              {routineStatusLine(routine)}
             </Text>
           </View>
           <View style={{ gap: 8 }}>
