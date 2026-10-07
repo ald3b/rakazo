@@ -88,6 +88,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppConnectCard } from "../components/AppConnectCard";
 import { AskActions } from "../components/AskActions";
 import { BotAvatar } from "../components/bot-avatar";
+import { ComputerCard } from "../components/ComputerCard";
 import type { ImageArtifactPreviewTarget } from "../components/image-artifact-viewer";
 import { InlineImageAttachment } from "../components/inline-image-attachment";
 import { McpApprovalCard } from "../components/McpApprovalCard";
@@ -95,6 +96,7 @@ import {
   MarkdownArtifactPreview,
   type MarkdownArtifactPreviewTarget,
 } from "../components/markdown-artifact-preview";
+import { MessageContextMenu } from "../components/message-context-menu";
 import { NativeSymbol } from "../components/native-symbol";
 import { SelectTextSheet } from "../components/select-text-sheet";
 import { VoiceChatCard } from "../components/VoiceChatCard";
@@ -138,6 +140,7 @@ import {
   setOpenNotificationThread,
 } from "../lib/live-notifications";
 import { presentMessageActionSheet } from "../lib/message-action-sheet";
+import { buildMessageContextMenu, messageMenuReaction } from "../lib/message-context-menu";
 import {
   hasVisibleMessagePresentation,
   isCenteredAgentEvent,
@@ -168,7 +171,7 @@ import {
   ThreadScrollBehavior,
   type ThreadScrollState,
 } from "../lib/thread-scroll";
-import { getVoicePlaybackState, speakQueue, speakText, subscribeVoicePlayback } from "../lib/voice";
+import { speakQueue, speakText } from "../lib/voice";
 import { probeProviderTranscribe, resolveVoiceCallPlan } from "../lib/voice-call-entry";
 
 type PendingAttachment = PickedAttachment & { threadKey: string };
@@ -1544,6 +1547,12 @@ function Thread() {
     [router],
   );
 
+  const openComputer = useCallback(
+    (id: string, botName: string) =>
+      router.push({ pathname: "/computer", params: { botId: id, name: botName } }),
+    [router],
+  );
+
   const speak = useCallback(
     (message: MobileMessage) => {
       const startIndex = visibleMessages.findIndex((candidate) => candidate.id === message.id);
@@ -1742,22 +1751,38 @@ function Thread() {
     }
   }
 
-  function messageActionProps(message: MobileMessage): MessageActionProps {
+  function messageActionProps(message: MobileMessage): {
+    actionProps: MessageActionProps;
+    menu: ReturnType<typeof buildMessageContextMenu>;
+    onMenuAction: (id: string) => void;
+  } {
     const messageText = selectableMobileMessageText(message);
+    const includeQuote =
+      !message.id.startsWith("progress:") &&
+      quotableMessageSegments(message.role, message.blocks).length > 0;
+    const includeReact = canReactToThreadMessage(message);
+    // The call already reads replies aloud; a second voice would talk over it.
+    const includeSpeak = message.role === "bot" && !onCall && Boolean(blockText(message));
+    const includeSelect = messageText.trim().length > 0;
+    const reply = () => {
+      setReplyTarget(message);
+      setReplyQuote(null);
+    };
+    const quote = () => setQuoteTarget(message);
+    const speakMessage = () => void speak(message);
+    const select = () =>
+      setSelectableText(
+        message.role === "user" ? messageText : selectableTextFromMarkdown(messageText),
+      );
+    const copy = () => {
+      const text = copyableMobileMessageText(message);
+      if (text) void Clipboard.setStringAsync(text).catch(() => undefined);
+    };
+    const react = (reaction: MessageReaction) => void reactToMessage(message, reaction);
     const actions = [
-      {
-        name: "reply",
-        text: t("Reply"),
-        onPress: () => {
-          setReplyTarget(message);
-          setReplyQuote(null);
-        },
-      },
-      ...(!message.id.startsWith("progress:") &&
-      quotableMessageSegments(message.role, message.blocks).length > 0
-        ? [{ name: "quote", text: t("Quote"), onPress: () => setQuoteTarget(message) }]
-        : []),
-      ...(canReactToThreadMessage(message)
+      { name: "reply", text: t("Reply"), onPress: reply },
+      ...(includeQuote ? [{ name: "quote", text: t("Quote"), onPress: quote }] : []),
+      ...(includeReact
         ? [
             {
               name: "react",
@@ -1768,59 +1793,70 @@ function Thread() {
                   more: t("More"),
                   colorScheme,
                   actions: MESSAGE_REACTIONS.map((emoji) => ({
-                    name: emoji,
                     text: emoji,
-                    onPress: () => void reactToMessage(message, emoji),
+                    onPress: () => react(emoji),
                   })),
                 }),
             },
           ]
         : []),
-      // The call already reads replies aloud; a second voice would talk over it.
-      ...(message.role === "bot" && !onCall && blockText(message)
-        ? [{ name: "speak", text: t("Speak message"), onPress: () => void speak(message) }]
-        : []),
-      ...(messageText.trim()
-        ? [
-            {
-              name: "select",
-              text: t("Select text"),
-              onPress: () =>
-                setSelectableText(
-                  message.role === "user" ? messageText : selectableTextFromMarkdown(messageText),
-                ),
-            },
-          ]
-        : []),
-      {
-        name: "copy",
-        text: t("Copy"),
-        onPress: () => {
-          const text = copyableMobileMessageText(message);
-          if (text) void Clipboard.setStringAsync(text).catch(() => undefined);
-        },
-      },
+      ...(includeSpeak ? [{ name: "speak", text: t("Speak message"), onPress: speakMessage }] : []),
+      ...(includeSelect ? [{ name: "select", text: t("Select text"), onPress: select }] : []),
+      { name: "copy", text: t("Copy"), onPress: copy },
     ];
+    const menu = buildMessageContextMenu({
+      labels: {
+        reply: t("Reply"),
+        copy: t("Copy"),
+        react: t("React"),
+        quote: t("Quote"),
+        speak: t("Speak message"),
+        select: t("Select text"),
+      },
+      reactions: MESSAGE_REACTIONS,
+      include: {
+        quote: includeQuote,
+        react: includeReact,
+        speak: includeSpeak,
+        select: includeSelect,
+      },
+    });
+    const openSheet = () =>
+      presentMessageActionSheet({
+        actions,
+        title: message.createdAt
+          ? formatMessageTime(message.createdAt, dateLocaleForUi())
+          : undefined,
+        cancel: t("Cancel"),
+        more: t("More"),
+        colorScheme,
+      });
     return {
-      onLongPress: () =>
-        presentMessageActionSheet({
-          actions,
-          title: message.createdAt
-            ? formatMessageTime(message.createdAt, dateLocaleForUi())
-            : undefined,
-          cancel: t("Cancel"),
-          more: t("More"),
-          colorScheme,
-        }),
-      accessibilityActions: actions.map((action) => ({ name: action.name, label: action.text })),
-      onAccessibilityAction: (event) => {
-        actions.find((action) => action.name === event.nativeEvent.actionName)?.onPress();
+      menu,
+      onMenuAction: (id) => {
+        const reaction = messageMenuReaction(id);
+        if (reaction && (MESSAGE_REACTIONS as readonly string[]).includes(reaction)) {
+          react(reaction as MessageReaction);
+          return;
+        }
+        if (id === "reply") reply();
+        if (id === "copy") copy();
+        if (id === "quote") quote();
+        if (id === "speak") speakMessage();
+        if (id === "select") select();
+      },
+      actionProps: {
+        onLongPress: Platform.OS === "ios" ? undefined : openSheet,
+        accessibilityActions: actions.map((action) => ({ name: action.name, label: action.text })),
+        onAccessibilityAction: (event) => {
+          actions.find((action) => action.name === event.nativeEvent.actionName)?.onPress();
+        },
       },
     };
   }
 
   function renderMessageRow(message: MobileMessage, options?: { enableJump?: boolean }) {
-    const actionProps = messageActionProps(message);
+    const { actionProps, menu, onMenuAction } = messageActionProps(message);
     const messageReactions = reactionView.reactions.get(message.id);
     const activityBotId =
       !inGroup && message.role === "bot" && message.id.startsWith("progress:")
@@ -1882,7 +1918,12 @@ function Thread() {
             flexShrink: 1,
           }}
         >
-          <Pressable accessible={false} onLongPress={actionProps.onLongPress}>
+          <MessageContextMenu
+            actions={menu}
+            colorScheme={colorScheme}
+            onAction={onMenuAction}
+            onLongPress={actionProps.onLongPress}
+          >
             <MessageBubble
               botId={botId ?? snap?.members?.[0]?.botId ?? ""}
               groupId={groupId}
@@ -1896,8 +1937,8 @@ function Thread() {
               canAnswer={message.id === answerableAskMessageId}
               onAnswer={answerMessage}
               onOpenBot={openBot}
+              onOpenComputer={openComputer}
               onPreviewMarkdown={setMarkdownPreview}
-              onPlay={onCall ? undefined : () => speak(message)}
               onPreviewImage={(target) =>
                 router.push({
                   pathname: "/image",
@@ -1906,7 +1947,7 @@ function Thread() {
               }
               actionProps={actionProps}
             />
-          </Pressable>
+          </MessageContextMenu>
           {messageReactions ? (
             <View
               style={{
@@ -2026,7 +2067,8 @@ function Thread() {
           {runError}
         </Text>
       ) : null}
-      <View style={{ flex: 1, position: "relative" }}>
+      {/* The floor keeps a tall suggestion list from sliding under the transparent header. */}
+      <View style={{ flex: 1, minHeight: headerHeight, position: "relative" }}>
         {showPinnedPage ? (
           <ScrollView
             key={jumpScrollTarget.current ?? pinnedTarget?.messageId ?? threadKey}
@@ -2183,7 +2225,13 @@ function Thread() {
       </View>
       {/* Fades messages out under the transparent header; the alpha stop keeps the page hue. */}
       <View pointerEvents="none" style={[styles.headerFade, { height: headerHeight + 24 }]} />
-      <View style={{ paddingBottom: keyboardVisible ? 12 : Math.max(insets.bottom + 12, 24) }}>
+      {/* Shrinks (the suggestion lists scroll) so the input and Send stay above the keyboard. */}
+      <View
+        style={{
+          flexShrink: 1,
+          paddingBottom: keyboardVisible ? 12 : Math.max(insets.bottom + 12, 24),
+        }}
+      >
         {/* Fades messages out above the composer, like the header fade. */}
         <View pointerEvents="none" style={styles.composerFade} />
         {replyTarget ? (
@@ -2280,9 +2328,12 @@ function Thread() {
           </View>
         ) : null}
         {mentionOptions.length ? (
-          <View
+          <ScrollView
             testID="mention-picker"
+            keyboardShouldPersistTaps="handled"
             style={{
+              flexGrow: 0,
+              flexShrink: 1,
               marginTop: 12,
               borderRadius: 14,
               borderWidth: 1,
@@ -2322,12 +2373,15 @@ function Thread() {
                 </View>
               </Pressable>
             ))}
-          </View>
+          </ScrollView>
         ) : null}
         {slashSkillOptions.length || slashActionOptions.length ? (
-          <View
+          <ScrollView
             testID="slash-picker"
+            keyboardShouldPersistTaps="handled"
             style={{
+              flexGrow: 0,
+              flexShrink: 1,
               marginTop: 12,
               borderRadius: 14,
               borderWidth: 1,
@@ -2388,7 +2442,7 @@ function Thread() {
                 <Text style={{ color: tokens.foreground, fontSize: 14 }}>{t(action.label)}</Text>
               </Pressable>
             ))}
-          </View>
+          </ScrollView>
         ) : null}
         <View style={{ flexDirection: "row", alignItems: "flex-end", gap: 10, marginTop: 8 }}>
           <Pressable
@@ -2954,8 +3008,8 @@ const MessageBubble = memo(function MessageBubble({
   canAnswer,
   onAnswer,
   onOpenBot,
+  onOpenComputer,
   onPreviewMarkdown,
-  onPlay,
   onPreviewImage,
   actionProps,
 }: {
@@ -2969,8 +3023,8 @@ const MessageBubble = memo(function MessageBubble({
   canAnswer: boolean;
   onAnswer: (message: MobileMessage, answer: string, username?: string) => Promise<void>;
   onOpenBot: (botId: string, name: string) => void;
+  onOpenComputer: (botId: string, name: string) => void;
   onPreviewMarkdown: (target: MarkdownArtifactPreviewTarget) => void;
-  onPlay?: () => void;
   onPreviewImage: (target: ImageArtifactPreviewTarget) => void;
   actionProps: MessageActionProps;
 }) {
@@ -2980,6 +3034,7 @@ const MessageBubble = memo(function MessageBubble({
   const [peerExpanded, setPeerExpanded] = useState(false);
   const artifactTarget: MobileArtifactTarget = groupId ? { groupId } : { botId };
   const cardBotId = message.botId ?? botId;
+  const computerBotId = message.botId ?? (groupId ? undefined : botId);
   const appConnectBlocks = message.blocks.filter(
     (block): block is Extract<MessageBlock, { kind: "app_connect" }> =>
       block.kind === "app_connect",
@@ -3554,9 +3609,6 @@ const MessageBubble = memo(function MessageBubble({
             </Pressable>
           ),
         )}
-        {message.role === "bot" && onPlay && speakableMessageText(message) ? (
-          <MessageSpeakButton messageId={message.id} onPlay={onPlay} />
-        ) : null}
         {appConnectBlocks.map((block, index) => (
           <AppConnectCard
             key={`${block.provider}-${index}`}
@@ -3585,7 +3637,9 @@ const MessageBubble = memo(function MessageBubble({
   const speakerColor =
     message.role === "bot" ? speakerColorFor(bots, members, message.botId) : undefined;
   const firstContent = segments.findIndex((segment) => segment.kind === "content");
-  const lastContent = segments.map((segment) => segment.kind).lastIndexOf("content");
+  const computerBlocks = message.blocks.filter(
+    (block): block is Extract<MessageBlock, { kind: "computer" }> => block.kind === "computer",
+  );
   return (
     <View style={{ gap: 8, width: "100%" }}>
       {segments.map((segment, index) => (
@@ -3595,8 +3649,18 @@ const MessageBubble = memo(function MessageBubble({
           speaker={index === firstContent ? speaker : undefined}
           speakerColor={index === firstContent ? speakerColor : undefined}
           replyPreview={index === firstContent ? replyPreview : undefined}
-          onPlay={message.role === "bot" && index === lastContent ? onPlay : undefined}
           actionProps={actionProps}
+        />
+      ))}
+      {computerBlocks.map((block, index) => (
+        <ComputerCard
+          key={`computer-${index}`}
+          block={block}
+          onOpen={
+            computerBotId ? () => onOpenComputer(computerBotId, speaker ?? t("Bot")) : undefined
+          }
+          accessibilityActions={actionProps.accessibilityActions}
+          onAccessibilityAction={actionProps.onAccessibilityAction}
         />
       ))}
       {appConnectBlocks.map((block, index) => (
@@ -3612,31 +3676,17 @@ const MessageBubble = memo(function MessageBubble({
   );
 });
 
-const messagePlayStyles = StyleSheet.create({
-  button: {
-    alignSelf: "flex-end",
-    marginTop: 6,
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-});
-
 function MessageTextCard({
   message,
   speaker,
   speakerColor,
   replyPreview,
-  onPlay,
   actionProps,
 }: {
   message: MobileMessage;
   speaker?: string;
   speakerColor?: string;
   replyPreview?: MobileMessage;
-  onPlay?: () => void;
   actionProps: MessageActionProps;
 }) {
   const colorScheme = useResolvedAppearance();
@@ -3701,32 +3751,6 @@ function MessageTextCard({
           </ChatMarkdown>
         )
       }
-      {onPlay ? <MessageSpeakButton messageId={message.id} onPlay={onPlay} /> : null}
-    </Pressable>
-  );
-}
-
-function MessageSpeakButton({ messageId, onPlay }: { messageId: string; onPlay: () => void }) {
-  const tokens = mobileTokens();
-  const { t } = useI18n();
-  const playback = useSyncExternalStore(subscribeVoicePlayback, getVoicePlaybackState);
-  const isSpeakingThis = playback.messageId === messageId && playback.status !== "idle";
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={t("Play")}
-      accessibilityState={{ disabled: isSpeakingThis }}
-      disabled={isSpeakingThis}
-      onPress={onPlay}
-      hitSlop={6}
-      style={[messagePlayStyles.button, { opacity: isSpeakingThis ? 0.4 : 1 }]}
-    >
-      <NativeSymbol
-        ios={isSpeakingThis ? "waveform" : "play.fill"}
-        android={isSpeakingThis ? "pulse-outline" : "play"}
-        size={13}
-        color={tokens.mutedForeground}
-      />
     </Pressable>
   );
 }
