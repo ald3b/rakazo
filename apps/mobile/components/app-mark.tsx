@@ -7,7 +7,6 @@ const MARK = 56;
 const CROP = { x: 272, y: 303, size: 480 };
 const SCALE = MARK / CROP.size;
 
-/** The app's single-colour mark as a disc, tinted like text and hidden from VoiceOver. */
 export function AppMark() {
   const styles = useThemedStyles(createAppMarkStyles);
   return (

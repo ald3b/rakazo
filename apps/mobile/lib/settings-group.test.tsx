@@ -1,16 +1,14 @@
 // @vitest-environment jsdom
 
 import type { ReactNode } from "react";
-import { act } from "react";
+import { act, createElement } from "react";
 import type { Root } from "react-dom/client";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 let fontScale = 1;
 
-vi.mock("react-native", async () => {
-  const { createElement } = await import("react");
-
+vi.mock("react-native", () => {
   function MockView(props: {
     children?: ReactNode;
     style?: unknown;
@@ -107,8 +105,7 @@ vi.mock("./appearance", () => ({
   mobileTokens: () => ({ destructive: "destructive" }),
 }));
 
-vi.mock("../components/native-symbol", async () => {
-  const { createElement } = await import("react");
+vi.mock("../components/native-symbol", () => {
   return { NativeSymbol: () => createElement("i", null, "chevron") };
 });
 

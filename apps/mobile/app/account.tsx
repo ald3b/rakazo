@@ -703,10 +703,6 @@ function createAccountStyles() {
       minHeight: 96,
       gap: 8,
     },
-    optionSelected: {
-      borderColor: native.label,
-      backgroundColor: native.fillPressed,
-    },
     optionLabel: {
       color: native.label,
       fontSize: 15,

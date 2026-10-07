@@ -1,14 +1,12 @@
 // @vitest-environment jsdom
 
 import type { ReactNode } from "react";
-import { act } from "react";
+import { act, createElement } from "react";
 import type { Root } from "react-dom/client";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("react-native", async () => {
-  const { createElement } = await import("react");
-
+vi.mock("react-native", () => {
   function MockView(props: {
     children?: ReactNode;
     accessible?: boolean;

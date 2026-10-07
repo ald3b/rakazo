@@ -8,12 +8,10 @@ import { stacksAtTextScale } from "../lib/text-scale";
 import { NativeSwitch } from "./native-switch";
 import { Chevron } from "./row-accessories";
 
-/** Whether the user's text size stacks settings content and tightens the row insets. */
 export function useStackedSettings(): boolean {
   return stacksAtTextScale(useWindowDimensions().fontScale);
 }
 
-/** A small heading above a settings group, using an existing section title. */
 export function SettingsLabel({ children }: { children: string }) {
   const styles = useThemedStyles(createSettingsStyles);
   const stacked = useStackedSettings();
@@ -24,7 +22,6 @@ export function SettingsLabel({ children }: { children: string }) {
   );
 }
 
-/** An inset card of settings rows with hairline separators between the rows that render. */
 export function SettingsGroup({
   label,
   accessibilityLabel,
@@ -66,11 +63,6 @@ type SettingsRowProps = Omit<PressableProps, "children" | "style"> & {
   trailing?: ReactNode;
 };
 
-/**
- * A settings row: title over an optional detail, then a value, trailing view and decorative
- * chevron. Pressable when it has `onPress`. At large text sizes the value and trailing view
- * move under the title.
- */
 export function SettingsRow({
   title,
   detail,
@@ -134,7 +126,6 @@ export function SettingsRow({
   );
 }
 
-/** A settings row with a switch; the detail line doubles as the switch's hint. */
 export function SettingsSwitch({
   label,
   detail,

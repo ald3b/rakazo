@@ -1,10 +1,11 @@
 import { tokensForAppearance } from "@rakazo/ui-tokens";
 import { useMemo, useSyncExternalStore } from "react";
-import { AccessibilityInfo, type ColorValue, Platform, PlatformColor } from "react-native";
+import type { ColorValue } from "react-native";
+import { AccessibilityInfo, Platform, PlatformColor } from "react-native";
+import type { ResolvedAppearance } from "./appearance";
 import {
   getCachedAppearancePreference,
   mobileTokens,
-  type ResolvedAppearance,
   resolveMobileAppearance,
   subscribeAppearance,
 } from "./appearance";
