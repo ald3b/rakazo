@@ -37,6 +37,7 @@ import {
   EmailEmulator,
   EncryptedSecretStore,
   ExpoPushProvider,
+  endSessionPushToken,
   GraphileJobPublisher,
   InMemoryJobQueue,
   InMemoryRealtimeFanout,
@@ -398,6 +399,17 @@ export async function createApp(
       await removePiUserSessions(env.dataDir, userId);
       await rm(pushTokenPath(env.dataDir, userId), { force: true }).catch(() => undefined);
     },
+    // The session change already happened, so a token file failure must not fail sign-out.
+    afterDeleteSession: async (session) => {
+      await endSessionPushToken(env.dataDir, session.userId, session.id).catch((error) =>
+        getLogger().error("push token removal failed", error),
+      );
+    },
+    afterReplaceSession: async (previous, session) => {
+      await endSessionPushToken(env.dataDir, session.userId, previous.id, session.id).catch(
+        (error) => getLogger().error("push token session update failed", error),
+      );
+    },
   });
   // One provider instance so emulator launches and polls share the same Map.
   const cloudAgent = createCloudAgentConnection({
@@ -567,17 +579,20 @@ export async function createApp(
     return auth.handler(c.req.raw);
   });
   mountLocalSettings(app, { token: env.desktopStackToken, prisma, rpc });
-  const sessionActor = async (request: Request) => {
+  const requestSession = async (request: Request) => {
     const session = await auth.api.getSession({ headers: sessionHeaders(request) });
     if (!session?.user) return null;
-    return requireMembership(
+    const actor = await requireMembership(
       prisma,
       session.user.id,
       request.headers.get("x-rakazo-space-id"),
     ).catch(() => null);
+    return actor && { actor, sessionId: session.session.id };
   };
+  const sessionActor = async (request: Request) => (await requestSession(request))?.actor ?? null;
   app.use("/rpc/*", async (c, next) => {
-    const actor = await sessionActor(c.req.raw);
+    const session = await requestSession(c.req.raw);
+    const actor = session?.actor ?? null;
     if (actor) {
       enrichLogContext({ "user.id": actor.userId, "space.id": actor.spaceId });
     }
@@ -585,6 +600,7 @@ export async function createApp(
       prefix: "/rpc",
       context: {
         actor,
+        sessionId: session?.sessionId,
         signal: c.req.raw.signal,
         // Same user in the same space, so leaving the space also ends a stream.
         stillAuthorized: async () => {

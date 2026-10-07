@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { constants } from "node:fs";
-import { mkdir, open, unlink } from "node:fs/promises";
+import { mkdir, open, readdir, rename, unlink } from "node:fs/promises";
 import path from "node:path";
 import type {
   AdapterContext,
@@ -34,11 +34,19 @@ export function pushTokenPath(dataDir: string, userId: string) {
 }
 
 export async function loadPushToken(dataDir: string, userId: string): Promise<string | undefined> {
+  return (await readPushToken(dataDir, userId))?.token;
+}
+
+/** The file holds the token, then the id of the session that registered it. */
+async function readPushToken(
+  dataDir: string,
+  userId: string,
+): Promise<{ token: string; sessionId?: string } | undefined> {
   try {
     const handle = await open(pushTokenPath(dataDir, userId), constants.O_RDONLY | O_NOFOLLOW);
     try {
-      const token = (await handle.readFile("utf8")).trim();
-      return token || undefined;
+      const [token, sessionId] = (await handle.readFile("utf8")).trim().split("\n");
+      return token ? { token, sessionId } : undefined;
     } finally {
       await handle.close();
     }
@@ -47,19 +55,43 @@ export async function loadPushToken(dataDir: string, userId: string): Promise<st
   }
 }
 
-export async function savePushToken(dataDir: string, userId: string, token: string): Promise<void> {
+/**
+ * A device token belongs to one account: saving it removes it from every other
+ * user, so a handed-over device stops receiving the previous account's pushes.
+ */
+export async function savePushToken(
+  dataDir: string,
+  userId: string,
+  token: string,
+  sessionId?: string,
+): Promise<void> {
   const file = pushTokenPath(dataDir, userId);
+  const value = token.trim();
   await mkdir(path.dirname(file), { recursive: true });
+  // Renamed into place, so a concurrent read sees the old or the new token, never an empty file.
+  const staging = path.join(path.dirname(file), `.${userId}.${randomUUID()}.tmp`);
   const handle = await open(
-    file,
-    constants.O_WRONLY | constants.O_CREAT | constants.O_TRUNC | O_NOFOLLOW,
+    staging,
+    constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | O_NOFOLLOW,
     0o600,
   );
   try {
     await handle.chmod(0o600);
-    await handle.writeFile(token.trim(), "utf8");
+    await handle.writeFile(sessionId ? `${value}\n${sessionId}` : value, "utf8");
   } finally {
     await handle.close();
+  }
+  await rename(staging, file).catch(async (error: unknown) => {
+    await unlink(staging).catch(() => undefined);
+    throw error;
+  });
+  // Written first, so concurrent claims of one token can only drop it, never share it.
+  for (const name of await readdir(path.dirname(file))) {
+    const otherUserId = path.basename(name, ".txt");
+    if (!name.endsWith(".txt") || otherUserId === userId) continue;
+    if ((await loadPushToken(dataDir, otherUserId)) === value) {
+      await deletePushToken(dataDir, otherUserId);
+    }
   }
 }
 
@@ -67,6 +99,22 @@ export async function deletePushToken(dataDir: string, userId: string): Promise<
   await unlink(pushTokenPath(dataDir, userId)).catch((error: NodeJS.ErrnoException) => {
     if (error.code !== "ENOENT") throw error;
   });
+}
+
+/**
+ * Ends the token registered by a session that is gone, so a revoked or signed-out
+ * device stops receiving pushes. A session replaced by `nextSessionId` keeps it.
+ */
+export async function endSessionPushToken(
+  dataDir: string,
+  userId: string,
+  sessionId: string,
+  nextSessionId?: string,
+): Promise<void> {
+  const saved = await readPushToken(dataDir, userId);
+  if (saved?.sessionId !== sessionId) return;
+  if (nextSessionId) await savePushToken(dataDir, userId, saved.token, nextSessionId);
+  else await deletePushToken(dataDir, userId);
 }
 
 export type ExpoPushTicket = {

@@ -1,10 +1,11 @@
-import { chmod, mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   deletePushToken,
   ExpoPushProvider,
+  endSessionPushToken,
   expoPushData,
   expoPushErrorMessage,
   loadPushToken,
@@ -75,8 +76,10 @@ describe("expo push", () => {
     await symlink(target, tokenFile);
 
     await expect(loadPushToken(dataDir, "user-1")).resolves.toBeUndefined();
-    await expect(savePushToken(dataDir, "user-1", "ExponentPushToken[new]")).rejects.toThrow();
+    // The new token replaces the link itself.
+    await savePushToken(dataDir, "user-1", "ExponentPushToken[new]");
     await expect(readFile(target, "utf8")).resolves.toBe("not-a-push-token");
+    await expect(loadPushToken(dataDir, "user-1")).resolves.toBe("ExponentPushToken[new]");
   });
 
   it("removes a registered token", async () => {
@@ -84,6 +87,57 @@ describe("expo push", () => {
     dirs.push(dataDir);
     await savePushToken(dataDir, "user-1", "ExponentPushToken[test]");
     await deletePushToken(dataDir, "user-1");
+    await expect(loadPushToken(dataDir, "user-1")).resolves.toBeUndefined();
+  });
+
+  it("moves a device token to the user who saves it last", async () => {
+    const dataDir = await mkdtemp(path.join(tmpdir(), "rakazo-push-"));
+    dirs.push(dataDir);
+    await savePushToken(dataDir, "user-1", "ExponentPushToken[device]", "session-1");
+    await savePushToken(dataDir, "user-3", "ExponentPushToken[other]", "session-3");
+
+    await savePushToken(dataDir, "user-2", "ExponentPushToken[device]", "session-2");
+
+    await expect(loadPushToken(dataDir, "user-1")).resolves.toBeUndefined();
+    await expect(loadPushToken(dataDir, "user-2")).resolves.toBe("ExponentPushToken[device]");
+    await expect(loadPushToken(dataDir, "user-3")).resolves.toBe("ExponentPushToken[other]");
+  });
+
+  it("removes a token only with the session that registered it", async () => {
+    const dataDir = await mkdtemp(path.join(tmpdir(), "rakazo-push-"));
+    dirs.push(dataDir);
+    await savePushToken(dataDir, "user-1", "ExponentPushToken[test]", "session-1");
+
+    await endSessionPushToken(dataDir, "user-1", "session-2");
+    await expect(loadPushToken(dataDir, "user-1")).resolves.toBe("ExponentPushToken[test]");
+
+    await endSessionPushToken(dataDir, "user-1", "session-1");
+    await expect(loadPushToken(dataDir, "user-1")).resolves.toBeUndefined();
+  });
+
+  it("moves a token to the session that replaces its own", async () => {
+    const dataDir = await mkdtemp(path.join(tmpdir(), "rakazo-push-"));
+    dirs.push(dataDir);
+    await savePushToken(dataDir, "user-1", "ExponentPushToken[test]", "session-1");
+
+    await endSessionPushToken(dataDir, "user-1", "session-1", "session-2");
+    await endSessionPushToken(dataDir, "user-1", "session-1");
+    await expect(loadPushToken(dataDir, "user-1")).resolves.toBe("ExponentPushToken[test]");
+
+    await endSessionPushToken(dataDir, "user-1", "session-2");
+    await expect(loadPushToken(dataDir, "user-1")).resolves.toBeUndefined();
+  });
+
+  it("reads a token file written before tokens recorded their session", async () => {
+    const dataDir = await mkdtemp(path.join(tmpdir(), "rakazo-push-"));
+    dirs.push(dataDir);
+    await mkdir(path.join(dataDir, "push-tokens"));
+    await writeFile(path.join(dataDir, "push-tokens", "user-1.txt"), "ExponentPushToken[legacy]\n");
+
+    await endSessionPushToken(dataDir, "user-1", "session-1");
+    await expect(loadPushToken(dataDir, "user-1")).resolves.toBe("ExponentPushToken[legacy]");
+
+    await savePushToken(dataDir, "user-2", "ExponentPushToken[legacy]", "session-2");
     await expect(loadPushToken(dataDir, "user-1")).resolves.toBeUndefined();
   });
 
