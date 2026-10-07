@@ -1,5 +1,5 @@
 import { RemoteImagesContext } from "@rakazo/chat-ui/native";
-import { DarkTheme, Stack, ThemeProvider } from "expo-router";
+import { DarkTheme, router, Stack, ThemeProvider } from "expo-router";
 import * as ScreenOrientation from "expo-screen-orientation";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
@@ -12,8 +12,15 @@ import { AvatarStyleProvider } from "../components/avatar-style";
 import { CallCard } from "../components/CallCard";
 import { ComputerUpdateProgress } from "../components/computer-update-progress";
 import { VoicePlayerBar } from "../components/voice-player-bar";
-import { currentApiBase, loadApiBase, loadSessionToken, selectedSpaceId } from "../lib/api";
+import {
+  currentApiBase,
+  loadApiBase,
+  loadSessionToken,
+  selectedSpaceId,
+  subscribeSessionRejected,
+} from "../lib/api";
 import { loadAppearancePreference, mobileTokens } from "../lib/appearance";
+import { explicitSignInRoute } from "../lib/auth-routing";
 import { loadAvatarStyle } from "../lib/avatar-style";
 import { bootstrapI18n, useI18n } from "../lib/i18n";
 import {
@@ -71,6 +78,15 @@ export default function Layout() {
   useEffect(() => {
     if (appearanceReady && ready) void SplashScreen.hideAsync().catch(() => undefined);
   }, [appearanceReady, ready]);
+
+  useEffect(() => {
+    if (!ready) return;
+    // A session revoked or expired on the server ends here, from whichever screen noticed it.
+    return subscribeSessionRejected(() => {
+      if (router.canDismiss()) router.dismissAll();
+      router.replace(explicitSignInRoute);
+    });
+  }, [ready]);
 
   useEffect(() => {
     void Promise.all([
