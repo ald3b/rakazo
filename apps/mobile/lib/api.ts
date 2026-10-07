@@ -754,8 +754,8 @@ export async function rpc<T>(
       // After a delete where SecureStore could not clear the stale id, restart
       // reloads it and the first RPCs 401. Probe once without a Space header:
       // success means the selection was inaccessible (clear it); failure means
-      // the session itself is bad (restore the selection so a later sign-in
-      // keeps the user's Space). Never replay a mutation against the default
+      // the session itself is bad (restore the selection; it stays until
+      // sign-in resets it). Never replay a mutation against the default
       // Space — only safe reads may retry as themselves; other procs probe
       // with spaces/list, then fail the original call.
       const previousSpaceId = selectedSpaceId();

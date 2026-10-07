@@ -1514,7 +1514,7 @@ describe("mobile API authentication", () => {
       expect(selectedSpaceId()).toBeNull();
 
       // When the probe without a Space is refused too, the session itself is
-      // gone; the Space stays for the next sign-in.
+      // gone. The selection is left alone until sign-in resets it.
       await selectSpace("space-support");
       fetchMock
         .mockResolvedValueOnce(
