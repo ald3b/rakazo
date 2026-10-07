@@ -1,6 +1,6 @@
 import { tokensForAppearance } from "@rakazo/ui-tokens";
 import { useMemo, useSyncExternalStore } from "react";
-import { type ColorValue, Platform, PlatformColor } from "react-native";
+import { AccessibilityInfo, type ColorValue, Platform, PlatformColor } from "react-native";
 import {
   getCachedAppearancePreference,
   mobileTokens,
@@ -8,6 +8,30 @@ import {
   resolveMobileAppearance,
   subscribeAppearance,
 } from "./appearance";
+
+let darkerSystemColors = false;
+let watchingDarkerSystemColors = false;
+const darkerSystemColorsListeners = new Set<() => void>();
+
+function setDarkerSystemColors(enabled: boolean) {
+  if (enabled === darkerSystemColors) return;
+  darkerSystemColors = enabled;
+  for (const listener of darkerSystemColorsListeners) listener();
+}
+
+function subscribeDarkerSystemColors(listener: () => void): () => void {
+  darkerSystemColorsListeners.add(listener);
+  if (Platform.OS === "ios" && !watchingDarkerSystemColors) {
+    watchingDarkerSystemColors = true;
+    AccessibilityInfo.addEventListener("darkerSystemColorsChanged", setDarkerSystemColors);
+    void AccessibilityInfo.isDarkerSystemColorsEnabled()
+      .then(setDarkerSystemColors)
+      .catch(() => undefined);
+  }
+  return () => {
+    darkerSystemColorsListeners.delete(listener);
+  };
+}
 
 function systemColor(iosName: string, fallback: string): ColorValue {
   // PlatformColor follows the OS scheme, not an explicit app Light/Dark choice.
@@ -41,6 +65,19 @@ export const native = {
   get tertiaryLabel() {
     return systemColor("tertiaryLabel", mobileTokens().mutedForeground);
   },
+  get groupedPage() {
+    const tokens = mobileTokens();
+    // Dark `muted` is the card colour, so the dark page falls back to `background`.
+    return systemColor(
+      "systemGroupedBackground",
+      resolveMobileAppearance() === "dark" ? tokens.background : tokens.muted,
+    );
+  },
+  get groupedCell() {
+    // Increase Contrast lightens the dark iOS cell until destructive text drops below 4.5:1.
+    if (darkerSystemColors && resolveMobileAppearance() === "dark") return mobileTokens().card;
+    return systemColor("secondarySystemGroupedBackground", mobileTokens().card);
+  },
 } as const;
 
 function appearanceSnapshot(): string {
@@ -58,7 +95,12 @@ export function useResolvedAppearance(): ResolvedAppearance {
 export function useThemedStyles<T>(factory: () => T): T {
   const resolved = useResolvedAppearance();
   const preference = getCachedAppearancePreference();
-  return useMemo(factory, [resolved, preference]);
+  const darker = useSyncExternalStore(
+    subscribeDarkerSystemColors,
+    () => darkerSystemColors,
+    () => false,
+  );
+  return useMemo(factory, [resolved, preference, darker]);
 }
 
 /** Subscribe custom surfaces to the same appearance as native navigation. */

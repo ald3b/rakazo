@@ -24,9 +24,9 @@ describe("Account delete", () => {
     expect(row).toContain('deleteLabel: t("Delete")');
     expect(row).toContain("onSubmit: (password) => void handleDeletion(password)");
     expect(row).toContain("setDeleteOpen(true)");
+    const press = screen.indexOf("onPress={requestDeletion}");
+    expect(screen.slice(screen.lastIndexOf("<SettingsRow", press), press)).toContain("destructive");
     const visible = sliceBetween(screen, "onPress={requestDeletion}", "{deleteOpen ?");
-    expect(visible).toContain("styles.destructiveTitle");
-    expect(visible).toContain("styles.settingsButton");
     expect(visible).toContain('t("Delete account")');
     expect(visible).not.toContain("secureTextEntry");
     expect(visible).not.toContain("<TextInput");
@@ -59,7 +59,7 @@ describe("Account delete", () => {
     expect(signOut).toContain("setSignOutError");
     expect(signOut).toContain('t("Could not sign out")');
     expect(signOut).not.toContain("setDeleteError");
-    const signOutControl = sliceBetween(screen, 't("Sign out")', "archivedBots.length");
+    const signOutControl = sliceBetween(screen, 't("Sign out")', 't("Archived bots")');
     expect(signOutControl).toContain("signOutError");
     expect(signOutControl).toContain('accessibilityRole="alert"');
     expect(signOutControl).not.toContain("deleteError");
