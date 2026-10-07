@@ -131,6 +131,7 @@ describe("formatCron", () => {
 
   it("names any single weekday", () => {
     expect(formatCron("0 6 * * 0")).toBe("Every Sunday at 6:00 AM");
+    expect(formatCron("0 6 * * 7")).toBe("Every Sunday at 6:00 AM");
     expect(formatCron("30 18 * * 2")).toBe("Every Tuesday at 6:30 PM");
     expect(formatCron("0 9 * * 3")).toBe("Every Wednesday at 9:00 AM");
     expect(formatCron("0 9 * * 4")).toBe("Every Thursday at 9:00 AM");

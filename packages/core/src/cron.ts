@@ -171,10 +171,12 @@ export function formatCron(cron: string): string {
   if (isOneShotRoutineCron(cron)) return "One-time";
   // The editor presets only know Monday as a weekly day; name any single
   // weekday here so agent-made schedules don't fall back to the raw cron.
-  const weekly = /^(\d+)\s+(\d+)\s+\*\s+\*\s+([0-6])$/.exec(cron.trim());
+  // 7 is Sunday in standard cron and in croner, same as 0.
+  const weekly = /^(\d+)\s+(\d+)\s+\*\s+\*\s+([0-7])$/.exec(cron.trim());
   if (weekly) {
     const time = formatClock(Number(weekly[2]), Number(weekly[1]));
-    return `Every ${WEEKDAY_NAMES[Number(weekly[3])]} at ${time}`;
+    const weekday = Number(weekly[3]) % 7;
+    return `Every ${WEEKDAY_NAMES[weekday]} at ${time}`;
   }
   return formatSchedule(presetFromCron(cron));
 }
