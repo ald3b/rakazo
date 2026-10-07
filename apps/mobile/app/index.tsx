@@ -21,6 +21,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { KeyboardController } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BotAvatar } from "../components/bot-avatar";
 import { BotOrganizeModal } from "../components/bot-organize-modal";
@@ -505,12 +506,17 @@ export default function Home() {
             accessibilityLabel={t("Create")}
             onPress={() => {
               if (spaceActionRef.current.busy || spaceActionRef.current.recoveryId) return;
-              Alert.alert(t("Create"), undefined, [
-                { text: t("New bot"), onPress: () => void createQuickBot() },
-                { text: t("New group"), onPress: () => router.push("/new-group") },
-                { text: t("New space"), onPress: () => router.push("/new-space") },
-                { text: t("Cancel"), style: "cancel" },
-              ]);
+              Alert.alert(
+                t("Create"),
+                undefined,
+                [
+                  { text: t("New bot"), onPress: () => void createQuickBot() },
+                  { text: t("New group"), onPress: () => router.push("/new-group") },
+                  { text: t("New space"), onPress: () => router.push("/new-space") },
+                  { text: t("Cancel"), style: "cancel" },
+                ],
+                { cancelable: true },
+              );
             }}
           >
             <NativeSymbol ios="plus" android="add" size={18} />
@@ -547,6 +553,7 @@ export default function Home() {
       ) : null}
 
       <FlatList<InboxItem>
+        style={{ flex: 1 }}
         data={listData}
         keyExtractor={(item) => {
           if (item.type === "heading") return `heading-${item.key}`;
@@ -599,7 +606,11 @@ export default function Home() {
               onPress={() => {
                 setQuery("");
                 setSearchHits([]);
-                router.push(mobileSearchDestination(item.hit));
+                // A thread that opens while the search keyboard is still up or closing sizes
+                // itself against that keyboard and can leave its composer off screen.
+                void KeyboardController.dismiss().then(() =>
+                  router.push(mobileSearchDestination(item.hit)),
+                );
               }}
             />
           ) : item.type === "heading" ? (

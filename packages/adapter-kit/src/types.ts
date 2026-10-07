@@ -247,7 +247,7 @@ export interface ConnectorCall {
 export type ConnectorEvent =
   | { type: "log"; message: string }
   | { type: "result"; data: unknown }
-  | { type: "error"; message: string };
+  | { type: "error"; message: string; logIds?: string[] };
 
 export interface ConnectorCapabilities {
   discover: boolean;
@@ -396,6 +396,10 @@ export interface AgentRunModel {
   provider: string;
   id: string;
   apiKey?: string;
+  /** Cloudflare account id stored with a gateway BYOK credential. */
+  accountId?: string;
+  /** Cloudflare AI Gateway id stored with a gateway BYOK credential. */
+  gatewayId?: string;
   baseUrl?: string;
   /** Whether this custom connection accepts standard reasoning_effort. */
   reasoning?: boolean;
@@ -920,4 +924,42 @@ export interface AutoReviewResult {
   decision: AutoReviewDecision;
   reason?: string;
   model: string;
+}
+
+/** Provider-neutral subscription state. Vendor-specific states map onto these. */
+export type BillingSubscriptionStatus =
+  | "trialing"
+  | "active"
+  | "past_due"
+  | "incomplete"
+  | "canceled";
+
+export interface BillingPrice {
+  /** Minor currency units, e.g. cents. */
+  amount: number;
+  currency: string;
+  interval: "day" | "week" | "month" | "year";
+  intervalCount: number;
+}
+
+/** Full subscription state for one billing customer, re-fetched from the provider on every sync. */
+export interface BillingSubscriptionSnapshot {
+  subscriptionId: string;
+  subscriptionItemId: string;
+  priceId: string;
+  status: BillingSubscriptionStatus;
+  seats: number;
+  trialEndsAt: Date | null;
+  currentPeriodEndsAt: Date | null;
+  cancelAtPeriodEnd: boolean;
+  endedAt: Date | null;
+}
+
+export interface BillingCheckoutRequest {
+  customerId: string;
+  seats: number;
+  /** Omitted when the customer has already used its trial. */
+  trialDays?: number;
+  successUrl: string;
+  cancelUrl: string;
 }

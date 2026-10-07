@@ -1,7 +1,7 @@
 ---
 import {
   DEFAULT_LOCALE,
-  LOCALE_HTML_LANG,
+  LOCALE_HREFLANG,
   LOCALE_LABELS,
   LOCALES,
   isLocale,
@@ -23,6 +23,7 @@ type Props = {
     about: string;
     support: string;
     privacy: string;
+    terms: string;
   };
 };
 
@@ -41,6 +42,7 @@ const {
     about: "About",
     support: "Support",
     privacy: "Privacy",
+    terms: "Terms",
   },
 } = Astro.props;
 ---
@@ -60,7 +62,7 @@ const {
         LOCALES.map((locale) => (
           <a
             href={localeHomePath(locale)}
-            hreflang={LOCALE_HTML_LANG[locale]}
+            hreflang={LOCALE_HREFLANG[locale]}
             aria-current={locale === currentLocale ? "page" : undefined}
           >
             {LOCALE_LABELS[locale]}
@@ -75,6 +77,7 @@ const {
       <a href="/about/">{linkLabels.about}</a>
       <a href="/support/">{linkLabels.support}</a>
       <a href="/privacy/">{linkLabels.privacy}</a>
+      <a href="/terms/">{linkLabels.terms}</a>
     </nav>
   </div>
 </footer>
