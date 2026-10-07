@@ -2292,6 +2292,7 @@ function Thread() {
             keyboardShouldPersistTaps="handled"
             style={{
               flexGrow: 0,
+              flexShrink: 1,
               marginTop: 12,
               borderRadius: 14,
               borderWidth: 1,
@@ -2339,6 +2340,7 @@ function Thread() {
             keyboardShouldPersistTaps="handled"
             style={{
               flexGrow: 0,
+              flexShrink: 1,
               marginTop: 12,
               borderRadius: 14,
               borderWidth: 1,
