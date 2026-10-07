@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
+import type { CronPreset } from "./cron.js";
 import {
-  type CronPreset,
   cronFromPreset,
   describeCronPreset,
   formatCron,
@@ -146,6 +146,21 @@ describe("formatCron", () => {
     expect(formatCron("0 6 * * 6,0")).toBe("Cron 0 6 * * 6,0");
     expect(formatCron("0 6 1 * 0")).toBe("Cron 0 6 1 * 0");
     expect(presetFromCron("0 6 * * 0")).toMatchObject({ freq: "Advanced", cron: "0 6 * * 0" });
+  });
+
+  it.each(["* * 2", "* * 1", "* * 7", "* * *", "* * 1-5", "1 * *"])(
+    "falls back to cron for out-of-range clocks with %s",
+    (fields) => {
+      for (const clock of ["60 24", "60 9", "0 24"]) {
+        const cron = `${clock} ${fields}`;
+        expect(formatCron(cron)).toBe(`Cron ${cron}`);
+      }
+    },
+  );
+
+  it("formats the clock boundaries", () => {
+    expect(formatCron("0 0 * * 2")).toBe("Every Tuesday at 12:00 AM");
+    expect(formatCron("59 23 * * 2")).toBe("Every Tuesday at 11:59 PM");
   });
 });
 
