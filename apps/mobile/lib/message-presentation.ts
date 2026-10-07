@@ -72,12 +72,33 @@ export function choiceCardOptions(block: ChoiceBlock): ChoiceBlock["options"] {
 
 const THREAD_HORIZONTAL_PADDING = 20;
 const MESSAGE_COLUMN_RATIO = 0.9;
+const MESSAGE_ROW_GAP = 8;
 const CARD_MAX_WIDTH = 340;
+
+function threadRowWidth(windowWidth: number): number {
+  return Math.max(0, windowWidth - THREAD_HORIZONTAL_PADDING * 2);
+}
 
 /** Width of a card in a normal bot row: thread padding, then the 90% column cap. */
 export function threadCardWidth(windowWidth: number): number {
-  const contentWidth = Math.max(0, windowWidth - THREAD_HORIZONTAL_PADDING * 2);
-  return Math.min(CARD_MAX_WIDTH, Math.floor(contentWidth * MESSAGE_COLUMN_RATIO));
+  return Math.min(CARD_MAX_WIDTH, Math.floor(threadRowWidth(windowWidth) * MESSAGE_COLUMN_RATIO));
+}
+
+/**
+ * The widest a message bubble may draw: the full row for centered agent events, the row beside the
+ * avatar for a live reply, otherwise the 90% column. The iOS context menu hosts the bubble in
+ * SwiftUI, which lays it out without the row's percentage caps, so the cap is passed in points.
+ */
+export function threadBubbleMaxWidth(
+  windowWidth: number,
+  row: { centered: boolean; avatarSize?: number },
+): number {
+  const rowWidth = threadRowWidth(windowWidth);
+  if (row.centered) return rowWidth;
+  if (row.avatarSize !== undefined) {
+    return Math.max(0, rowWidth - row.avatarSize - MESSAGE_ROW_GAP);
+  }
+  return Math.floor(rowWidth * MESSAGE_COLUMN_RATIO);
 }
 
 // Row chrome calls this per render; the same blocks array then hits the cache.

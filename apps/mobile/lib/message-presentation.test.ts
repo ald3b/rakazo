@@ -9,6 +9,7 @@ import {
   isCenteredAgentEvent,
   messagePresentationSegments,
   quotableMessageSegments,
+  threadBubbleMaxWidth,
   threadCardWidth,
   truncateQuoteExcerpt,
 } from "./message-presentation";
@@ -156,6 +157,13 @@ describe("mobile message presentation", () => {
   it("sizes thread cards to the bot row, capped on wide screens", () => {
     expect(threadCardWidth(393)).toBe(317);
     expect(threadCardWidth(1024)).toBe(340);
+  });
+
+  it("caps bubbles at the 90% column, the row beside a live reply's avatar, or the full row", () => {
+    expect(threadBubbleMaxWidth(393, { centered: false })).toBe(317);
+    expect(threadBubbleMaxWidth(393, { centered: false, avatarSize: 28 })).toBe(317);
+    expect(threadBubbleMaxWidth(393, { centered: true })).toBe(353);
+    expect(threadBubbleMaxWidth(852, { centered: false })).toBe(730);
   });
 
   it("keeps the computer takeover card out of the text bubble", () => {

@@ -2,7 +2,7 @@ import type { MenuAction } from "@expo/ui/community/menu";
 import { MenuView } from "@expo/ui/community/menu";
 import type { ReactNode } from "react";
 import type { ColorSchemeName, GestureResponderEvent } from "react-native";
-import { Platform, Pressable } from "react-native";
+import { Platform, Pressable, View } from "react-native";
 import type { MessageMenuEntry, MessageMenuSymbol } from "../lib/message-context-menu";
 
 const symbols = {
@@ -18,12 +18,14 @@ export function MessageContextMenu({
   actions,
   children,
   colorScheme,
+  maxWidth,
   onAction,
   onLongPress,
 }: {
   actions: readonly MessageMenuEntry[];
   children: ReactNode;
   colorScheme: ColorSchemeName;
+  maxWidth: number;
   onAction: (id: string) => void;
   onLongPress?: (event: GestureResponderEvent) => void;
 }) {
@@ -41,7 +43,9 @@ export function MessageContextMenu({
       onPressAction={(event) => onAction(event.nativeEvent.event)}
       shouldOpenOnLongPress
     >
-      {children}
+      {/* The hosted content is laid out with only its own point limits, not the row's percentage
+          caps, so without this text never wraps and wide content runs off the screen. */}
+      <View style={{ maxWidth }}>{children}</View>
     </MenuView>
   );
 }

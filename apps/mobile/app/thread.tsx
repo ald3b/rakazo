@@ -82,6 +82,7 @@ import {
   Text,
   TextInput,
   type TextProps,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { KeyboardAvoidingView, useKeyboardState } from "react-native-keyboard-controller";
@@ -152,6 +153,7 @@ import {
   isCenteredAgentEvent,
   messagePresentationSegments,
   quotableMessageSegments,
+  threadBubbleMaxWidth,
   truncateQuoteExcerpt,
 } from "../lib/message-presentation";
 import { native, useMobileTokens, useResolvedAppearance, useThemedStyles } from "../lib/native";
@@ -381,6 +383,7 @@ function Thread() {
   const router = useRouter();
   const headerHeight = useHeaderHeight();
   const insets = useSafeAreaInsets();
+  const { width: windowWidth } = useWindowDimensions();
   const keyboardVisible = useKeyboardState((state) => state.isVisible);
   const { botId, groupId, name, messageId, threadId } = useLocalSearchParams<{
     botId?: string;
@@ -1937,6 +1940,8 @@ function Thread() {
       ? (snap?.activeRuns?.find((run) => run.botId === activityBotId)?.status ??
         (snap?.run?.botId === activityBotId ? snap.run.status : currentBotStatus))
       : undefined;
+    const activityAvatarSize = inGroup ? 20 : 28;
+    const centered = isCenteredAgentEvent(message.blocks);
     return (
       <View
         key={message.id}
@@ -1973,19 +1978,15 @@ function Thread() {
             <BotAvatar
               color={activityBot?.color ?? tokens.mutedForeground}
               identity={activityBotId}
-              size={inGroup ? 20 : 28}
+              size={activityAvatarSize}
               status={activityStatus}
             />
           </View>
         ) : null}
         <View
           style={{
-            width: isCenteredAgentEvent(message.blocks) ? "100%" : undefined,
-            maxWidth: isCenteredAgentEvent(message.blocks)
-              ? "100%"
-              : activityBotId
-                ? undefined
-                : "90%",
+            width: centered ? "100%" : undefined,
+            maxWidth: centered ? "100%" : activityBotId ? undefined : "90%",
             flex: activityBotId ? 1 : undefined,
             flexShrink: 1,
           }}
@@ -1993,6 +1994,10 @@ function Thread() {
           <MessageContextMenu
             actions={menu}
             colorScheme={colorScheme}
+            maxWidth={threadBubbleMaxWidth(windowWidth, {
+              centered,
+              avatarSize: activityBotId ? activityAvatarSize : undefined,
+            })}
             onAction={onMenuAction}
             onLongPress={actionProps.onLongPress}
           >
