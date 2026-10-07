@@ -1,5 +1,6 @@
+import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { constants } from "node:fs";
+import { closeSync, constants, openSync } from "node:fs";
 import { mkdir, open, readdir, rename, unlink } from "node:fs/promises";
 import path from "node:path";
 import type {
@@ -199,61 +200,76 @@ async function writePushTokenFile(
   });
 }
 
+/**
+ * API and worker are separate containers sharing this directory, so the lock
+ * is `flock` on the file description. It releases when the holder exits,
+ * including a crash, and an empty lock file is not itself the lock.
+ */
 async function withPushTokenLock<T>(dataDir: string, body: () => Promise<T>): Promise<T> {
-  const dir = path.join(dataDir, "push-tokens");
-  await mkdir(dir, { recursive: true });
-  const lockFile = path.join(dir, ".lock");
-  const started = Date.now();
-  for (;;) {
-    try {
-      const handle = await open(
-        lockFile,
-        constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | O_NOFOLLOW,
-        0o600,
-      );
-      try {
-        await handle.writeFile(String(process.pid), "utf8");
-      } finally {
-        await handle.close();
-      }
-      break;
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-      if (!(await lockHolderAlive(lockFile))) {
-        await unlink(lockFile).catch(() => undefined);
-        continue;
-      }
-      if (Date.now() - started > PUSH_TOKEN_LOCK_WAIT_MS) {
-        throw new Error("Push token update timed out.");
-      }
-      await new Promise((resolve) => setTimeout(resolve, 20));
-    }
-  }
+  const release = await acquirePushTokenLock(dataDir);
   try {
     return await body();
   } finally {
-    await unlink(lockFile).catch(() => undefined);
+    await release();
   }
 }
 
-async function lockHolderAlive(lockFile: string): Promise<boolean> {
+async function acquirePushTokenLock(dataDir: string): Promise<() => Promise<void>> {
+  const dir = path.join(dataDir, "push-tokens");
+  await mkdir(dir, { recursive: true });
+  const lockFile = path.join(dir, ".lock");
+  const fd = openSync(lockFile, constants.O_CREAT | constants.O_RDWR | O_NOFOLLOW, 0o600);
+  let child: ReturnType<typeof spawn>;
   try {
-    const handle = await open(lockFile, constants.O_RDONLY | O_NOFOLLOW);
-    try {
-      const pid = Number((await handle.readFile("utf8")).trim());
-      if (!Number.isInteger(pid) || pid <= 0) return true;
-      try {
-        process.kill(pid, 0);
-        return true;
-      } catch (error) {
-        return (error as NodeJS.ErrnoException).code !== "ESRCH";
-      }
-    } finally {
-      await handle.close();
-    }
-  } catch {
-    return false;
+    child = spawn(
+      "flock",
+      [
+        "-x",
+        "-w",
+        String(Math.ceil(PUSH_TOKEN_LOCK_WAIT_MS / 1000)),
+        "3",
+        "sh",
+        "-c",
+        "echo ready; exec cat",
+      ],
+      { stdio: ["pipe", "pipe", "ignore", fd] },
+    );
+  } catch (error) {
+    closeSync(fd);
+    throw error;
   }
+  closeSync(fd);
+  let settled = false;
+  try {
+    await new Promise<void>((resolve, reject) => {
+      let output = "";
+      const fail = (error: Error) => {
+        if (settled) return;
+        settled = true;
+        reject(error);
+      };
+      child.stdout?.on("data", (chunk: Buffer) => {
+        output += chunk.toString();
+        if (settled || !output.includes("ready")) return;
+        settled = true;
+        resolve();
+      });
+      child.on("error", (error) => fail(error));
+      child.on("exit", () => fail(new Error("Push token update timed out.")));
+    });
+  } catch (error) {
+    child.kill();
+    throw error;
+  }
+  return () =>
+    new Promise((resolve) => {
+      child.once("exit", () => resolve());
+      if (child.exitCode !== null || child.signalCode !== null) {
+        resolve();
+        return;
+      }
+      child.stdin?.end();
+    });
 }
 
 export type ExpoPushTicket = {
@@ -352,8 +368,9 @@ export class ExpoPushProvider implements NotificationProvider {
 
   /**
    * A token bound to a session is delivered only while that session is still
-   * live. A missing lookup fails closed. A lookup failure keeps the file so a
-   * database blip does not sign the device out.
+   * live. A missing row is left for session replacement to retarget; an expired
+   * row is removed. The token is read again after the lookup so a handover
+   * during that wait is not sent.
    */
   private async deliverableToken(userId: string): Promise<string | undefined> {
     const saved = await readPushToken(this.dataDir, userId);
@@ -367,9 +384,14 @@ export class ExpoPushProvider implements NotificationProvider {
       getLogger().error("push session lookup failed", error);
       return undefined;
     }
-    if (expiresAt && expiresAt.getTime() > Date.now()) return saved.token;
-    await endSessionPushToken(this.dataDir, userId, saved.sessionId);
-    return undefined;
+    if (!expiresAt) return undefined;
+    if (expiresAt.getTime() <= Date.now()) {
+      await endSessionPushToken(this.dataDir, userId, saved.sessionId);
+      return undefined;
+    }
+    const current = await readPushToken(this.dataDir, userId);
+    if (current?.token !== saved.token || current.sessionId !== saved.sessionId) return undefined;
+    return current.token;
   }
 }
 

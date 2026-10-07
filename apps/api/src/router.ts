@@ -5448,8 +5448,10 @@ export function createRouter(deps: RouterDeps) {
         if (!sessionId) throw new ORPCError("UNAUTHORIZED");
         try {
           await savePushToken(deps.dataDir, context.actor.userId, input.token, sessionId, {
-            sessionActive: async () =>
-              (await pushSessionExpiresAt(deps.prisma, sessionId)) !== null,
+            sessionActive: async () => {
+              const expiresAt = await pushSessionExpiresAt(deps.prisma, sessionId);
+              return expiresAt !== null && expiresAt.getTime() > Date.now();
+            },
           });
         } catch (error) {
           if (error instanceof PushSessionEndedError) throw new ORPCError("UNAUTHORIZED");

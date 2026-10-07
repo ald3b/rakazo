@@ -1,8 +1,9 @@
 import type { PrismaClient } from "./client.js";
 
 /**
- * Expiry of a session that may still receive a push. Missing and expired
- * sessions are ended, including when nothing has presented the expired row yet.
+ * Expiry stored for a session, including one that is already past. Null means
+ * the row is gone. Callers tell expiry apart from deletion: a password change
+ * deletes the old row before the replacement session exists.
  */
 export async function pushSessionExpiresAt(
   prisma: Pick<PrismaClient, "session">,
@@ -12,6 +13,5 @@ export async function pushSessionExpiresAt(
     where: { id: sessionId },
     select: { expiresAt: true },
   });
-  if (!session || session.expiresAt.getTime() <= Date.now()) return null;
-  return session.expiresAt;
+  return session?.expiresAt ?? null;
 }
