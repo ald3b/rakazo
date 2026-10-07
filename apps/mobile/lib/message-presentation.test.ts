@@ -142,6 +142,31 @@ describe("mobile message presentation", () => {
     expect(threadCardWidth(393)).toBe(317);
     expect(threadCardWidth(1024)).toBe(340);
   });
+
+  it("keeps the computer takeover card out of the text bubble", () => {
+    const computer: Extract<MessageBlock, { kind: "computer" }> = {
+      kind: "computer",
+      state: "Needs you",
+      text: "Sign in to continue.",
+    };
+
+    expect(messagePresentationSegments([computer])).toEqual([]);
+    expect(hasVisibleMessagePresentation([computer])).toBe(true);
+    expect(messagePresentationSegments([{ kind: "text", text: "Opening." }, computer])).toEqual([
+      { kind: "content", blocks: [{ kind: "text", text: "Opening." }] },
+    ]);
+  });
+
+  it("keeps choice and computer cards out of the text bubble together", () => {
+    const computer: Extract<MessageBlock, { kind: "computer" }> = {
+      kind: "computer",
+      state: "Needs you",
+      text: "Sign in to continue.",
+    };
+    expect(messagePresentationSegments([{ kind: "text", text: "Hi." }, choice, computer])).toEqual([
+      { kind: "content", blocks: [{ kind: "text", text: "Hi." }] },
+    ]);
+  });
 });
 
 describe("quotableMessageSegments", () => {
