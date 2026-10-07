@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { rm } from "node:fs/promises";
 import { ORPCError, onError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import type {
@@ -33,6 +32,7 @@ import {
   createRunSandbox,
   createRunSecretWriter,
   createWebProvider,
+  deletePushToken,
   destroyBot,
   EmailEmulator,
   EncryptedSecretStore,
@@ -57,7 +57,6 @@ import {
   PostgresRealtimeFanout,
   pipedreamConfigFromEnv,
   piSessionsRoot,
-  pushTokenPath,
   reconcileCloudAgents,
   reconcileComputerUpdates,
   removePiUserSessions,
@@ -80,6 +79,7 @@ import {
   IsolationError,
   parsePositiveInteger,
   provisionMessagingIdentity,
+  pushSessionExpiresAt,
   requireMembership,
 } from "@rakazo/db";
 import type { Logger } from "@rakazo/logging";
@@ -364,7 +364,9 @@ export async function createApp(
       : new PiAgentRuntime({
           sessionRoot: env.piSessionRecording ? piSessionsRoot(env.dataDir) : undefined,
         });
-  const notifications = new ExpoPushProvider(env.dataDir);
+  const notifications = new ExpoPushProvider(env.dataDir, (sessionId) =>
+    pushSessionExpiresAt(prisma, sessionId),
+  );
   const auth = createAuth(prisma, {
     secret: env.authSecret,
     baseURL: env.authUrl,
@@ -399,7 +401,9 @@ export async function createApp(
         ),
       );
       await removePiUserSessions(env.dataDir, userId);
-      await rm(pushTokenPath(env.dataDir, userId), { force: true }).catch(() => undefined);
+      await deletePushToken(env.dataDir, userId).catch((error) =>
+        getLogger().error("push token removal failed", error),
+      );
     },
     // The session change already happened, so a token file failure must not fail sign-out.
     afterDeleteSession: async (session) => {

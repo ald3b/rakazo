@@ -1,11 +1,12 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { ComposioEmulator, loadPushToken } from "@rakazo/adapters";
+import { ComposioEmulator, ExpoPushProvider, loadPushToken } from "@rakazo/adapters";
 import type { appContract, Space, SpaceNavigation } from "@rakazo/contracts";
 import {
   claimEmptySpaceDeletionForMember,
   deleteEmptySpaceForMember,
+  pushSessionExpiresAt,
   releaseSpaceDeletionClaim,
   renewSpaceDeletionClaim,
 } from "@rakazo/db";
@@ -534,6 +535,41 @@ describeWithDatabase("API authorization and resource isolation", () => {
     await rpc(app, signedIn, "notifications/registerPush", { token });
     await authPost(app, signedIn, "/revoke-sessions");
     await expect(loadPushToken(dataDir, userId)).resolves.toBeUndefined();
+  });
+
+  it("does not deliver a push token after its session expires without a request", async () => {
+    const email = `push-expired-${stamp}@rakazo.test`;
+    const phone = await signup(app, email, "Push Expired");
+    const userId = (await rpc<Actor>(app, phone, "me")).userId;
+    const token = "ExponentPushToken[expired-session]";
+    await rpc(app, phone, "notifications/registerPush", { token });
+    await handles.prisma.session.updateMany({
+      where: { userId },
+      data: { expiresAt: new Date(Date.now() - 60_000) },
+    });
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      const push = new ExpoPushProvider(dataDir, (sessionId) =>
+        pushSessionExpiresAt(handles.prisma, sessionId),
+      );
+      await expect(
+        push.deliver(
+          { kind: "completion", title: "done", body: "secret", botId: "b", threadId: "t" },
+          {
+            operationId: "n",
+            traceId: "n",
+            spaceId: "w",
+            userId,
+            signal: new AbortController().signal,
+          },
+        ),
+      ).resolves.toBe("undeliverable");
+      expect(fetchMock).not.toHaveBeenCalled();
+      await expect(loadPushToken(dataDir, userId)).resolves.toBeUndefined();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("keeps approval rules private to each user in a shared Space", async () => {

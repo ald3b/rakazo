@@ -33,20 +33,32 @@ export function pushTokenPath(dataDir: string, userId: string) {
   return path.join(dataDir, "push-tokens", `${userId}.txt`);
 }
 
+type PushRecord = { token: string; sessionId?: string };
+
+const PUSH_TOKEN_LOCK_WAIT_MS = 15_000;
+
+/** Registration found that its session was already gone. */
+export class PushSessionEndedError extends Error {
+  constructor() {
+    super("Push session ended");
+    this.name = "PushSessionEndedError";
+  }
+}
+
+/** Expiry of the session that registered a token, or null when that session is gone. */
+export type PushSessionExpiresAt = (sessionId: string) => Promise<Date | null>;
+
 export async function loadPushToken(dataDir: string, userId: string): Promise<string | undefined> {
   return (await readPushToken(dataDir, userId))?.token;
 }
 
 /** The file holds the token, then the id of the session that registered it. */
-async function readPushToken(
-  dataDir: string,
-  userId: string,
-): Promise<{ token: string; sessionId?: string } | undefined> {
+async function readPushToken(dataDir: string, userId: string): Promise<PushRecord | undefined> {
   try {
     const handle = await open(pushTokenPath(dataDir, userId), constants.O_RDONLY | O_NOFOLLOW);
     try {
       const [token, sessionId] = (await handle.readFile("utf8")).trim().split("\n");
-      return token ? { token, sessionId } : undefined;
+      return token ? { token, sessionId: sessionId || undefined } : undefined;
     } finally {
       await handle.close();
     }
@@ -55,21 +67,120 @@ async function readPushToken(
   }
 }
 
+type SavePushTokenOptions = {
+  /** Checked under the token lock, before the token is published. */
+  sessionActive?: () => Promise<boolean>;
+  /** Runs under the lock after other owners are read and before they are removed. */
+  beforeRemoveOthers?: () => Promise<void>;
+};
+
+type EndSessionPushTokenOptions = {
+  /** Runs after this account's record is read and before the conditional update. */
+  beforeCommit?: () => Promise<void>;
+};
+
 /**
  * A device token belongs to one account: saving it removes it from every other
  * user, so a handed-over device stops receiving the previous account's pushes.
+ * The session check and the write are one locked step.
  */
 export async function savePushToken(
   dataDir: string,
   userId: string,
   token: string,
   sessionId?: string,
+  options?: SavePushTokenOptions,
+): Promise<void> {
+  const value = token.trim();
+  await withPushTokenLock(dataDir, async () => {
+    if (options?.sessionActive && !(await options.sessionActive())) {
+      throw new PushSessionEndedError();
+    }
+    await writePushTokenFile(dataDir, userId, { token: value, sessionId });
+    const dir = path.dirname(pushTokenPath(dataDir, userId));
+    const claimed: Array<{ userId: string; record: PushRecord }> = [];
+    for (const name of await readdir(dir)) {
+      const otherUserId = path.basename(name, ".txt");
+      if (!name.endsWith(".txt") || otherUserId === userId) continue;
+      const current = await readPushToken(dataDir, otherUserId);
+      if (current?.token === value) claimed.push({ userId: otherUserId, record: current });
+    }
+    await options?.beforeRemoveOthers?.();
+    for (const other of claimed) {
+      await compareAndSwapPushToken(dataDir, other.userId, other.record, undefined);
+    }
+  });
+}
+
+export async function deletePushToken(dataDir: string, userId: string): Promise<void> {
+  await withPushTokenLock(dataDir, async () => {
+    await unlinkOwnedPushToken(dataDir, userId);
+  });
+}
+
+/**
+ * Ends the token registered by a session that is gone. The update lands only
+ * when the file still holds that session, so a replacement cannot reclaim a
+ * token another account has taken.
+ */
+export async function endSessionPushToken(
+  dataDir: string,
+  userId: string,
+  sessionId: string,
+  nextSessionId?: string,
+  options?: EndSessionPushTokenOptions,
+): Promise<void> {
+  await withPushTokenLock(dataDir, async () => {
+    const expected = await readPushToken(dataDir, userId);
+    if (expected?.sessionId !== sessionId) return;
+    await options?.beforeCommit?.();
+    await compareAndSwapPushToken(
+      dataDir,
+      userId,
+      expected,
+      nextSessionId ? { token: expected.token, sessionId: nextSessionId } : undefined,
+    );
+  });
+}
+
+function samePushRecord(left: PushRecord | undefined, right: PushRecord | undefined): boolean {
+  if (!left || !right) return !left && !right;
+  return left.token === right.token && left.sessionId === right.sessionId;
+}
+
+/** Writes `next` only when the file still equals `expected`. Callers hold the token lock. */
+async function compareAndSwapPushToken(
+  dataDir: string,
+  userId: string,
+  expected: PushRecord | undefined,
+  next: PushRecord | undefined,
+): Promise<boolean> {
+  const current = await readPushToken(dataDir, userId);
+  if (!samePushRecord(current, expected)) return false;
+  if (!next) {
+    await unlinkOwnedPushToken(dataDir, userId);
+    return true;
+  }
+  await writePushTokenFile(dataDir, userId, next);
+  return true;
+}
+
+async function unlinkOwnedPushToken(dataDir: string, userId: string): Promise<void> {
+  await unlink(pushTokenPath(dataDir, userId)).catch((error: NodeJS.ErrnoException) => {
+    if (error.code !== "ENOENT") throw error;
+  });
+}
+
+async function writePushTokenFile(
+  dataDir: string,
+  userId: string,
+  record: PushRecord,
 ): Promise<void> {
   const file = pushTokenPath(dataDir, userId);
-  const value = token.trim();
-  await mkdir(path.dirname(file), { recursive: true });
+  const dir = path.dirname(file);
+  await mkdir(dir, { recursive: true });
   // Renamed into place, so a concurrent read sees the old or the new token, never an empty file.
-  const staging = path.join(path.dirname(file), `.${userId}.${randomUUID()}.tmp`);
+  const staging = path.join(dir, `.${userId}.${randomUUID()}.tmp`);
   const handle = await open(
     staging,
     constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | O_NOFOLLOW,
@@ -77,7 +188,8 @@ export async function savePushToken(
   );
   try {
     await handle.chmod(0o600);
-    await handle.writeFile(sessionId ? `${value}\n${sessionId}` : value, "utf8");
+    const body = record.sessionId ? `${record.token}\n${record.sessionId}` : record.token;
+    await handle.writeFile(body, "utf8");
   } finally {
     await handle.close();
   }
@@ -85,36 +197,63 @@ export async function savePushToken(
     await unlink(staging).catch(() => undefined);
     throw error;
   });
-  // Written first, so concurrent claims of one token can only drop it, never share it.
-  for (const name of await readdir(path.dirname(file))) {
-    const otherUserId = path.basename(name, ".txt");
-    if (!name.endsWith(".txt") || otherUserId === userId) continue;
-    if ((await loadPushToken(dataDir, otherUserId)) === value) {
-      await deletePushToken(dataDir, otherUserId);
+}
+
+async function withPushTokenLock<T>(dataDir: string, body: () => Promise<T>): Promise<T> {
+  const dir = path.join(dataDir, "push-tokens");
+  await mkdir(dir, { recursive: true });
+  const lockFile = path.join(dir, ".lock");
+  const started = Date.now();
+  for (;;) {
+    try {
+      const handle = await open(
+        lockFile,
+        constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | O_NOFOLLOW,
+        0o600,
+      );
+      try {
+        await handle.writeFile(String(process.pid), "utf8");
+      } finally {
+        await handle.close();
+      }
+      break;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+      if (!(await lockHolderAlive(lockFile))) {
+        await unlink(lockFile).catch(() => undefined);
+        continue;
+      }
+      if (Date.now() - started > PUSH_TOKEN_LOCK_WAIT_MS) {
+        throw new Error("Push token update timed out.");
+      }
+      await new Promise((resolve) => setTimeout(resolve, 20));
     }
+  }
+  try {
+    return await body();
+  } finally {
+    await unlink(lockFile).catch(() => undefined);
   }
 }
 
-export async function deletePushToken(dataDir: string, userId: string): Promise<void> {
-  await unlink(pushTokenPath(dataDir, userId)).catch((error: NodeJS.ErrnoException) => {
-    if (error.code !== "ENOENT") throw error;
-  });
-}
-
-/**
- * Ends the token registered by a session that is gone, so a revoked or signed-out
- * device stops receiving pushes. A session replaced by `nextSessionId` keeps it.
- */
-export async function endSessionPushToken(
-  dataDir: string,
-  userId: string,
-  sessionId: string,
-  nextSessionId?: string,
-): Promise<void> {
-  const saved = await readPushToken(dataDir, userId);
-  if (saved?.sessionId !== sessionId) return;
-  if (nextSessionId) await savePushToken(dataDir, userId, saved.token, nextSessionId);
-  else await deletePushToken(dataDir, userId);
+async function lockHolderAlive(lockFile: string): Promise<boolean> {
+  try {
+    const handle = await open(lockFile, constants.O_RDONLY | O_NOFOLLOW);
+    try {
+      const pid = Number((await handle.readFile("utf8")).trim());
+      if (!Number.isInteger(pid) || pid <= 0) return true;
+      try {
+        process.kill(pid, 0);
+        return true;
+      } catch (error) {
+        return (error as NodeJS.ErrnoException).code !== "ESRCH";
+      }
+    } finally {
+      await handle.close();
+    }
+  } catch {
+    return false;
+  }
 }
 
 export type ExpoPushTicket = {
@@ -151,7 +290,10 @@ export function expoPushErrorMessage(body: unknown, status: number): string | un
 }
 
 export class ExpoPushProvider implements NotificationProvider {
-  constructor(private readonly dataDir: string) {}
+  constructor(
+    private readonly dataDir: string,
+    private readonly sessionExpiresAt?: PushSessionExpiresAt,
+  ) {}
 
   describe() {
     return {
@@ -163,7 +305,7 @@ export class ExpoPushProvider implements NotificationProvider {
   }
 
   async hasPushRecipient(userId: string): Promise<boolean> {
-    return Boolean(await loadPushToken(this.dataDir, userId));
+    return Boolean(await this.deliverableToken(userId));
   }
 
   async send(message: NotificationMessage, context: AdapterContext): Promise<void> {
@@ -176,7 +318,7 @@ export class ExpoPushProvider implements NotificationProvider {
    * as a successful reminder.
    */
   async deliver(message: NotificationMessage, context: AdapterContext): Promise<ExpoPushDelivery> {
-    const token = await loadPushToken(this.dataDir, context.userId);
+    const token = await this.deliverableToken(context.userId);
     if (!token) return "undeliverable";
     const signal = combineSignals(context.signal, AbortSignal.timeout(EXPO_PUSH_TIMEOUT_MS));
     let response: Response;
@@ -206,6 +348,28 @@ export class ExpoPushProvider implements NotificationProvider {
     if (!failure) return "delivered";
     getLogger().error(failure);
     throw new Error(failure);
+  }
+
+  /**
+   * A token bound to a session is delivered only while that session is still
+   * live. A missing lookup fails closed. A lookup failure keeps the file so a
+   * database blip does not sign the device out.
+   */
+  private async deliverableToken(userId: string): Promise<string | undefined> {
+    const saved = await readPushToken(this.dataDir, userId);
+    if (!saved?.token) return undefined;
+    if (!saved.sessionId) return saved.token;
+    if (!this.sessionExpiresAt) return undefined;
+    let expiresAt: Date | null;
+    try {
+      expiresAt = await this.sessionExpiresAt(saved.sessionId);
+    } catch (error) {
+      getLogger().error("push session lookup failed", error);
+      return undefined;
+    }
+    if (expiresAt && expiresAt.getTime() > Date.now()) return saved.token;
+    await endSessionPushToken(this.dataDir, userId, saved.sessionId);
+    return undefined;
   }
 }
 
