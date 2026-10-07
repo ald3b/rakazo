@@ -1,15 +1,16 @@
 import { useFocusEffect, useRouter } from "expo-router";
 import { useCallback, useRef, useState } from "react";
 import { ActivityIndicator, Alert, ScrollView, Text, View } from "react-native";
-import { ArchivedBotList } from "../components/archived-bot-list";
-import { NativeActionButton } from "../components/native-action-button";
-import type { MobileBot } from "../lib/api";
-import { rpc } from "../lib/api";
-import { confirmDeleteBot, restoreArchivedBot } from "../lib/bot-lifecycle";
-import { useFloatingHeaderInset } from "../lib/floating-header";
-import { useI18n } from "../lib/i18n";
-import { useMobileTokens } from "../lib/native";
-import { errorText } from "../lib/user-error";
+import { ArchivedBotList } from "../../components/archived-bot-list";
+import { NativeActionButton } from "../../components/native-action-button";
+import type { MobileBot } from "../../lib/api";
+import { rpc } from "../../lib/api";
+import { confirmDeleteBot, restoreArchivedBot } from "../../lib/bot-lifecycle";
+import { useFloatingHeaderInset } from "../../lib/floating-header";
+import { useI18n } from "../../lib/i18n";
+import { useMobileTokens } from "../../lib/native";
+import { closeSettingsSheet } from "../../lib/settings-sheet";
+import { errorText } from "../../lib/user-error";
 
 export default function ArchivedBots() {
   const { t } = useI18n();
@@ -17,6 +18,7 @@ export default function ArchivedBots() {
   const tokens = useMobileTokens();
   const headerInset = useFloatingHeaderInset();
   const listRequest = useRef<AbortController | null>(null);
+  const focusGeneration = useRef(0);
   const [bots, setBots] = useState<MobileBot[] | null>(null);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -35,7 +37,10 @@ export default function ArchivedBots() {
   useFocusEffect(
     useCallback(() => {
       void loadBots();
-      return () => listRequest.current?.abort();
+      return () => {
+        focusGeneration.current += 1;
+        listRequest.current?.abort();
+      };
     }, [loadBots]),
   );
 
@@ -66,8 +71,13 @@ export default function ArchivedBots() {
   async function open(bot: MobileBot) {
     if (pending) return;
     setPending(true);
+    const generation = focusGeneration.current;
     try {
       await rpc("threads/get", { botId: bot.id });
+      // Left or dismissed while loading, even if back since: a later sheet must not close for it.
+      if (generation !== focusGeneration.current) return;
+      // The thread is not a settings page, so it opens on the root stack once the sheet closes.
+      closeSettingsSheet();
       router.push({
         pathname: "/thread",
         params: { botId: bot.id, name: bot.name, readOnly: "1" },

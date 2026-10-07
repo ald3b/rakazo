@@ -649,7 +649,7 @@ export const RU_MESSAGES: Record<string, string> = {
     "Встроенный голос телефона. Бесплатно, без аккаунта",
   "Could not save that preference": "Не удалось сохранить эту настройку",
   Username: "Имя пользователя",
-  // app/models.tsx
+  // app/(settings)/models.tsx
   "A sign-in page opened — enter this code there:":
     "Открылась страница входа — введите там этот код:",
   "All providers": "Все провайдеры",

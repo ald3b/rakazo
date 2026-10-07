@@ -630,7 +630,7 @@ export const ZH_MESSAGES: Record<string, string> = {
   "Your phone's built-in voice. Free, no account needed": "手机自带的语音。免费，无需账户",
   "Could not save that preference": "无法保存该设置",
   Username: "用户名",
-  // app/models.tsx
+  // app/(settings)/models.tsx
   "A sign-in page opened — enter this code there:": "登录页面已打开——请在其中输入此代码：",
   "All providers": "所有提供商",
   Copied: "已复制",
