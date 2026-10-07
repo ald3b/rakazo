@@ -1,4 +1,3 @@
-import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { closeSync, constants, openSync } from "node:fs";
 import { mkdir, open, readdir, rename, unlink } from "node:fs/promises";
@@ -9,6 +8,7 @@ import type {
   NotificationProvider,
 } from "@rakazo/adapter-kit";
 import { getLogger } from "@rakazo/logging";
+import koffi from "koffi";
 import { combineSignals } from "./connector-safety.js";
 import { readBodyCapped, withAbort } from "./web-ssrf.js";
 
@@ -201,9 +201,10 @@ async function writePushTokenFile(
 }
 
 /**
- * API and worker are separate containers sharing this directory, so the lock
- * is `flock` on the file description. It releases when the holder exits,
- * including a crash, and an empty lock file is not itself the lock.
+ * API and worker are separate processes, sometimes separate containers, sharing
+ * this directory. The lock is the kernel lock on `.lock`: the same file on a
+ * shared volume, released when the holder exits, including a crash. An empty
+ * lock file is not itself the lock.
  */
 async function withPushTokenLock<T>(dataDir: string, body: () => Promise<T>): Promise<T> {
   const release = await acquirePushTokenLock(dataDir);
@@ -219,57 +220,125 @@ async function acquirePushTokenLock(dataDir: string): Promise<() => Promise<void
   await mkdir(dir, { recursive: true });
   const lockFile = path.join(dir, ".lock");
   const fd = openSync(lockFile, constants.O_CREAT | constants.O_RDWR | O_NOFOLLOW, 0o600);
-  let child: ReturnType<typeof spawn>;
   try {
-    child = spawn(
-      "flock",
-      [
-        "-x",
-        "-w",
-        String(Math.ceil(PUSH_TOKEN_LOCK_WAIT_MS / 1000)),
-        "3",
-        "sh",
-        "-c",
-        "echo ready; exec cat",
-      ],
-      { stdio: ["pipe", "pipe", "ignore", fd] },
-    );
+    await waitForExclusiveLock(fd);
   } catch (error) {
     closeSync(fd);
     throw error;
   }
-  closeSync(fd);
-  let settled = false;
-  try {
-    await new Promise<void>((resolve, reject) => {
-      let output = "";
-      const fail = (error: Error) => {
-        if (settled) return;
-        settled = true;
-        reject(error);
-      };
-      child.stdout?.on("data", (chunk: Buffer) => {
-        output += chunk.toString();
-        if (settled || !output.includes("ready")) return;
-        settled = true;
-        resolve();
-      });
-      child.on("error", (error) => fail(error));
-      child.on("exit", () => fail(new Error("Push token update timed out.")));
-    });
-  } catch (error) {
-    child.kill();
-    throw error;
+  return async () => {
+    try {
+      unlockExclusive(fd);
+    } finally {
+      closeSync(fd);
+    }
+  };
+}
+
+const LOCK_EX = 2;
+const LOCK_NB = 4;
+const LOCK_UN = 8;
+const LOCKFILE_FAIL_IMMEDIATELY = 0x00000001;
+const LOCKFILE_EXCLUSIVE_LOCK = 0x00000002;
+const ERROR_LOCK_VIOLATION = 33;
+
+type PosixFlock = (fd: number, operation: number) => number;
+
+let posixFlock: PosixFlock | undefined;
+
+function loadPosixFlock(): PosixFlock {
+  posixFlock ??= koffi
+    .load(process.platform === "darwin" ? "/usr/lib/libSystem.B.dylib" : null)
+    .func("int flock(int fd, int operation)") as PosixFlock;
+  return posixFlock;
+}
+
+type WindowsFileLock = {
+  osfhandle: (fd: number) => number | bigint;
+  LockFileEx: (
+    handle: number | bigint,
+    flags: number,
+    reserved: number,
+    bytesLow: number,
+    bytesHigh: number,
+    overlapped: Buffer,
+  ) => number;
+  UnlockFileEx: (
+    handle: number | bigint,
+    reserved: number,
+    bytesLow: number,
+    bytesHigh: number,
+    overlapped: Buffer,
+  ) => number;
+  GetLastError: () => number;
+};
+
+let windowsFileLock: WindowsFileLock | undefined;
+
+function loadWindowsFileLock(): WindowsFileLock {
+  if (windowsFileLock) return windowsFileLock;
+  const kernel32 = koffi.load("kernel32.dll");
+  windowsFileLock = {
+    // Node's descriptor table, not a separately loaded C runtime.
+    osfhandle: koffi.load(null).func("intptr_t __cdecl uv_get_osfhandle(int fd)") as (
+      fd: number,
+    ) => number | bigint,
+    LockFileEx: kernel32.func(
+      "int __stdcall LockFileEx(void *hFile, uint32_t dwFlags, uint32_t dwReserved, uint32_t nNumberOfBytesToLockLow, uint32_t nNumberOfBytesToLockHigh, void *lpOverlapped)",
+    ) as WindowsFileLock["LockFileEx"],
+    UnlockFileEx: kernel32.func(
+      "int __stdcall UnlockFileEx(void *hFile, uint32_t dwReserved, uint32_t nNumberOfBytesToLockLow, uint32_t nNumberOfBytesToLockHigh, void *lpOverlapped)",
+    ) as WindowsFileLock["UnlockFileEx"],
+    GetLastError: kernel32.func("uint32_t __stdcall GetLastError()") as () => number,
+  };
+  return windowsFileLock;
+}
+
+function tryExclusiveLock(fd: number): boolean {
+  if (process.platform === "win32") {
+    const bindings = loadWindowsFileLock();
+    const handle = bindings.osfhandle(fd);
+    if (handle === 0 || handle === -1 || handle === -1n) {
+      throw new Error("Push token lock handle is invalid.");
+    }
+    const overlapped = Buffer.alloc(32);
+    if (
+      bindings.LockFileEx(
+        handle,
+        LOCKFILE_EXCLUSIVE_LOCK | LOCKFILE_FAIL_IMMEDIATELY,
+        0,
+        1,
+        0,
+        overlapped,
+      )
+    ) {
+      return true;
+    }
+    if (Number(bindings.GetLastError()) === ERROR_LOCK_VIOLATION) return false;
+    throw new Error("Push token lock failed.");
   }
-  return () =>
-    new Promise((resolve) => {
-      child.once("exit", () => resolve());
-      if (child.exitCode !== null || child.signalCode !== null) {
-        resolve();
-        return;
-      }
-      child.stdin?.end();
-    });
+  return loadPosixFlock()(fd, LOCK_EX | LOCK_NB) === 0;
+}
+
+function unlockExclusive(fd: number): void {
+  if (process.platform === "win32") {
+    const bindings = loadWindowsFileLock();
+    const handle = bindings.osfhandle(fd);
+    bindings.UnlockFileEx(handle, 0, 1, 0, Buffer.alloc(32));
+    return;
+  }
+  loadPosixFlock()(fd, LOCK_UN);
+}
+
+async function waitForExclusiveLock(fd: number): Promise<void> {
+  const started = Date.now();
+  for (;;) {
+    if (tryExclusiveLock(fd)) return;
+    if (Date.now() - started > PUSH_TOKEN_LOCK_WAIT_MS) {
+      throw new Error("Push token update timed out.");
+    }
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
 }
 
 export type ExpoPushTicket = {

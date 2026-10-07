@@ -1,4 +1,6 @@
+import { spawn } from "node:child_process";
 import { chmod, mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from "node:fs/promises";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -481,6 +483,66 @@ describe("expo push", () => {
 
     await expect(loadPushToken(dataDir, "user-1")).resolves.toBe("ExponentPushToken[test]");
   });
+
+  it.skipIf(process.platform === "win32")(
+    "waits while another process holds the shared token lock file",
+    async () => {
+      const dataDir = await mkdtemp(path.join(tmpdir(), "rakazo-push-"));
+      dirs.push(dataDir);
+      const lockFile = path.join(dataDir, "push-tokens", ".lock");
+      await mkdir(path.dirname(lockFile), { recursive: true });
+      await writeFile(lockFile, "");
+      const require = createRequire(import.meta.url);
+      const holder = spawn(
+        process.execPath,
+        [
+          "--input-type=module",
+          "-e",
+          `
+import { createRequire } from "node:module";
+import { openSync, constants } from "node:fs";
+const flock = createRequire(process.env.KOFFI)("koffi")
+  .load(process.platform === "darwin" ? "/usr/lib/libSystem.B.dylib" : null)
+  .func("int flock(int fd, int operation)");
+const fd = openSync(process.env.LOCK, constants.O_RDWR);
+if (flock(fd, 2) !== 0) process.exit(1);
+process.stdout.write("ready\\n");
+process.stdin.resume();
+await new Promise((resolve) => process.stdin.once("end", resolve));
+flock(fd, 8);
+`,
+        ],
+        {
+          env: { ...process.env, KOFFI: require.resolve("koffi"), LOCK: lockFile },
+          stdio: ["pipe", "pipe", "inherit"],
+        },
+      );
+      let output = "";
+      holder.stdout?.on("data", (chunk: Buffer) => {
+        output += chunk.toString();
+      });
+      try {
+        await vi.waitFor(() => expect(output).toContain("ready"));
+        let saved = false;
+        const saving = savePushToken(
+          dataDir,
+          "user-1",
+          "ExponentPushToken[test]",
+          "session-1",
+        ).then(() => {
+          saved = true;
+        });
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        expect(saved).toBe(false);
+
+        holder.stdin?.end();
+        await saving;
+        await expect(loadPushToken(dataDir, "user-1")).resolves.toBe("ExponentPushToken[test]");
+      } finally {
+        holder.kill();
+      }
+    },
+  );
 
   it("delivers when the registering session is still live", async () => {
     const dataDir = await mkdtemp(path.join(tmpdir(), "rakazo-push-"));
