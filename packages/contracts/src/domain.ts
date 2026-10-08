@@ -1,4 +1,5 @@
 import * as z from "zod";
+import { AGENT_SECRET_NAME_PATTERN } from "./agent-secret-name.js";
 import { BotAvatarValueSchema } from "./bot-avatar.js";
 import { DisabledBuiltinToolsSchema } from "./builtin-tools.js";
 import {
@@ -30,7 +31,7 @@ export const ThinkingLevelSchema = z.enum([
 ]);
 export type ThinkingLevel = z.infer<typeof ThinkingLevelSchema>;
 
-export const AGENT_SECRET_NAME_PATTERN = /^[A-Z_][A-Z0-9_]{0,63}$/;
+export { AGENT_SECRET_NAME_PATTERN };
 
 export const AgentSecretSchema = z.object({
   id: Id,
@@ -1011,6 +1012,30 @@ export const ModelCredentialSchema = z.object({
   authKind: z.enum(["api_key", "oauth", "openai_compatible"]).optional(),
 });
 export type ModelCredential = z.infer<typeof ModelCredentialSchema>;
+
+export const MAX_MODEL_BACKUPS = 10;
+export const ModelBackupChoiceSchema = z.object({
+  provider: z.string().trim().min(1).max(128),
+  modelId: z.string().trim().min(1).max(512),
+});
+export type ModelBackupChoice = z.infer<typeof ModelBackupChoiceSchema>;
+export const ModelBackupListSchema = z
+  .array(ModelBackupChoiceSchema)
+  .max(MAX_MODEL_BACKUPS)
+  .superRefine((choices, ctx) => {
+    const seen = new Set<string>();
+    for (const [index, choice] of choices.entries()) {
+      const key = JSON.stringify([choice.provider, choice.modelId]);
+      if (seen.has(key)) {
+        ctx.addIssue({
+          code: "custom",
+          message: "Backup models must be unique",
+          path: [index],
+        });
+      }
+      seen.add(key);
+    }
+  });
 
 export const OPENAI_COMPATIBLE_PROVIDER_ID = "openai-compatible";
 
