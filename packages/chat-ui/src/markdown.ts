@@ -234,6 +234,8 @@ export function linkFaviconOrigin(href: string): string | undefined {
  * fallback glyph; web draws its own.
  */
 export type LinkFavicons = {
+  /** Cache scope for the API serving these answers. */
+  endpoint?: string;
   /** `retry` means the server was too busy to look, not that the site has no icon. */
   load(origin: string): Promise<{ icon: string | null; retry?: boolean }>;
   globe?: ReactNode;
@@ -244,7 +246,7 @@ export const LinkFaviconsContext = createContext<LinkFavicons | null>(null);
 /** True while a reply streams: a half-written autolink host must not be looked up. */
 export const LinkFaviconsPausedContext = createContext(false);
 
-// One answer per origin for the session, shared by every link on screen.
+// One answer per API endpoint and origin for the session, shared by links on screen.
 const linkFavicons = new Map<string, string | null>();
 const pendingFavicons = new Set<string>();
 // A failed lookup (an older server without the procedure, or no connection) is not asked again
@@ -272,27 +274,27 @@ function subscribeLinkFavicons(listener: () => void) {
 }
 
 /** The origin stays pending across busy retries, so links that mount meanwhile do not ask too. */
-function requestLinkFavicon(source: LinkFavicons, origin: string, attempt: number) {
-  pendingFavicons.add(origin);
+function requestLinkFavicon(source: LinkFavicons, origin: string, key: string, attempt: number) {
+  pendingFavicons.add(key);
   source.load(origin).then(
     (answer) => {
-      const shown = mountedFaviconLinks.has(origin);
+      const shown = mountedFaviconLinks.has(key);
       if (answer.retry && shown && attempt < BUSY_FAVICON_ATTEMPTS) {
         const retry = () => {
-          busyFaviconRetries.delete(origin);
-          requestLinkFavicon(source, origin, attempt + 1);
+          busyFaviconRetries.delete(key);
+          requestLinkFavicon(source, origin, key, attempt + 1);
         };
-        busyFaviconRetries.set(origin, setTimeout(retry, BUSY_FAVICON_RETRY_MS));
+        busyFaviconRetries.set(key, setTimeout(retry, BUSY_FAVICON_RETRY_MS));
         return;
       }
-      pendingFavicons.delete(origin);
+      pendingFavicons.delete(key);
       // A busy answer for links no longer on screen is dropped; the next one to mount asks.
-      if (answer.retry && shown) failedFavicons.set(origin, Date.now());
-      else if (!answer.retry) setLinkFavicon(origin, answer.icon);
+      if (answer.retry && shown) failedFavicons.set(key, Date.now());
+      else if (!answer.retry) setLinkFavicon(key, answer.icon);
     },
     () => {
-      pendingFavicons.delete(origin);
-      failedFavicons.set(origin, Date.now());
+      pendingFavicons.delete(key);
+      failedFavicons.set(key, Date.now());
     },
   );
 }
@@ -302,35 +304,36 @@ export function useLinkFavicon(href: string): { icon: string | null; unusable: (
   const source = useContext(LinkFaviconsContext);
   const paused = useContext(LinkFaviconsPausedContext);
   const origin = linkFaviconOrigin(href);
-  const snapshot = () => (origin ? (linkFavicons.get(origin) ?? null) : null);
+  const key = JSON.stringify([source?.endpoint ?? "", origin]);
+  const snapshot = () => (origin ? (linkFavicons.get(key) ?? null) : null);
   const icon = useSyncExternalStore(subscribeLinkFavicons, snapshot, snapshot);
   useEffect(() => {
     if (!origin) return;
-    mountedFaviconLinks.set(origin, (mountedFaviconLinks.get(origin) ?? 0) + 1);
+    mountedFaviconLinks.set(key, (mountedFaviconLinks.get(key) ?? 0) + 1);
     return () => {
-      const left = (mountedFaviconLinks.get(origin) ?? 1) - 1;
+      const left = (mountedFaviconLinks.get(key) ?? 1) - 1;
       if (left > 0) {
-        mountedFaviconLinks.set(origin, left);
+        mountedFaviconLinks.set(key, left);
         return;
       }
-      mountedFaviconLinks.delete(origin);
-      const retry = busyFaviconRetries.get(origin);
+      mountedFaviconLinks.delete(key);
+      const retry = busyFaviconRetries.get(key);
       if (retry === undefined) return;
       clearTimeout(retry);
-      busyFaviconRetries.delete(origin);
-      pendingFavicons.delete(origin);
+      busyFaviconRetries.delete(key);
+      pendingFavicons.delete(key);
     };
-  }, [origin]);
+  }, [key, origin]);
   useEffect(() => {
     if (!source || paused || !origin) return;
-    if (linkFavicons.has(origin) || pendingFavicons.has(origin)) return;
-    if (Date.now() - (failedFavicons.get(origin) ?? -Infinity) < FAILED_FAVICON_RETRY_MS) return;
-    requestLinkFavicon(source, origin, 1);
-  }, [source, paused, origin]);
+    if (linkFavicons.has(key) || pendingFavicons.has(key)) return;
+    if (Date.now() - (failedFavicons.get(key) ?? -Infinity) < FAILED_FAVICON_RETRY_MS) return;
+    requestLinkFavicon(source, origin, key, 1);
+  }, [source, paused, origin, key]);
   return {
     icon,
     unusable: () => {
-      if (origin) setLinkFavicon(origin, null);
+      if (origin) setLinkFavicon(key, null);
     },
   };
 }

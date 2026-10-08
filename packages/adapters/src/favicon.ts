@@ -1,3 +1,4 @@
+import { JSDOM } from "jsdom";
 import type { ResolveHostname } from "./network-address.js";
 import { fetchSafeWebBytes } from "./web-ssrf.js";
 
@@ -170,9 +171,12 @@ async function resolveFavicon(
 export function iconCandidates(html: string, pageUrl: string): string[] {
   const icons: string[] = [];
   const touchIcons: string[] = [];
-  const base = documentBase(html, pageUrl);
-  for (const tag of html.match(/<link\b[^>]*>/gi) ?? []) {
-    const attributes = tagAttributes(tag);
+  const document = JSDOM.fragment(html);
+  const base = documentBase(document, pageUrl);
+  for (const link of document.querySelectorAll("link")) {
+    const attributes = Object.fromEntries(
+      Array.from(link.attributes, ({ name, value }) => [name, value]),
+    );
     const rel = (attributes.rel ?? "").toLowerCase().split(/\s+/);
     const href = attributes.href?.trim();
     if (!href || (attributes.type ?? "").toLowerCase().includes("svg")) continue;
@@ -200,10 +204,8 @@ export function iconCandidates(html: string, pageUrl: string): string[] {
  * an http(s) URL, else the page itself. This widens nothing: a page can already name an icon on any
  * public host, and every icon URL still passes the same SSRF and port checks.
  */
-function documentBase(html: string, pageUrl: string): string {
-  const href = (html.match(/<base\b[^>]*>/gi) ?? [])
-    .map((tag) => tagAttributes(tag).href)
-    .find((value) => value !== undefined);
+function documentBase(document: DocumentFragment, pageUrl: string): string {
+  const href = document.querySelector("base[href]")?.getAttribute("href") ?? undefined;
   if (href === undefined) return pageUrl;
   try {
     const base = new URL(href.trim(), pageUrl);
@@ -211,23 +213,6 @@ function documentBase(html: string, pageUrl: string): string {
   } catch {
     return pageUrl;
   }
-}
-
-function tagAttributes(tag: string): Record<string, string> {
-  const attributes: Record<string, string> = {};
-  for (const match of tag.matchAll(/([^\s=<>/"']+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'>]+))/g)) {
-    const name = match[1]!.toLowerCase();
-    attributes[name] ??= decodeEntities(match[2] ?? match[3] ?? match[4] ?? "");
-  }
-  return attributes;
-}
-
-function decodeEntities(value: string): string {
-  return value
-    .replace(/&amp;/g, "&")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&#x2f;/gi, "/");
 }
 
 type ImageFormat = "png" | "jpeg" | "gif" | "webp" | "ico";

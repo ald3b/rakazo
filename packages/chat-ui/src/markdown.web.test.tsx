@@ -142,10 +142,10 @@ async function renderLinks(
   const container = document.createElement("div");
   document.body.appendChild(container);
   const root = createRoot(container);
-  const render = async (streaming = options.streaming) => {
+  const render = async (streaming = options.streaming, source = favicons) => {
     await act(async () => {
       root.render(
-        <LinkFaviconsContext.Provider value={favicons}>
+        <LinkFaviconsContext.Provider value={source}>
           <ChatMarkdown streaming={streaming}>{markdown}</ChatMarkdown>
         </LinkFaviconsContext.Provider>,
       );
@@ -165,6 +165,31 @@ async function renderLinks(
 }
 
 describe("web markdown website links", () => {
+  it("isolates cached misses and pending answers when the API endpoint changes", async () => {
+    let resolveOld!: (answer: { icon: string | null }) => void;
+    const oldLoad = vi.fn<LinkFavicons["load"]>((origin) =>
+      origin.includes("pending")
+        ? new Promise((resolve) => {
+            resolveOld = resolve;
+          })
+        : Promise.resolve({ icon: null }),
+    );
+    const newLoad = vi.fn<LinkFavicons["load"]>(async () => ({ icon: ICON }));
+    const view = await renderLinks(
+      "[Miss](https://scope-miss.example.test/) [Pending](https://scope-pending.example.test/)",
+      { endpoint: "https://old-api.example.test", load: oldLoad },
+    );
+    expect(view.container.querySelectorAll("a img")).toHaveLength(0);
+    await view.render(false, { endpoint: "https://new-api.example.test", load: newLoad });
+    expect(newLoad).toHaveBeenCalledTimes(2);
+    expect(view.container.querySelectorAll("a img")).toHaveLength(2);
+    await act(async () => {
+      resolveOld({ icon: null });
+    });
+    expect(view.container.querySelectorAll("a img")).toHaveLength(2);
+    await view.cleanup();
+  });
+
   it("draws the API's site icon in a hidden tile before the author's label", async () => {
     const load = vi.fn(async () => ({ icon: ICON }));
     const view = await renderLinks(

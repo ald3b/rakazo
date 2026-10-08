@@ -364,6 +364,30 @@ describe("favicon images", () => {
 });
 
 describe("favicon resolver", () => {
+  it.each([true, false])("ignores commented icons and base tags (live icon: %s)", async (live) => {
+    routes.set(
+      "site.test/",
+      html(`
+      <!-- <base href="https://old.test/">
+      <link rel="icon" href="/old-a.png">
+      <link rel="icon" href="/old-b.png">
+      <link rel="icon" href="/old-c.png"> -->
+      <link rel="icon" href="live.png">
+    `),
+    );
+    const bytes = await png(32, 32);
+    if (live) routes.set("site.test/live.png", image(bytes));
+    routes.set("site.test/favicon.ico", image(bytes));
+    const resolver = createFaviconResolver({ fetch: testFetch, resolveHostname: publicResolver });
+
+    expect(await iconOf(resolver, "https://site.test")).toMatch(/^data:image\/png;base64,/);
+    expect(hits).toEqual([
+      "site.test/",
+      "site.test/live.png",
+      ...(!live ? ["site.test/favicon.ico"] : []),
+    ]);
+  });
+
   it("fetches only the origin root and the icon it declares", async () => {
     routes.set("site.test/", html('<link rel="icon" href="/static/icon.png">'));
     routes.set("site.test/static/icon.png", image(await png(32, 32)));

@@ -21,6 +21,7 @@ import {
   loadApiBase,
   loadSessionToken,
   selectedSpaceId,
+  subscribeApiBase,
   subscribeSessionRejected,
 } from "../lib/api";
 import { loadAppearancePreference, mobileTokens } from "../lib/appearance";
@@ -52,8 +53,6 @@ function LinkGlobe() {
   );
 }
 
-const linkFavicons: LinkFavicons = { load: loadLinkFavicon, globe: <LinkGlobe /> };
-
 function ChatContentProviders({
   loadRemoteImages,
   children,
@@ -61,6 +60,11 @@ function ChatContentProviders({
   loadRemoteImages: boolean;
   children: ReactNode;
 }) {
+  const endpoint = useSyncExternalStore(subscribeApiBase, currentApiBase, currentApiBase);
+  const linkFavicons = useMemo<LinkFavicons>(
+    () => ({ endpoint, load: (origin) => loadLinkFavicon(origin, endpoint), globe: <LinkGlobe /> }),
+    [endpoint],
+  );
   return (
     <RemoteImagesContext.Provider value={loadRemoteImages}>
       <LinkFaviconsContext.Provider value={linkFavicons}>{children}</LinkFaviconsContext.Provider>

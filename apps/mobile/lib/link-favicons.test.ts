@@ -1,7 +1,13 @@
 vi.mock("./ai-consent", () => ({ promptAiConsent: vi.fn() }));
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { subscribeSessionRejected } from "./api";
+import {
+  currentApiBase,
+  resetApiBase,
+  saveApiBase,
+  subscribeApiBase,
+  subscribeSessionRejected,
+} from "./api";
 import { loadLinkFavicon } from "./link-favicons";
 import { restoreSessionToken } from "./session";
 
@@ -22,6 +28,32 @@ describe("link favicons on mobile", () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+  });
+
+  it("rejects a late answer after switching servers and notifies cache consumers", async () => {
+    const previous = currentApiBase();
+    let resolveResponse!: (response: Response) => void;
+    const fetchMock = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveResponse = resolve;
+        }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const changed = vi.fn();
+    const unsubscribe = subscribeApiBase(changed);
+    try {
+      const pending = loadLinkFavicon("https://site.example.test", previous);
+      const rejected = expect(pending).rejects.toThrow("Server changed");
+      await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+      expect((await saveApiBase("https://new-api.example.test")).ok).toBe(true);
+      expect(changed).toHaveBeenCalledTimes(1);
+      resolveResponse(new Response(JSON.stringify({ json: { icon: null } })));
+      await rejected;
+    } finally {
+      unsubscribe();
+      await resetApiBase();
+    }
   });
 
   it("asks the API for an origin's icon", async () => {
