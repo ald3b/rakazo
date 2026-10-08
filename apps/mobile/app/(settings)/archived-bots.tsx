@@ -39,6 +39,7 @@ export default function ArchivedBots() {
       void loadBots();
       return () => {
         focusGeneration.current += 1;
+        setPending(false);
         listRequest.current?.abort();
       };
     }, [loadBots]),
@@ -83,12 +84,18 @@ export default function ArchivedBots() {
         params: { botId: bot.id, name: bot.name, readOnly: "1" },
       });
     } catch (cause) {
+      if (generation !== focusGeneration.current) return;
       Alert.alert(t("Could not load bot"), errorText(cause, t("Try again.")), [
         { text: t("Cancel"), style: "cancel" },
-        { text: t("Try again."), onPress: () => void open(bot) },
+        {
+          text: t("Try again."),
+          onPress: () => {
+            if (generation === focusGeneration.current) void open(bot);
+          },
+        },
       ]);
     } finally {
-      setPending(false);
+      if (generation === focusGeneration.current) setPending(false);
     }
   }
 

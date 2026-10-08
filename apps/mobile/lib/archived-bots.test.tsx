@@ -146,6 +146,90 @@ describe("archived chat read failures", () => {
     },
   );
 
+  it.each(["resolve", "reject"])(
+    "ignores a stale read that %ss after dismissing and reopening the sheet",
+    async (outcome) => {
+      let finishRead!: (value: unknown) => void;
+      let failRead!: (cause: Error) => void;
+      rpc.mockImplementationOnce(
+        () =>
+          new Promise((resolve, reject) => {
+            finishRead = resolve;
+            failRead = reject;
+          }),
+      );
+      await act(async () => container.querySelector("button")!.click());
+      await act(async () => root.render(null));
+      await act(async () => root.render(<ArchivedBots />));
+      expect(container.textContent).toContain(bot.name);
+      await act(async () => {
+        if (outcome === "resolve") finishRead({});
+        else failRead(new Error("Request timed out"));
+      });
+      expect(closeSettingsSheet).not.toHaveBeenCalled();
+      expect(push).not.toHaveBeenCalled();
+      expect(alert).not.toHaveBeenCalled();
+
+      rpc.mockResolvedValueOnce({});
+      await act(async () => container.querySelector("button")!.click());
+      expect(closeSettingsSheet).toHaveBeenCalledTimes(1);
+      expect(push).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("ignores a failed read after blur and permits a new read on refocus", async () => {
+    let failRead!: (cause: Error) => void;
+    rpc.mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          failRead = reject;
+        }),
+    );
+    await act(async () => container.querySelector("button")!.click());
+    await act(async () => {
+      focus.current!()?.();
+      focus.current!();
+    });
+    await act(async () => failRead(new Error("Request timed out")));
+    expect(alert).not.toHaveBeenCalled();
+    rpc.mockResolvedValueOnce({});
+    await act(async () => container.querySelector("button")!.click());
+    expect(push).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps a new read pending when an older focus's read finishes", async () => {
+    const reads: ((value: unknown) => void)[] = [];
+    rpc.mockImplementation((procedure) => {
+      if (procedure === "bots/listArchived") return Promise.resolve([bot]);
+      return new Promise((resolve) => reads.push(resolve));
+    });
+    await act(async () => container.querySelector("button")!.click());
+    await act(async () => {
+      focus.current!()?.();
+      focus.current!();
+    });
+    await act(async () => container.querySelector("button")!.click());
+    expect(reads).toHaveLength(2);
+    await act(async () => reads[0]!({}));
+    await act(async () => container.querySelector("button")!.click());
+    expect(reads).toHaveLength(2);
+    expect(push).not.toHaveBeenCalled();
+    await act(async () => reads[1]!({}));
+    expect(push).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores a retry alert from a dismissed sheet", async () => {
+    rpc.mockRejectedValueOnce(new Error("Request timed out"));
+    await act(async () => container.querySelector("button")!.click());
+    const retry = alert.mock.calls[0]![2][1].onPress;
+    await act(async () => root.render(null));
+    await act(async () => root.render(<ArchivedBots />));
+    await act(async () => retry());
+    expect(rpc.mock.calls.filter(([procedure]) => procedure === "threads/get")).toHaveLength(1);
+    expect(closeSettingsSheet).not.toHaveBeenCalled();
+    expect(push).not.toHaveBeenCalled();
+  });
+
   it("keeps explicit restoration available after a server rejects the read", async () => {
     rpc.mockRejectedValueOnce(new Error("Internal server error"));
     await act(async () => container.querySelector("button")!.click());

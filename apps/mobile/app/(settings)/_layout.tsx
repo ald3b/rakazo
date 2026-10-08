@@ -26,9 +26,8 @@ export default function SettingsLayout() {
         // Account has no visible title, so iOS's long-press back menu would list it as a blank entry.
         headerBackButtonMenuEnabled: false,
         contentStyle: { backgroundColor: String(native.page) },
-        // The sheet's first page closes it. Opened cold by a deep link, the page is a full screen
-        // with nothing under it, so the same button shows Home instead. Android keeps its native
-        // back arrow.
+        // The first page closes the sheet, or returns Home when opened by a cold deep link.
+        // Android keeps its native back arrow.
         ...(Platform.OS === "ios" && navigation.getState().routes[0]?.key === route.key
           ? {
               unstable_headerLeftItems: () => [
