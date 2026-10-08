@@ -122,6 +122,79 @@ describe("LocalAgentHomeStore path containment", () => {
     expect(exported).toEqual(["safe.txt"]);
   });
 
+  it("exports a directory with containment checked against the directory itself", async () => {
+    const { store, home } = await fixture();
+    await mkdir(path.join(home, "bots/bot-a/notes"), { recursive: true });
+    await mkdir(path.join(home, "bots/bot-b"), { recursive: true });
+    await writeFile(path.join(home, "bots/bot-a/notes/result.txt"), "mine");
+    await writeFile(path.join(home, "bots/bot-b/secret.txt"), "other");
+    await symlink("../bot-b", path.join(home, "bots/bot-a/peer-dir"), "junction");
+    await symlink("../bot-b/secret.txt", path.join(home, "bots/bot-a/peer-file"));
+    await symlink("bot-b", path.join(home, "bots/bot-c"), "junction");
+    await symlink("notes/result.txt", path.join(home, "bots/bot-a/latest.txt"));
+    const exported = async (directory: string) => {
+      const files = [];
+      for await (const file of store.exportHome("bot-1", context, { directory }))
+        files.push(file.path);
+      return files;
+    };
+
+    expect((await exported("bots/bot-a")).sort()).toEqual(["latest.txt", "notes/result.txt"]);
+    expect(await exported("bots/bot-c")).toEqual([]);
+    expect(await exported("bots/missing")).toEqual([]);
+    await expect(exported("../outside")).rejects.toThrow(/escapes/i);
+  });
+
+  it("skips hidden top-level entries, also behind visible links", async () => {
+    const { store, home } = await fixture();
+    await mkdir(path.join(home, ".config"), { recursive: true });
+    await mkdir(path.join(home, "project"), { recursive: true });
+    await writeFile(path.join(home, ".bash_history"), "history");
+    await writeFile(path.join(home, ".config/token"), "token");
+    await writeFile(path.join(home, "project/.gitignore"), "dist");
+    await symlink(".bash_history", path.join(home, "history.txt"));
+    await symlink(".config/token", path.join(home, "token.txt"));
+    await symlink(".config", path.join(home, "config"), "junction");
+    await symlink(".gitignore", path.join(home, "project/ignore.txt"));
+
+    const files = [];
+    for await (const file of store.exportHome("bot-1", context, { skipHidden: true })) {
+      files.push(file.path);
+    }
+    expect(files.sort()).toEqual(["project/.gitignore", "project/ignore.txt"]);
+  });
+
+  it("skips hidden top-level links to visible entries without hiding their targets", async () => {
+    const { store, home } = await fixture();
+    await mkdir(path.join(home, "settings"), { recursive: true });
+    await writeFile(path.join(home, "settings/theme.txt"), "dark");
+    await symlink("settings", path.join(home, ".config"), "junction");
+    await symlink("settings/theme.txt", path.join(home, ".theme"));
+
+    const files = [];
+    for await (const file of store.exportHome("bot-1", context, { skipHidden: true })) {
+      files.push(file.path);
+    }
+    expect(files).toEqual(["settings/theme.txt"]);
+  });
+
+  it.skipIf(process.platform === "win32" || process.getuid?.() === 0)(
+    "fails an export whose directory cannot be read instead of returning nothing",
+    async () => {
+      const { store, home } = await fixture();
+      await mkdir(path.join(home, "bots/bot-a"), { recursive: true });
+      await chmod(path.join(home, "bots"), 0o000);
+      try {
+        const files = store.exportHome("bot-1", context, { directory: "bots/bot-a" });
+        await expect(files[Symbol.asyncIterator]().next()).rejects.toMatchObject({
+          code: "EACCES",
+        });
+      } finally {
+        await chmod(path.join(home, "bots"), 0o755);
+      }
+    },
+  );
+
   it("exports and copies internal links, bytes, empty directories, and file modes", async () => {
     const { root, store, home } = await fixture();
     const bytes = Buffer.from([0, 255, 127, 10]);

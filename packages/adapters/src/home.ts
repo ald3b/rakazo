@@ -92,13 +92,25 @@ export class LocalAgentHomeStore implements AgentHomeStore {
     await this.checkout(botId, dest, context);
   }
 
-  async *exportHome(botId: string, _context: AdapterContext): AsyncIterable<PortableFile> {
+  async *exportHome(
+    botId: string,
+    _context: AdapterContext,
+    { directory = "", skipHidden = false }: { directory?: string; skipHidden?: boolean } = {},
+  ): AsyncIterable<PortableFile> {
     await this.waitForBotWrite(botId);
     await this.recoverInterruptedCommit(botId);
     const dir = this.botDir(botId);
     await mkdir(dir, { recursive: true });
-    const root = await realpath(dir);
-    yield* walkFiles(root, root);
+    const expected = safeJoin(await realpath(dir), directory);
+    // Containment is checked against the directory itself, so links out of it, or a linked
+    // directory, cannot pull in a sibling's files. A missing directory has none; other
+    // failures must not pass for an empty export.
+    const root = await realpath(expected).catch((error: unknown) => {
+      if (isMissing(error) || (error as NodeJS.ErrnoException).code === "ELOOP") return null;
+      throw error;
+    });
+    if (root !== expected) return;
+    yield* walkFiles(root, root, skipHidden);
   }
 
   async readFile(
@@ -275,6 +287,10 @@ function assertContained(root: string, candidate: string) {
   throw new Error("Path escapes the bot home");
 }
 
+function isHiddenTopEntry(root: string, candidate: string) {
+  return path.relative(root, candidate).split(path.sep)[0]!.startsWith(".");
+}
+
 function isMissing(error: unknown): error is NodeJS.ErrnoException {
   return error instanceof Error && "code" in error && error.code === "ENOENT";
 }
@@ -294,7 +310,7 @@ async function traversalTarget(root: string, candidate: string) {
   return resolved;
 }
 
-async function readTraversalFile(root: string, full: string) {
+async function readTraversalFile(root: string, full: string, skipHidden = false) {
   const handle = await open(
     full,
     constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0) | (constants.O_NONBLOCK ?? 0),
@@ -305,7 +321,9 @@ async function readTraversalFile(root: string, full: string) {
     // O_NOFOLLOW only protects the final component. A parent can be swapped
     // during open and restored before any pathname recheck. Check the actual
     // opened object against the root captured once for the entire traversal.
-    assertContained(root, await fileHandlePath(handle.fd));
+    const opened = await fileHandlePath(handle.fd);
+    assertContained(root, opened);
+    if (skipHidden && isHiddenTopEntry(root, opened)) throw new Error("Home entry is hidden");
     return { content: await handle.readFile(), mode: info.mode };
   } finally {
     await handle.close();
@@ -340,6 +358,7 @@ async function copyDir(
 async function* walkFiles(
   root: string,
   current: string,
+  skipHidden: boolean,
   outputPath = "",
   visited = new Set<string>(),
 ): AsyncGenerator<PortableFile> {
@@ -351,13 +370,17 @@ async function* walkFiles(
     const full = await traversalTarget(root, path.join(resolvedCurrent, entry.name)).catch(
       () => null,
     );
-    if (!full) continue;
-    const info = await stat(full);
     const portablePath = path.posix.join(outputPath, entry.name);
+    // Checked on the exported name and the resolved path, so neither a hidden link nor a
+    // visible link to a hidden entry is exported.
+    if (!full || (skipHidden && (portablePath.startsWith(".") || isHiddenTopEntry(root, full)))) {
+      continue;
+    }
+    const info = await stat(full);
     if (info.isDirectory()) {
-      yield* walkFiles(root, full, portablePath, visited);
+      yield* walkFiles(root, full, skipHidden, portablePath, visited);
     } else if (info.isFile()) {
-      const { content, mode } = await readTraversalFile(root, full);
+      const { content, mode } = await readTraversalFile(root, full, skipHidden);
       yield {
         path: portablePath,
         content: new Uint8Array(content),

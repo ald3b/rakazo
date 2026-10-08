@@ -117,6 +117,7 @@ import type {
   BotSecretMetadata,
   ComputerReleaseReason,
   ComputerStatus,
+  ExportManifest,
   McpServer,
   Me,
   ProductEvent,
@@ -5508,6 +5509,7 @@ export function createRouter(deps: RouterDeps) {
         const bot = await repos.getBot(context.actor, input.botId);
         if (!bot.thread || !bot.computer) throw new IsolationError();
         const homeKey = bot.computer.homeKey;
+        const computerMode = parseComputerMode(bot.computer.scope);
         const exportContext = {
           operationId: "export",
           traceId: "export",
@@ -5523,12 +5525,16 @@ export function createRouter(deps: RouterDeps) {
             where: { botId: input.botId, spaceId: context.actor.spaceId },
           }),
           (async () => {
-            const exported: Array<{ path: string; content: string }> = [];
-            for await (const file of deps.home.exportHome(homeKey, exportContext)) {
-              exported.push({
-                path: file.path,
-                content: new TextDecoder().decode(file.content),
-              });
+            const exported: ExportManifest["files"] = [];
+            // On a Team Computer the bot's own files are its folder, not the shared home.
+            const directory = resolveBotWorkspacePath(computerMode, bot.id, "");
+            // Hidden entries at the top of the bot's folder are machine state: caches,
+            // browser profiles, shell history and desktop config.
+            for await (const file of deps.home.exportHome(homeKey, exportContext, {
+              directory,
+              skipHidden: true,
+            })) {
+              exported.push(exportFile(file.path, file.content));
             }
             return exported;
           })(),
@@ -6435,6 +6441,18 @@ function withViewOnly(url: string, viewOnly: boolean) {
   } catch {
     const join = url.includes("?") ? "&" : "?";
     return `${url}${join}view_only=${viewOnly ? "true" : "false"}`;
+  }
+}
+
+/** Valid UTF-8 stays readable text; anything else is base64 so the bytes survive the JSON. */
+function exportFile(path: string, content: Uint8Array): ExportManifest["files"][number] {
+  try {
+    return {
+      path,
+      content: new TextDecoder("utf-8", { fatal: true, ignoreBOM: true }).decode(content),
+    };
+  } catch {
+    return { path, content: Buffer.from(content).toString("base64"), encoding: "base64" };
   }
 }
 
