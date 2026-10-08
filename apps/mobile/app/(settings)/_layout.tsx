@@ -2,6 +2,7 @@ import { Stack, useNavigation } from "expo-router";
 import { useEffect } from "react";
 import { Platform } from "react-native";
 import { floatingHeaderOptions, glassHeaderOptions } from "../../components/glass-title";
+import { cancelHeaderOptions } from "../../components/sheet-header";
 import { useI18n } from "../../lib/i18n";
 import { native, useMobileTokens } from "../../lib/native";
 import { registerSettingsSheet, settingsSheetCloser } from "../../lib/settings-sheet";
@@ -27,18 +28,22 @@ export default function SettingsLayout() {
         headerBackButtonMenuEnabled: false,
         contentStyle: { backgroundColor: String(native.page) },
         // The first page closes the sheet, or returns Home when opened by a cold deep link.
-        // Android keeps its native back arrow.
-        ...(Platform.OS === "ios" && navigation.getState().routes[0]?.key === route.key
-          ? {
-              unstable_headerLeftItems: () => [
-                {
-                  type: "button" as const,
-                  label: t("Dismiss"),
-                  icon: { type: "sfSymbol" as const, name: "xmark" as const },
-                  onPress: close,
-                },
-              ],
-            }
+        // Android keeps its native back arrow when a screen exists underneath.
+        ...(navigation.getState().routes[0]?.key === route.key
+          ? Platform.OS === "ios"
+            ? {
+                unstable_headerLeftItems: () => [
+                  {
+                    type: "button" as const,
+                    label: t("Dismiss"),
+                    icon: { type: "sfSymbol" as const, name: "xmark" as const },
+                    onPress: close,
+                  },
+                ],
+              }
+            : !sheet.canGoBack()
+              ? cancelHeaderOptions(t("Dismiss"), close)
+              : null
           : null),
       })}
     >
