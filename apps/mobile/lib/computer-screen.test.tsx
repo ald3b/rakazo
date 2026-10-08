@@ -2,16 +2,16 @@
 
 import type { ComputerStatus } from "@rakazo/contracts";
 import type { ReactNode } from "react";
-import { act } from "react";
+import { act, createElement, Fragment } from "react";
 import type { Root } from "react-dom/client";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import Computer from "../app/computer";
+
 const rpc = vi.hoisted(() => vi.fn());
 
-vi.mock("react-native", async () => {
-  const { createElement } = await import("react");
-
+vi.mock("react-native", () => {
   function MockView(props: { children?: ReactNode }) {
     return createElement("div", null, props.children);
   }
@@ -23,8 +23,9 @@ vi.mock("react-native", async () => {
     accessibilityRole?: string;
   }) {
     return createElement(
-      "div",
+      "button",
       {
+        type: "button",
         role: props.accessibilityRole,
         "aria-label": props.accessibilityLabel,
         onClick: () => props.onPress?.(),
@@ -46,8 +47,7 @@ vi.mock("react-native", async () => {
   };
 });
 
-vi.mock("react-native-webview", async () => {
-  const { createElement } = await import("react");
+vi.mock("react-native-webview", () => {
   return {
     WebView: (props: {
       accessibilityElementsHidden?: boolean;
@@ -61,8 +61,7 @@ vi.mock("react-native-webview", async () => {
   };
 });
 
-vi.mock("react-native-safe-area-context", async () => {
-  const { Fragment, createElement } = await import("react");
+vi.mock("react-native-safe-area-context", () => {
   const Passthrough = (props: { children?: ReactNode }) =>
     createElement(Fragment, null, props.children);
   return {
@@ -82,8 +81,7 @@ vi.mock("expo-screen-orientation", () => ({
   lockAsync: () => Promise.resolve(),
 }));
 
-vi.mock("../components/native-action-button", async () => {
-  const { createElement } = await import("react");
+vi.mock("../components/native-action-button", () => {
   return {
     NativeActionButton: (props: { label: string; onPress: () => void; prominence?: string }) =>
       createElement(
@@ -94,8 +92,7 @@ vi.mock("../components/native-action-button", async () => {
   };
 });
 
-vi.mock("../components/glass-icon-button", async () => {
-  const { createElement } = await import("react");
+vi.mock("../components/glass-icon-button", () => {
   return {
     GlassIconButton: (props: { accessibilityLabel: string; onPress: () => void }) =>
       createElement("button", {
@@ -134,8 +131,6 @@ vi.mock("./native", () => ({
 }));
 
 vi.mock("./native-controls", () => ({ iosAtLeast: () => false }));
-
-import Computer from "../app/computer";
 
 const botWorking: ComputerStatus = {
   botId: "bot-1",
@@ -182,6 +177,7 @@ describe("computer screen", () => {
     container?.remove();
     root = undefined;
     container = undefined;
+    vi.unstubAllGlobals();
   });
 
   async function settle() {
@@ -229,16 +225,19 @@ describe("computer screen", () => {
     expect(fullWindow?.contains(screens[0] ?? null)).toBe(true);
     expect(screens[0]?.getAttribute("data-elements-hidden")).toBe("true");
     expect(screens[0]?.getAttribute("data-important")).toBe("no-hide-descendants");
-    // The full window's Take control is the next step; it matches the screen's secondary style.
     const buttons = takeControlButtons(view);
     expect(buttons).toHaveLength(2);
     for (const button of buttons) expect(button.dataset.prominence).toBe("secondary");
 
     const headerTakeControl = buttons.find((button) => fullWindow?.contains(button));
+    expect(headerTakeControl).toBeDefined();
+    respond({ ...botWorking, controlHolder: "user", controlBotId: "bot-1", busyBotName: null });
     await act(async () => headerTakeControl?.click());
     await settle();
 
     expect(calls("computer/takeover")).toEqual([["computer/takeover", { botId: "bot-1" }]]);
+    expect(fullWindow?.querySelector("iframe")?.getAttribute("data-elements-hidden")).toBe("false");
+    expect(fullWindow?.querySelector("iframe")?.getAttribute("data-important")).toBe("auto");
   });
 
   it("wakes a sleeping computer from the preview without taking control", async () => {
