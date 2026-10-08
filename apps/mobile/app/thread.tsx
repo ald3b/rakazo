@@ -545,8 +545,8 @@ function Thread() {
     replyQuote,
     attachmentIds: activePendingAttachments.map((attachment) => attachment.id),
   };
-  const composerRef = useRef({ snapshot: composerSnapshot, pendingAttachments });
-  composerRef.current = { snapshot: composerSnapshot, pendingAttachments };
+  const composerRef = useRef(composerSnapshot);
+  composerRef.current = composerSnapshot;
   const composerMentionTargets = useMemo(
     () =>
       buildComposerMentionOptions({
@@ -1508,12 +1508,10 @@ function Thread() {
     });
     await deliver(attempt, () => {
       if (originThreadKey !== (activeGroupId.current ?? activeBotId.current)) return;
-      const settled = settleComposer(
-        submitted,
-        composerRef.current.snapshot,
-        composerRef.current.pendingAttachments,
+      const settled = settleComposer(submitted, composerRef.current);
+      setPendingAttachments((current) =>
+        current.filter((attachment) => !submitted.attachmentIds.includes(attachment.id)),
       );
-      setPendingAttachments(settled.pendingAttachments);
       if (!settled.clearComposer) return;
       setDraft("");
       setMentionQuery(null);

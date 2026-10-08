@@ -13,16 +13,9 @@ export type ComposerSnapshot = {
   attachmentIds: string[];
 };
 
-export function settleComposer<T extends { id: string }>(
-  submitted: ComposerSnapshot,
-  current: ComposerSnapshot,
-  pendingAttachments: T[],
-) {
+export function settleComposer(submitted: ComposerSnapshot, current: ComposerSnapshot) {
   return {
     clearComposer: JSON.stringify(current) === JSON.stringify(submitted),
-    pendingAttachments: pendingAttachments.filter(
-      (attachment) => !submitted.attachmentIds.includes(attachment.id),
-    ),
   };
 }
 

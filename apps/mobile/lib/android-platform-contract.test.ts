@@ -284,8 +284,10 @@ describe("Android mobile platform contract", () => {
     expect(clear).toMatch(
       /if \(originThreadKey !== \(activeGroupId.current \?\? activeBotId.current\)\) return;\s*const settled = settleComposer/,
     );
-    expect(clear).toContain("composerRef.current.snapshot");
-    expect(clear).toContain("composerRef.current.pendingAttachments");
+    expect(clear).toContain("settleComposer(submitted, composerRef.current)");
+    expect(clear).toMatch(
+      /setPendingAttachments\(\(current\) =>\s*current.filter\(\(attachment\) => !submitted.attachmentIds.includes\(attachment.id\)\)/,
+    );
     expect(clear).toMatch(/if \(!settled.clearComposer\) return;\s*setDraft\(""\)/);
     expect(send).toMatch(/finally \{\s*onSettled\?\.\(\);/);
     expect(send).toContain('attempt.error = errorText(err, t("Failed to send message"))');

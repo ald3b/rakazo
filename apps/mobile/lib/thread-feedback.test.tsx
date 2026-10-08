@@ -91,13 +91,8 @@ describe("composer settlement", () => {
     replyQuote: "Quoted message",
     attachmentIds: ["attachment-1"],
   };
-  const attachment = { id: "attachment-1" };
-  const otherThreadAttachment = { id: "other-thread-attachment" };
-
-  it("clears an unchanged composition and removes only its submitted attachments", () => {
-    expect(
-      settleComposer(submitted, structuredClone(submitted), [attachment, otherThreadAttachment]),
-    ).toEqual({ clearComposer: true, pendingAttachments: [otherThreadAttachment] });
+  it("clears an unchanged composition", () => {
+    expect(settleComposer(submitted, structuredClone(submitted))).toEqual({ clearComposer: true });
   });
 
   it.each<Partial<ComposerSnapshot>>([
@@ -108,16 +103,10 @@ describe("composer settlement", () => {
     { replyQuote: "Edited quote" },
     { attachmentIds: ["attachment-1", "attachment-2"] },
     { attachmentIds: [] },
-  ])("keeps an edited composition and removes only submitted attachments: %j", (edit) => {
-    const addedAttachment = { id: "attachment-2" };
+  ])("keeps an edited composition: %j", (edit) => {
     const current = { ...submitted, ...edit };
     const before = structuredClone(current);
-    expect(
-      settleComposer(submitted, current, [attachment, addedAttachment, otherThreadAttachment]),
-    ).toEqual({
-      clearComposer: false,
-      pendingAttachments: [addedAttachment, otherThreadAttachment],
-    });
+    expect(settleComposer(submitted, current)).toEqual({ clearComposer: false });
     expect(current).toEqual(before);
   });
 });
