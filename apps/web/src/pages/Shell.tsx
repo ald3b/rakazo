@@ -2066,7 +2066,6 @@ export function ShellPage() {
     revokePendingAttachmentPreviews([attachment]);
     setPendingAttachments((current) => current.filter((item) => item.id !== attachment.id));
   }, []);
-  /** Resolves false when no acceptance was confirmed, so the composer can restore its draft. */
   const sendMessage = useCallback(
     async (text: string, mentions: ComposerMention[], clientNonce: string) => {
       const initialBotTarget = activeBotId.current;
@@ -5589,7 +5588,12 @@ export const Composer = memo(function Composer({
     setSelectedSkill(null);
     const mentions = selectedMentions;
     setSelectedMentions([]);
-    if (await onSend(text, mentions, clientNonce)) return;
+    try {
+      if ((await onSend(text, mentions, clientNonce)) !== false) return;
+    } catch {
+      // A rejected callback leaves acceptance unknown; do not restore a possible send.
+      return;
+    }
     // Restore only an untouched draft, retaining its nonce for an unchanged retry.
     if (editRevision.current !== revision) return;
     retryNonce.current = clientNonce;

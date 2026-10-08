@@ -52,6 +52,7 @@ function renderComposer(
   document.body.append(container);
   root = createRoot(container);
   composerProps = {
+    artifactTarget: { botId: "bot-1" },
     activeName: "Ada",
     running: false,
     pendingAttachments: [],
@@ -115,6 +116,25 @@ describe("Composer", () => {
     await act(async () => {});
     expect(onSend).toHaveBeenCalledWith("hello", [], expect.any(String));
     expect(textarea.value).toBe("");
+  });
+
+  it("keeps the draft cleared when the send callback rejects", async () => {
+    const onSend = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("unknown outcome"))
+      .mockResolvedValue(true);
+    const textarea = renderComposer(onSend);
+    type(textarea, "@Bo");
+    pressEnter(textarea);
+    type(textarea, "hello");
+    pressEnter(textarea);
+    await act(async () => {});
+    expect(textarea.value).toBe("");
+    expect(container?.querySelector("[data-testid='mention-chip']")).toBeNull();
+    type(textarea, "another message");
+    pressEnter(textarea);
+    await act(async () => {});
+    expect(onSend.mock.calls[1]?.[2]).not.toBe(onSend.mock.calls[0]?.[2]);
   });
 
   it("restores the draft and its mentions when the send fails", async () => {
