@@ -80,7 +80,7 @@ msgid "{0} rollup hours"
 msgstr "{0} ч. сводки"
 
 #. placeholder {0}: usage.runs
-#. placeholder {1}: usage.inputTokens + usage.outputTokens
+#. placeholder {1}: usage.totalTokens ?? "—"
 #: src/pages/AccountSettingsOverlay.tsx
 msgid "{0} runs · {1} tokens"
 msgstr "Запусков: {0} · токенов: {1}"
@@ -400,6 +400,10 @@ msgstr ""
 msgid "All providers"
 msgstr ""
 
+#: src/pages/ActivityList.tsx
+msgid "All statuses"
+msgstr ""
+
 #: src/pages/Artifacts.tsx
 msgid "All time"
 msgstr ""
@@ -588,6 +592,7 @@ msgid "Attached {path}"
 msgstr ""
 
 #: src/pages/Shell.tsx
+#: src/pages/shell/chat-context.tsx
 msgid "Attachment"
 msgstr "Вложение"
 
@@ -750,7 +755,7 @@ msgstr "Отменить создание бота"
 msgid "Cancel new group"
 msgstr "Отменить создание группы"
 
-#: src/pages/Shell.tsx
+#: src/pages/shell/chat-context.tsx
 msgid "Cancel reply"
 msgstr "Отменить ответ"
 
@@ -870,6 +875,10 @@ msgstr "Очистить диалог {0}?"
 msgid "Clear conversation"
 msgstr "Очистить диалог"
 
+#: src/pages/ActivityList.tsx
+msgid "Clear filter {label}"
+msgstr ""
+
 #: src/pages/shell/dialogs.tsx
 msgid "Clearing…"
 msgstr "Очистка…"
@@ -882,6 +891,7 @@ msgstr "ID клиента"
 msgid "Client secret"
 msgstr "Секрет клиента"
 
+#: src/components/ErrorBoundary.tsx
 #: src/pages/KnowledgeSection.tsx
 #: src/pages/MessagingSettingsOverlay.tsx
 #: src/pages/PeerMessagesOverlay.tsx
@@ -1132,6 +1142,11 @@ msgstr "Продолжить"
 msgid "Continue in Background"
 msgstr "Продолжить в фоне"
 
+#. placeholder {0}: reset.sso.name
+#: src/pages/Auth.tsx
+msgid "Continue with {0}"
+msgstr "Продолжить с {0}"
+
 #: src/pages/Auth.tsx
 msgid "Continue with email"
 msgstr "Продолжить по электронной почте"
@@ -1218,6 +1233,10 @@ msgstr "Не удалось подключить этого голосового
 msgid "Could not connect to the computer screen"
 msgstr "Не удалось подключиться к экрану компьютера"
 
+#: src/components/AccountAccess.tsx
+#: src/lib/account-security.ts
+#: src/lib/sso-flow.ts
+#: src/lib/user-error.ts
 #: src/pages/Auth.tsx
 #: src/pages/Shell.tsx
 msgid "Could not continue"
@@ -1316,9 +1335,14 @@ msgstr "Не удалось установить коннектор"
 msgid "Could not list files"
 msgstr ""
 
+#: src/components/ErrorBoundary.tsx
 #: src/pages/KnowledgeSection.tsx
 msgid "Could not load"
 msgstr "Не удалось загрузить"
+
+#: src/pages/ActivityList.tsx
+msgid "Could not load activity"
+msgstr ""
 
 #: src/components/ApprovalRulesSettings.tsx
 msgid "Could not load approval rules"
@@ -1360,6 +1384,11 @@ msgstr "Не удалось загрузить настройки модели."
 #: src/pages/RoutineRunHistory.tsx
 msgid "Could not load run history"
 msgstr "Не удалось загрузить историю запусков"
+
+#: src/lib/account-security.ts
+#: src/pages/Auth.tsx
+msgid "Could not load sign-in options"
+msgstr "Не удалось загрузить способы входа"
 
 #: src/pages/KnowledgeSection.tsx
 msgid "Could not load skill"
@@ -1445,6 +1474,10 @@ msgstr "Не удалось переименовать соединение"
 #: src/pages/shell/dialogs.tsx
 msgid "Could not rename section"
 msgstr "Не удалось переименовать раздел"
+
+#: src/pages/shell/dialogs.tsx
+msgid "Could not rename space"
+msgstr "Не удалось переименовать пространство"
 
 #: src/pages/shell/message-cards.tsx
 msgid "Could not render chart"
@@ -1660,6 +1693,7 @@ msgstr "Крон"
 msgid "Cron expression"
 msgstr "Выражение Cron"
 
+#: src/components/AccountAccess.tsx
 #: src/pages/AccountSettingsOverlay.tsx
 msgid "Current password"
 msgstr "Текущий пароль"
@@ -1749,6 +1783,10 @@ msgstr "Удалить {0}"
 msgid "Delete {0}?"
 msgstr "Удалить {0}?"
 
+#: src/components/AccountAccess.tsx
+msgid "Delete account"
+msgstr "Удалить аккаунт"
+
 #: src/pages/GroupPanel.tsx
 msgid "Delete group"
 msgstr "Удалить группу"
@@ -1770,6 +1808,10 @@ msgstr "удалено"
 #: src/pages/shell/dialogs.tsx
 msgid "Deleting…"
 msgstr "Удаление…"
+
+#: src/components/AccountAccess.tsx
+msgid "Deletion code"
+msgstr "Код удаления"
 
 #: src/components/AskCard.tsx
 msgid "Denied"
@@ -1802,6 +1844,10 @@ msgstr "Обновление настольного приложения"
 #: src/components/integrations/IntegrationSetup.tsx
 msgid "Direct MCP"
 msgstr "Прямой MCP"
+
+#: src/pages/shell/bot-panel.tsx
+msgid "Disabled tools"
+msgstr ""
 
 #: src/pages/McpServersOverlay.tsx
 #: src/pages/MemorySettingsOverlay.tsx
@@ -1908,10 +1954,6 @@ msgstr "Дублировать"
 msgid "e.g. Hivenet Agent, Presales, Timesheets bot"
 msgstr "напр. Hivenet Agent, Presales, бот табелей"
 
-#: src/pages/Shell.tsx
-msgid "Earlier message"
-msgstr "Предыдущее сообщение"
-
 #: src/components/AskCard.tsx
 msgid "Edit first"
 msgstr "Сначала отредактируйте"
@@ -1923,6 +1965,14 @@ msgstr "Редактировать профиль"
 #: src/pages/Auth.tsx
 msgid "Email"
 msgstr "Электронная почта"
+
+#: src/lib/user-error.ts
+msgid "Email is not allowed to register"
+msgstr "Регистрация с этим адресом электронной почты запрещена"
+
+#: src/lib/user-error.ts
+msgid "Email verification required"
+msgstr "Требуется подтверждение электронной почты"
 
 #: src/pages/BillingSettingsPanel.tsx
 msgid "Ends {day}"
@@ -2110,6 +2160,15 @@ msgstr "Забыли пароль?"
 #: src/pages/ModelSettingsOverlay.tsx
 msgid "Free"
 msgstr "Бесплатно"
+
+#: src/pages/ActivityList.tsx
+msgid "From"
+msgstr ""
+
+#. placeholder {0}: filters.dateRange.from
+#: src/pages/ActivityList.tsx
+msgid "From {0}"
+msgstr ""
 
 #: src/pages/WindowChrome.tsx
 msgid "Fullscreen"
@@ -2321,19 +2380,9 @@ msgstr "Его диалог, файлы и задачи будут безвоз�
 msgid "Jump to latest"
 msgstr "Перейти к последнему"
 
-#: src/pages/Shell.tsx
-msgid "Jump to replied message"
-msgstr "Перейти к ответному сообщению"
-
-#. placeholder {0}: accessibleReplyExcerpt(message.replyQuote)
-#: src/pages/Shell.tsx
-msgid "Jump to replied message: “{0}”"
-msgstr ""
-
-#. placeholder {0}: accessibleReplyExcerpt(previewMessageText(replyPreview))
-#: src/pages/Shell.tsx
-msgid "Jump to replied message: {0}"
-msgstr ""
+#: src/pages/shell/chat-context.tsx
+msgid "Jump to replied message: {excerpt}"
+msgstr "Перейти к исходному сообщению: {excerpt}"
 
 #: src/lib/relative-time.ts
 #: src/pages/ActivityList.tsx
@@ -2383,6 +2432,10 @@ msgstr "Задача Linear"
 #: src/pages/MessagingSettingsOverlay.tsx
 msgid "Link a chat app"
 msgstr "Связать приложение чата"
+
+#: src/components/AccountAccess.tsx
+msgid "Link SSO"
+msgstr "Привязать SSO"
 
 #: src/pages/Artifacts.tsx
 msgid "List view"
@@ -2446,6 +2499,7 @@ msgstr "Загрузка поставщиков голосовой связи…
 
 #: src/App.tsx
 #: src/pages/Artifacts.tsx
+#: src/pages/Auth.tsx
 #: src/pages/IntegrationSetup.tsx
 #: src/pages/Onboarding.tsx
 #: src/pages/PeerMessagesOverlay.tsx
@@ -2880,6 +2934,10 @@ msgstr "Удаленные MCP-серверы не найдены"
 msgid "No results"
 msgstr "Нет результатов"
 
+#: src/pages/ActivityList.tsx
+msgid "No runs match these filters."
+msgstr ""
+
 #: src/pages/RoutineRunHistory.tsx
 msgid "No runs yet"
 msgstr "Запусков пока нет"
@@ -3056,6 +3114,10 @@ msgstr "Органичный"
 msgid "Organization API key"
 msgstr "Ключ API организации"
 
+#: src/pages/shell/chat-context.tsx
+msgid "Original message unavailable"
+msgstr "Исходное сообщение недоступно"
+
 #: src/pages/ModelSettingsOverlay.tsx
 #: src/pages/Onboarding.tsx
 msgid "Other model…"
@@ -3110,6 +3172,11 @@ msgstr "Вставьте свой ключ API"
 #: src/pages/RoutineEditor.tsx
 msgid "Paused"
 msgstr "Приостановлено"
+
+#: src/pages/Shell.tsx
+#: src/pages/shell/chat-context.tsx
+msgid "Photo"
+msgstr "Фото"
 
 #: src/pages/BotContextMenu.tsx
 msgid "Pin"
@@ -3230,6 +3297,10 @@ msgstr "Запись: {0}"
 msgid "Recover computer"
 msgstr "Восстановить компьютер"
 
+#: src/components/ComputerMaintenanceActions.tsx
+msgid "Recover computer?"
+msgstr "Восстановить компьютер?"
+
 #. placeholder {0}: update.name
 #: src/components/ComputerUpdateProgress.tsx
 msgid "Recovering {0}’s Computer"
@@ -3251,14 +3322,21 @@ msgstr "Не удалось восстановить"
 msgid "Recovery is unavailable until the previous operation has stopped."
 msgstr "Восстановление недоступно, пока не завершится предыдущая операция."
 
+#: src/components/ComputerMaintenanceActions.tsx
 #: src/components/ComputerUpdateProgress.tsx
 msgid "Recovery restores the last saved workspace. Unsaved work may be lost."
 msgstr "Восстановление возвращает последнее сохраненное рабочее пространство. Несохраненные изменения могут быть потеряны."
+
+#: src/components/ComputerMaintenanceActions.tsx
+msgid "Recreate a computer that is not working."
+msgstr "Пересоздать неработающий компьютер."
 
 #: src/components/ComputerUpdateProgress.tsx
 msgid "Recreating the computer"
 msgstr "Повторное создание компьютера"
 
+#: src/App.tsx
+#: src/components/ErrorBoundary.tsx
 #: src/pages/RoutineRunHistory.tsx
 msgid "Refresh"
 msgstr "Обновить"
@@ -3270,6 +3348,10 @@ msgstr "Обновить экран"
 #: src/components/teach/TeachComputerOverlay.tsx
 msgid "Refreshing…"
 msgstr "Обновление…"
+
+#: src/lib/user-error.ts
+msgid "Registration is closed"
+msgstr "Регистрация закрыта"
 
 #: src/pages/Shell.tsx
 msgid "Release"
@@ -3343,6 +3425,11 @@ msgstr "Удаление…"
 msgid "Rename section"
 msgstr "Переименовать раздел"
 
+#: src/pages/Shell.tsx
+#: src/pages/shell/dialogs.tsx
+msgid "Rename space"
+msgstr "Переименовать пространство"
+
 #: src/pages/BillingSettingsPanel.tsx
 msgid "Renews {day}"
 msgstr ""
@@ -3376,14 +3463,6 @@ msgstr ""
 msgid "Replying to {0}"
 msgstr ""
 
-#: src/pages/Shell.tsx
-msgid "Replying to {replyName}"
-msgstr "Ответ на {replyName}"
-
-#: src/pages/Shell.tsx
-msgid "Replying to {replyName}: “{replyQuote}”"
-msgstr ""
-
 #: src/pages/shell/message-cards.tsx
 msgid "Research & writing"
 msgstr ""
@@ -3392,6 +3471,10 @@ msgstr ""
 #: src/pages/shell/avatar-studio-popover.tsx
 msgid "Reset"
 msgstr "Сбросить"
+
+#: src/pages/ActivityList.tsx
+msgid "Reset all"
+msgstr ""
 
 #: src/components/ComputerMaintenanceActions.tsx
 msgid "Reset computer"
@@ -3426,12 +3509,21 @@ msgid "Restore"
 msgstr "Восстановить"
 
 #: src/components/ComputerMaintenanceActions.tsx
+msgid "Restore the last saved workspace."
+msgstr "Восстановить последнее сохранённое рабочее пространство."
+
+#: src/components/ComputerMaintenanceActions.tsx
 msgid "Restore the last saved workspace. Unsaved work on the computer is lost."
 msgstr "Восстановите последнее сохраненное рабочее пространство. Несохраненная работа на компьютере теряется."
 
 #: src/components/ComputerUpdateProgress.tsx
 msgid "Restoring your workspace"
 msgstr "Восстановление вашего рабочего пространства"
+
+#: src/components/AccountAccess.tsx
+#: src/pages/Auth.tsx
+msgid "Retry"
+msgstr "Повторить"
 
 #: src/App.tsx
 #: src/pages/PeerMessagesOverlay.tsx
@@ -3536,6 +3628,10 @@ msgstr ""
 msgid "Save new value"
 msgstr ""
 
+#: src/components/ComputerMaintenanceActions.tsx
+msgid "Save the workspace and install current software."
+msgstr "Сохранить рабочее пространство и установить актуальное ПО."
+
 #: src/components/AskCard.tsx
 #: src/components/teach/SkillDraftCard.tsx
 #: src/pages/ExternalConversationSettings.tsx
@@ -3584,6 +3680,10 @@ msgstr "Скажите «да» или «нет» или ответьте пре
 msgid "Search"
 msgstr "Поиск"
 
+#: src/pages/ActivityList.tsx
+msgid "Search activity"
+msgstr ""
+
 #: src/components/integrations/IntegrationSetup.tsx
 #: src/pages/PluginsOverlay.tsx
 msgid "Search apps"
@@ -3613,6 +3713,15 @@ msgstr "Поиск моделей"
 msgid "Search providers"
 msgstr "Поиск поставщиков"
 
+#: src/pages/ActivityList.tsx
+msgid "Search runs"
+msgstr ""
+
+#. placeholder {0}: filters.query.trim()
+#: src/pages/ActivityList.tsx
+msgid "Search: {0}"
+msgstr ""
+
 #: src/pages/PluginsOverlay.tsx
 #: src/pages/SpaceSearch.tsx
 msgid "Searching…"
@@ -3633,6 +3742,10 @@ msgstr "Отправьте <0>{linkCode}</0> в строку из вашего �
 #: src/components/AskCard.tsx
 msgid "Send answer"
 msgstr "Отправить ответ"
+
+#: src/components/AccountAccess.tsx
+msgid "Send deletion code"
+msgstr "Отправить код удаления"
 
 #: src/components/AskCard.tsx
 msgid "Send it"
@@ -3756,6 +3869,8 @@ msgstr "Показать расшифровку"
 msgid "Sign in"
 msgstr "Войти"
 
+#: src/components/AccountAccess.tsx
+#: src/lib/user-error.ts
 #: src/pages/ModelSettingsOverlay.tsx
 msgid "Sign in again"
 msgstr ""
@@ -3763,6 +3878,10 @@ msgstr ""
 #: src/pages/Auth.tsx
 msgid "Sign in to Rakazo"
 msgstr "Войти в Rakazo"
+
+#: src/lib/user-error.ts
+msgid "Sign in to your existing account to link SSO"
+msgstr "Войдите в существующий аккаунт, чтобы привязать SSO"
 
 #: src/pages/Auth.tsx
 #: src/pages/Welcome.tsx
@@ -3804,6 +3923,7 @@ msgstr "Slack не включен"
 msgid "Software update"
 msgstr "Обновление программного обеспечения"
 
+#: src/App.tsx
 #: src/lib/user-error.ts
 msgid "Something went wrong. Try again."
 msgstr "Что-то пошло не так. Попробуйте ещё раз."
@@ -3836,6 +3956,10 @@ msgstr "Озвучить этот ответ"
 msgid "Speech model"
 msgstr "Речевая модель"
 
+#: src/lib/user-error.ts
+msgid "SSO is temporarily unavailable. Try again."
+msgstr "SSO временно недоступен. Попробуйте снова."
+
 #: src/pages/Paywall.tsx
 msgid "Start {trialDays}-day free trial"
 msgstr ""
@@ -3854,6 +3978,10 @@ msgstr "Запуск"
 #: src/pages/Onboarding.tsx
 msgid "Starting…"
 msgstr "Запуск…"
+
+#: src/pages/ActivityList.tsx
+msgid "Status"
+msgstr ""
 
 #: src/components/teach/SkillDraftCard.tsx
 msgid "Steps"
@@ -4026,6 +4154,10 @@ msgstr "этот Mac"
 msgid "This month"
 msgstr ""
 
+#: src/components/AccountAccess.tsx
+msgid "This permanently deletes your account and data."
+msgstr "Это навсегда удалит ваш аккаунт и данные."
+
 #: src/pages/shell/dialogs.tsx
 msgid "This permanently removes every message and stops current work. The chat remains available."
 msgstr "Это навсегда удалит все сообщения и остановит текущую работу. Чат останется доступным."
@@ -4066,13 +4198,23 @@ msgstr "Время суток"
 msgid "Title"
 msgstr "Заголовок"
 
+#: src/pages/ActivityList.tsx
+msgid "To"
+msgstr ""
+
+#. placeholder {0}: filters.dateRange.to
+#: src/pages/ActivityList.tsx
+msgid "To {0}"
+msgstr ""
+
 #: src/pages/shell/bot-picker.tsx
 msgid "To:"
 msgstr "К:"
 
 #: src/pages/Artifacts.tsx
+#: src/pages/shell/chat-context.tsx
 msgid "Today"
-msgstr ""
+msgstr "Сегодня"
 
 #: src/pages/PluginsOverlay.tsx
 msgid "Tool sources"
@@ -4102,6 +4244,7 @@ msgstr ""
 msgid "Trial ends {day}"
 msgstr ""
 
+#: src/pages/ActivityList.tsx
 #: src/pages/Onboarding.tsx
 msgid "Try again"
 msgstr ""
@@ -4129,6 +4272,10 @@ msgstr "Недоступно"
 #: src/pages/PluginsOverlay.tsx
 msgid "Uninstall"
 msgstr "Удалить"
+
+#: src/pages/shell/bot-panel.tsx
+msgid "Unknown tool"
+msgstr ""
 
 #: src/pages/MessagingSettingsOverlay.tsx
 msgid "Unlink"
@@ -4358,6 +4505,7 @@ msgid "year"
 msgstr ""
 
 #: src/pages/Shell.tsx
+#: src/pages/shell/chat-context.tsx
 msgid "Yesterday"
 msgstr "Вчера"
 

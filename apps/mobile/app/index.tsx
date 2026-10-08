@@ -1,23 +1,11 @@
 import { MenuView } from "@expo/ui/community/menu";
-import {
-  normalizeCreateBotProfile,
-  type RunActivityRow,
-  type SearchHit,
-  type SpaceBot,
-  type SpaceGroup,
-} from "@rakazo/contracts";
+import type { RunActivityRow, SearchHit, SpaceBot, SpaceGroup } from "@rakazo/contracts";
+import { normalizeCreateBotProfile } from "@rakazo/contracts";
 import { ACTIVE_RUN_STATUSES } from "@rakazo/core";
 import { botColors } from "@rakazo/ui-tokens";
 import { Redirect, useFocusEffect, useNavigation, useRouter } from "expo-router";
-import {
-  type ReactNode,
-  useCallback,
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import type { ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -43,15 +31,17 @@ import {
   formatActivityRelativeTime,
 } from "../lib/activity";
 import { loadActivityMode, saveActivityMode } from "../lib/activity-mode";
+import type {
+  MobileBot,
+  MobileBotSection,
+  MobileGroup,
+  MobileMe,
+  MobileSpace,
+  MobileSpaceNavigation,
+} from "../lib/api";
 import {
   currentApiBase,
   loadSessionToken,
-  type MobileBot,
-  type MobileBotSection,
-  type MobileGroup,
-  type MobileMe,
-  type MobileSpace,
-  type MobileSpaceNavigation,
   rpc,
   selectedSpaceId,
   selectInitialSpace,
@@ -62,10 +52,9 @@ import { mobileBotAvatarPresentation } from "../lib/bot-avatar";
 import { allowFocusPrompt, scheduleFocusPrompt } from "../lib/focus-prompt";
 import { t, useI18n } from "../lib/i18n";
 import { botTag, filterBots, formatThreadTime, userInitials } from "../lib/inbox";
+import type { InboxSpace, InboxSpaceItem } from "../lib/inbox-spaces";
 import {
   canDeleteInboxSpace,
-  type InboxSpace,
-  type InboxSpaceItem,
   inboxNeedsCreateHint,
   removeInboxSpace,
   retryInboxSpaceFallback,
@@ -478,17 +467,15 @@ export default function Home() {
       headerTransparent: true,
       headerStyle: { backgroundColor: "transparent" },
       title: "",
-      headerLeft: () => (
-        <Pressable
-          accessibilityLabel={t("Account")}
-          accessibilityRole="button"
-          hitSlop={8}
-          onPress={() => router.push("/account")}
-          style={styles.headerAccount}
-        >
-          <Text style={styles.profileInitials}>{initials}</Text>
-        </Pressable>
-      ),
+      unstable_headerLeftItems: () => [
+        {
+          type: "button" as const,
+          label: initials,
+          labelStyle: { fontSize: 15, fontWeight: "600" },
+          accessibilityLabel: t("Account"),
+          onPress: () => router.push("/account"),
+        },
+      ],
       unstable_headerRightItems: () => [
         {
           type: "button" as const,
@@ -511,19 +498,19 @@ export default function Home() {
             items: [
               {
                 type: "action" as const,
-                title: t("New bot"),
+                label: t("New bot"),
                 icon: { type: "sfSymbol" as const, name: "person.crop.circle.badge.plus" },
                 onPress: () => runCreateAction("bot"),
               },
               {
                 type: "action" as const,
-                title: t("New group"),
+                label: t("New group"),
                 icon: { type: "sfSymbol" as const, name: "person.2" },
                 onPress: () => runCreateAction("group"),
               },
               {
                 type: "action" as const,
-                title: t("New space"),
+                label: t("New space"),
                 icon: { type: "sfSymbol" as const, name: "square.grid.2x2" },
                 onPress: () => runCreateAction("space"),
               },
@@ -554,7 +541,6 @@ export default function Home() {
     toggleActivityMode,
     runCreateAction,
     router,
-    styles,
     t,
     locale,
   ]);
@@ -647,7 +633,11 @@ export default function Home() {
         keyboardDismissMode="interactive"
         keyboardShouldPersistTaps="handled"
         indicatorStyle={appearance === "dark" ? "white" : "black"}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[
+          styles.list,
+          // iOS moves the active search bar to the bottom and removes the navigation inset.
+          nativeHeader && searching ? { paddingTop: insets.top + 12 } : undefined,
+        ]}
         contentInsetAdjustmentBehavior="automatic"
         refreshControl={
           <RefreshControl
@@ -1223,12 +1213,6 @@ function createHomeStyles() {
       padding: 2,
       borderRadius: 22,
       backgroundColor: native.fillPressed,
-    },
-    headerAccount: {
-      width: 36,
-      height: 36,
-      alignItems: "center",
-      justifyContent: "center",
     },
     circleButton: {
       width: 44,

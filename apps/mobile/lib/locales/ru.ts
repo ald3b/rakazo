@@ -1,4 +1,16 @@
 export const RU_MESSAGES: Record<string, string> = {
+  Photo: "Фото",
+  Today: "Сегодня",
+  Yesterday: "Вчера",
+  You: "Вы",
+  "Original message unavailable": "Исходное сообщение недоступно",
+  "No archived bots": "Нет архивированных ботов",
+  "Recover computer?": "Восстановить компьютер?",
+  "Recreate a computer that is not working.": "Пересоздать неработающий компьютер.",
+  "Restore the last saved workspace.": "Восстановить последнее сохранённое рабочее пространство.",
+  "Save the workspace and install current software.":
+    "Сохранить рабочее пространство и установить актуальное ПО.",
+  "More computer actions": "Другие действия с компьютером",
   "Update your server to use AI data sharing in this mobile version.":
     "Обновите сервер, чтобы использовать обмен данными с ИИ в этой версии мобильного приложения.",
   "Ask the server owner to configure this provider.":
@@ -704,4 +716,16 @@ export const RU_MESSAGES: Record<string, string> = {
   "Withdraw all mobile permissions": "Отозвать все мобильные разрешения",
   "Withdrawal applies to new mobile actions. Stop existing runs and disable routines separately.":
     "Отзыв применяется к новым действиям с телефона. Остановите текущие запуски и отключите рутины отдельно.",
+  "Continue with {name}": "Продолжить с {name}",
+  "Could not load sign-in options": "Не удалось загрузить способы входа",
+  "Deletion code": "Код удаления",
+  "Email is not allowed to register": "Регистрация с этим адресом электронной почты запрещена",
+  "Email verification required": "Требуется подтверждение электронной почты",
+  "Link SSO": "Привязать SSO",
+  "Registration is closed": "Регистрация закрыта",
+  Retry: "Повторить",
+  "Send deletion code": "Отправить код удаления",
+  "Sign in to your existing account to link SSO":
+    "Войдите в существующий аккаунт, чтобы привязать SSO",
+  "SSO is temporarily unavailable. Try again.": "SSO временно недоступен. Попробуйте снова.",
 };

@@ -1,4 +1,15 @@
 export const ZH_MESSAGES: Record<string, string> = {
+  Photo: "照片",
+  Today: "今天",
+  Yesterday: "昨天",
+  You: "你",
+  "Original message unavailable": "原消息不可用",
+  "No archived bots": "没有已归档的机器人",
+  "Recover computer?": "恢复电脑？",
+  "Recreate a computer that is not working.": "重建无法正常工作的电脑。",
+  "Restore the last saved workspace.": "恢复上次保存的工作区。",
+  "Save the workspace and install current software.": "保存工作区并安装最新软件。",
+  "More computer actions": "更多电脑操作",
   "Update your server to use AI data sharing in this mobile version.":
     "请更新服务器，以便在此移动版本中使用 AI 数据共享功能。",
   "Release computer": "释放电脑",
@@ -684,4 +695,15 @@ export const ZH_MESSAGES: Record<string, string> = {
   "Withdraw all mobile permissions": "撤销所有手机端权限",
   "Withdrawal applies to new mobile actions. Stop existing runs and disable routines separately.":
     "撤销仅适用于新的手机端操作。请另行停止正在进行的运行并停用例程。",
+  "Continue with {name}": "通过 {name} 继续",
+  "Could not load sign-in options": "无法加载登录选项",
+  "Deletion code": "删除验证码",
+  "Email is not allowed to register": "该邮箱不允许注册",
+  "Email verification required": "需要验证邮箱",
+  "Link SSO": "关联 SSO",
+  "Registration is closed": "注册已关闭",
+  Retry: "重试",
+  "Send deletion code": "发送删除验证码",
+  "Sign in to your existing account to link SSO": "请登录现有账户以关联 SSO",
+  "SSO is temporarily unavailable. Try again.": "SSO 暂时不可用，请重试。",
 };

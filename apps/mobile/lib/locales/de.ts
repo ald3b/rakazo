@@ -1,4 +1,17 @@
 export const DE_MESSAGES: Record<string, string> = {
+  Photo: "Foto",
+  Today: "Heute",
+  Yesterday: "Gestern",
+  You: "Du",
+  "Original message unavailable": "Originalnachricht nicht verfügbar",
+  "No archived bots": "Keine archivierten Bots",
+  "Recover computer?": "Computer wiederherstellen?",
+  "Recreate a computer that is not working.":
+    "Einen nicht funktionierenden Computer neu erstellen.",
+  "Restore the last saved workspace.": "Den zuletzt gespeicherten Arbeitsbereich wiederherstellen.",
+  "Save the workspace and install current software.":
+    "Den Arbeitsbereich speichern und aktuelle Software installieren.",
+  "More computer actions": "Weitere Computeraktionen",
   // shared/const
   "Chat Settings": "Chat-Einstellungen",
   "Configure a plugin catalog on the server to connect apps.":
@@ -699,4 +712,17 @@ export const DE_MESSAGES: Record<string, string> = {
   "Withdraw all mobile permissions": "Alle mobilen Berechtigungen widerrufen",
   "Withdrawal applies to new mobile actions. Stop existing runs and disable routines separately.":
     "Der Widerruf gilt für neue mobile Aktionen. Beende laufende Ausführungen und deaktiviere Routinen separat.",
+  "Continue with {name}": "Mit {name} fortfahren",
+  "Could not load sign-in options": "Anmeldeoptionen konnten nicht geladen werden",
+  "Deletion code": "Löschcode",
+  "Email is not allowed to register": "Diese E-Mail-Adresse ist nicht zur Registrierung zugelassen",
+  "Email verification required": "E-Mail-Verifizierung erforderlich",
+  "Link SSO": "SSO verknüpfen",
+  "Registration is closed": "Registrierung ist geschlossen",
+  Retry: "Erneut versuchen",
+  "Send deletion code": "Löschcode senden",
+  "Sign in to your existing account to link SSO":
+    "Melde dich bei deinem bestehenden Konto an, um SSO zu verknüpfen",
+  "SSO is temporarily unavailable. Try again.":
+    "SSO ist vorübergehend nicht verfügbar. Versuche es erneut.",
 };

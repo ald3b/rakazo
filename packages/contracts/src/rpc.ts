@@ -152,6 +152,8 @@ const threadSendInput = threadTarget
     }
   });
 
+const spaceName = z.string().trim().min(1).max(60);
+
 export const appContract = {
   aiConsent: {
     status: oc.input(AiConsentQuerySchema).output(AiConsentStatusSchema),
@@ -178,7 +180,10 @@ export const appContract = {
   },
   spaces: {
     list: oc.output(SpaceNavigationSchema),
-    create: oc.input(z.object({ name: z.string().trim().min(1).max(60) })).output(SpaceSchema),
+    create: oc.input(z.object({ name: spaceName })).output(SpaceSchema),
+    rename: oc
+      .input(z.object({ spaceId: Id, name: spaceName }))
+      .output(z.object({ id: Id, name: z.string() })),
     remove: oc
       .input(z.object({ spaceId: Id }))
       .output(z.object({ ok: z.literal(true), activeSpaceId: Id })),
@@ -814,8 +819,10 @@ export const appContract = {
     list: oc.output(z.array(UsageRecordSchema)),
     summary: oc.output(
       z.object({
-        inputTokens: z.number(),
-        outputTokens: z.number(),
+        inputTokens: z.number().nullable(),
+        outputTokens: z.number().nullable(),
+        totalTokens: z.number().nullable().optional(),
+        modelCalls: z.number().optional(),
         runs: z.number(),
       }),
     ),
@@ -832,6 +839,16 @@ export const appContract = {
   },
   search: {
     query: oc.input(z.object({ q: z.string().max(200) })).output(SearchQueryOutputSchema),
+  },
+  links: {
+    /**
+     * The site icon for a link's origin as a small data URL, resolved and cached by the server.
+     * `retry` means the server was too busy to look; the origin may still have an icon.
+     */
+    favicon: oc
+      // The longest origin: a scheme, a 253-character host name and a port.
+      .input(z.object({ origin: z.string().max("https://".length + 253 + ":65535".length) }))
+      .output(z.object({ icon: z.string().nullable(), retry: z.boolean().optional() })),
   },
   runs: {
     list: oc.input(z.object({ filter: z.enum(["active", "recent"]) })).output(RunsListOutputSchema),

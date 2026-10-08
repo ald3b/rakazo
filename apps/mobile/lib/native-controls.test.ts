@@ -80,6 +80,7 @@ describe("actionFills", () => {
     expect(actionFills("destructive", undefined)).toBe(true);
     expect(actionFills("secondary", undefined)).toBe(false);
     expect(actionFills("plain", undefined)).toBe(false);
+    expect(actionFills("quiet", undefined)).toBe(false);
     expect(actionFills("primary", false)).toBe(false);
     expect(actionFills("secondary", true)).toBe(true);
   });

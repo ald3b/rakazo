@@ -1,8 +1,10 @@
-import { RemoteImagesContext } from "@rakazo/chat-ui/native";
+import type { LinkFavicons } from "@rakazo/chat-ui/native";
+import { LinkFaviconsContext, RemoteImagesContext } from "@rakazo/chat-ui/native";
 import { DarkTheme, router, Stack, ThemeProvider } from "expo-router";
 import * as ScreenOrientation from "expo-screen-orientation";
 import * as SplashScreen from "expo-splash-screen";
 import { StatusBar } from "expo-status-bar";
+import type { ReactNode } from "react";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -11,24 +13,27 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AvatarStyleProvider } from "../components/avatar-style";
 import { CallCard } from "../components/CallCard";
 import { ComputerUpdateProgress } from "../components/computer-update-progress";
-import { glassHeaderOptions } from "../components/glass-title";
+import { floatingHeaderOptions, glassHeaderOptions } from "../components/glass-title";
+import { NativeSymbol } from "../components/native-symbol";
 import { VoicePlayerBar } from "../components/voice-player-bar";
 import {
   currentApiBase,
   loadApiBase,
   loadSessionToken,
   selectedSpaceId,
+  subscribeApiBase,
   subscribeSessionRejected,
 } from "../lib/api";
 import { loadAppearancePreference, mobileTokens } from "../lib/appearance";
 import { explicitSignInRoute } from "../lib/auth-routing";
 import { loadAvatarStyle } from "../lib/avatar-style";
 import { bootstrapI18n, useI18n } from "../lib/i18n";
+import { loadLinkFavicon } from "../lib/link-favicons";
 import {
   configureForegroundNotifications,
   resumeLiveNotifications,
 } from "../lib/live-notifications";
-import { native, useResolvedAppearance } from "../lib/native";
+import { native, useMobileTokens, useResolvedAppearance } from "../lib/native";
 import { useNotificationResponses } from "../lib/open-notification";
 import {
   getCachedRemoteImagesEnabled,
@@ -40,6 +45,32 @@ import { loadResponseStreamingPreference } from "../lib/response-streaming";
 configureForegroundNotifications();
 // Keep the splash up until the saved appearance applies, so the first frame isn't in the OS scheme.
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
+
+function LinkGlobe() {
+  const tokens = useMobileTokens();
+  return (
+    <NativeSymbol ios="globe" android="globe-outline" size={16} color={tokens.mutedForeground} />
+  );
+}
+
+function ChatContentProviders({
+  loadRemoteImages,
+  children,
+}: {
+  loadRemoteImages: boolean;
+  children: ReactNode;
+}) {
+  const endpoint = useSyncExternalStore(subscribeApiBase, currentApiBase, currentApiBase);
+  const linkFavicons = useMemo<LinkFavicons>(
+    () => ({ endpoint, load: (origin) => loadLinkFavicon(origin, endpoint), globe: <LinkGlobe /> }),
+    [endpoint],
+  );
+  return (
+    <RemoteImagesContext.Provider value={loadRemoteImages}>
+      <LinkFaviconsContext.Provider value={linkFavicons}>{children}</LinkFaviconsContext.Provider>
+    </RemoteImagesContext.Provider>
+  );
+}
 
 export default function Layout() {
   useEffect(() => {
@@ -115,13 +146,14 @@ export default function Layout() {
       <KeyboardProvider>
         {ready ? (
           <AvatarStyleProvider>
-            <RemoteImagesContext.Provider value={loadRemoteImages}>
+            <ChatContentProviders loadRemoteImages={loadRemoteImages}>
               <ThemeProvider value={navigationTheme}>
                 <StatusBar style={resolved === "light" ? "dark" : "light"} />
                 <View style={{ flex: 1 }}>
                   <Stack
                     screenOptions={{
                       headerStyle: { backgroundColor: navigationTheme.colors.background },
+                      ...floatingHeaderOptions(),
                       headerTintColor: navigationTheme.colors.text,
                       headerShadowVisible: false,
                       headerBackButtonDisplayMode: "minimal",
@@ -146,9 +178,6 @@ export default function Layout() {
                         presentation: "formSheet",
                         sheetAllowedDetents: [0.6, 1],
                         sheetGrabberVisible: true,
-                        // Expo Router makes formSheet headers transparent on Liquid Glass, which
-                        // puts the first field under the bar; keep it opaque so the form starts below.
-                        headerTransparent: false,
                       }}
                     />
                     <Stack.Screen
@@ -158,9 +187,9 @@ export default function Layout() {
                         presentation: "formSheet",
                         sheetAllowedDetents: [0.6, 1],
                         sheetGrabberVisible: true,
-                        headerTransparent: false,
                       }}
                     />
+                    <Stack.Screen name="archived-bots" options={{ title: t("Archived bots") }} />
                     <Stack.Screen name="models" options={glassHeaderOptions(t("Models"))} />
                     <Stack.Screen name="voice" options={glassHeaderOptions(t("Voice"))} />
                     <Stack.Screen
@@ -221,7 +250,7 @@ export default function Layout() {
                 <ComputerUpdateProgress />
                 <CallCard />
               </ThemeProvider>
-            </RemoteImagesContext.Provider>
+            </ChatContentProviders>
           </AvatarStyleProvider>
         ) : (
           <View style={{ flex: 1, backgroundColor: String(native.page) }} />
