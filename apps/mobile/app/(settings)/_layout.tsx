@@ -1,8 +1,8 @@
 import { Stack, useNavigation } from "expo-router";
+import { HeaderBackButton } from "expo-router/react-navigation";
 import { useEffect } from "react";
 import { Platform } from "react-native";
 import { floatingHeaderOptions, glassHeaderOptions } from "../../components/glass-title";
-import { cancelHeaderOptions } from "../../components/sheet-header";
 import { useI18n } from "../../lib/i18n";
 import { native, useMobileTokens } from "../../lib/native";
 import { registerSettingsSheet, settingsSheetCloser } from "../../lib/settings-sheet";
@@ -28,7 +28,7 @@ export default function SettingsLayout() {
         headerBackButtonMenuEnabled: false,
         contentStyle: { backgroundColor: String(native.page) },
         // The first page closes the sheet, or returns Home when opened by a cold deep link.
-        // Android keeps its native back arrow when a screen exists underneath.
+        // The inner stack has no native back arrow on its first page.
         ...(navigation.getState().routes[0]?.key === route.key
           ? Platform.OS === "ios"
             ? {
@@ -41,9 +41,17 @@ export default function SettingsLayout() {
                   },
                 ],
               }
-            : !sheet.canGoBack()
-              ? cancelHeaderOptions(t("Dismiss"), close)
-              : null
+            : {
+                headerBackVisible: false,
+                headerLeft: ({ tintColor }) => (
+                  <HeaderBackButton
+                    accessibilityLabel={t("Back")}
+                    displayMode="minimal"
+                    tintColor={tintColor}
+                    onPress={close}
+                  />
+                ),
+              }
           : null),
       })}
     >
