@@ -2066,9 +2066,9 @@ export function ShellPage() {
     [t],
   );
   const onAttachmentPick = useCallback(
-    async (files: FileList | null) => {
+    (files: FileList | null) => {
       const threadKey = activeGroupId.current ?? activeBotId.current;
-      if (!threadKey || !files?.length) return;
+      if (!threadKey || !files?.length) return false;
       const existing = attachmentsForThread(pendingAttachments, threadKey);
       const next: PendingAttachment[] = [];
       const skipped: string[] = [];
@@ -2096,6 +2096,7 @@ export function ShellPage() {
       if (next.length) setPendingAttachments((current) => [...current, ...next]);
       setAttachmentNotice(skipped.length ? t`Skipped ${skipped.join(", ")}` : null);
       if (fileInputRef.current) fileInputRef.current.value = "";
+      return next.length > 0;
     },
     [pendingAttachments, t],
   );
@@ -5289,7 +5290,7 @@ export const Composer = memo(function Composer({
   onDismissError: () => void;
   sending: boolean;
   fileInputRef: RefObject<HTMLInputElement | null>;
-  onAttachmentPick: (files: FileList | null) => void | Promise<void>;
+  onAttachmentPick: (files: FileList | null) => boolean;
   onRemoveAttachment: (attachment: PendingAttachment) => void;
   onSend: (text: string, mentions: ComposerMention[], clientNonce: string) => Promise<boolean>;
   onStop: () => Promise<void>;
@@ -5312,6 +5313,16 @@ export const Composer = memo(function Composer({
   const [selectedMentions, setSelectedMentions] = useState<ComposerMention[]>([]);
   const editRevision = useRef(0);
   const retryNonce = useRef<string | null>(null);
+  const replyId = replyTarget?.id ?? null;
+  const quote = replyTarget ? (replyQuote ?? null) : null;
+  const previousReply = useRef({ id: replyId, quote });
+  useEffect(() => {
+    if (previousReply.current.id !== replyId || previousReply.current.quote !== quote) {
+      editRevision.current += 1;
+      retryNonce.current = null;
+      previousReply.current = { id: replyId, quote };
+    }
+  }, [replyId, quote]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [composerExpanded, setComposerExpanded] = useState(false);
   const attachButtonRef = useRef<HTMLButtonElement>(null);
@@ -5430,8 +5441,7 @@ export const Composer = memo(function Composer({
 
   function pickAttachments(files: FileList | null) {
     if (!files?.length) return;
-    markEdited();
-    void onAttachmentPick(files);
+    if (onAttachmentPick(files)) markEdited();
   }
 
   function updateDraft(value: string) {
