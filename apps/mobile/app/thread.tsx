@@ -1,6 +1,6 @@
 import type { MenuAction } from "@expo/ui/community/menu";
 import { MenuView } from "@expo/ui/community/menu";
-import { ChatMarkdown, LinkifiedText } from "@rakazo/chat-ui/native";
+import { ChatMarkdown } from "@rakazo/chat-ui/native";
 import type {
   AgentSkillCatalogEntry,
   Connection,
@@ -22,6 +22,7 @@ import {
   forwardProbeAfterPage,
   groupVoiceChats,
   isApprovalAskBlock,
+  isPeerReceiptBlocks,
   isRunTerminalEvent,
   isSecretAskBlock,
   latestAnswerableAskMessageId,
@@ -30,12 +31,14 @@ import {
   openThreadWindow,
   plainTextFromMarkdown,
   projectMessageReactions,
+  replyAttachment,
   resolveComposerSendPlan,
   resolvePersonaColorDef,
   SLASH_ACTIONS,
   selectedAskActionLabel,
   serializeComposerPrompt,
   threadWindowMessages,
+  timeSeparatorIds,
   truncateSlashDescription,
   userVisibleMessages,
   withLiveStreamingProgress,
@@ -86,17 +89,22 @@ import { AskActions } from "../components/AskActions";
 import { BotAvatar } from "../components/bot-avatar";
 import { ChoiceCard } from "../components/ChoiceCard";
 import { ComputerCard } from "../components/ComputerCard";
+import { ComposerReplyPreview } from "../components/composer-reply-preview";
 import { GlassSurface } from "../components/glass-surface";
 import type { ImageArtifactPreviewTarget } from "../components/image-artifact-viewer";
 import { InlineImageAttachment } from "../components/inline-image-attachment";
 import { McpApprovalCard } from "../components/McpApprovalCard";
 import type { MarkdownArtifactPreviewTarget } from "../components/markdown-artifact-preview";
 import { MarkdownArtifactPreview } from "../components/markdown-artifact-preview";
+import { MessageCaption } from "../components/message-caption";
 import { MessageContextMenu } from "../components/message-context-menu";
 import { NativeActionButton } from "../components/native-action-button";
 import { NativeSymbol } from "../components/native-symbol";
+import { ReplyDismissButton } from "../components/reply-dismiss-button";
+import { ReplyLine } from "../components/reply-line";
 import { SelectTextSheet } from "../components/select-text-sheet";
 import { trailingHeaderOptions } from "../components/sheet-header";
+import { TimeSeparator } from "../components/time-separator";
 import { VoiceChatCard } from "../components/VoiceChatCard";
 import { WorkingIndicator } from "../components/WorkingIndicator";
 import type {
@@ -1768,6 +1776,15 @@ function Thread() {
 
   const answerableAskMessageId = latestAnswerableAskMessageId(snap);
   const runError = snap?.run?.status === "failed" ? (snap.run.error ?? null) : null;
+  const separatorIds = timeSeparatorIds(visibleMessages);
+  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
+  const highlightTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (highlightTimer.current) clearTimeout(highlightTimer.current);
+    },
+    [],
+  );
   // Group calls in reading order, then reverse for the inverted list.
   const liveItems = useMemo(() => groupVoiceChats(visibleMessages).reverse(), [visibleMessages]);
   const messagesById = useMemo(
@@ -1976,6 +1993,17 @@ function Thread() {
     options?: { enableJump?: boolean; index?: number },
   ) {
     const { actionProps, menu, onMenuAction } = messageActionProps(message);
+    const parent = message.replyToMessageId
+      ? messagesById.get(message.replyToMessageId)
+      : undefined;
+    const replyBotId = message.replyPreview?.botId ?? parent?.botId;
+    const replyAuthor =
+      (message.replyPreview?.role ?? parent?.role) === "user"
+        ? t("You")
+        : (memberName(snap?.members, replyBotId) ??
+          mentionBots.find((bot) => bot.id === replyBotId)?.name ??
+          displayName ??
+          t("Bot"));
     const messageReactions = reactionView.reactions.get(message.id);
     const activityBotId =
       !inGroup && message.role === "bot" && message.id.startsWith("progress:")
@@ -2004,6 +2032,9 @@ function Thread() {
                 );
                 if (offset == null) return;
                 scrollPinnedTo(offset);
+                setHighlightedMessageId(message.id);
+                if (highlightTimer.current) clearTimeout(highlightTimer.current);
+                highlightTimer.current = setTimeout(() => setHighlightedMessageId(null), 1200);
                 requestAnimationFrame(() => {
                   const again = jumpAnchor.current.align(headerHeight + 24);
                   if (again != null) scrollPinnedTo(again);
@@ -2012,116 +2043,134 @@ function Thread() {
             : undefined
         }
         style={{
+          backgroundColor: highlightedMessageId === message.id ? tokens.muted : undefined,
           marginTop: 12,
           width: "100%",
-          flexDirection: "row",
-          alignItems: "flex-start",
-          gap: 8,
-          justifyContent: message.role === "user" ? "flex-end" : "flex-start",
         }}
       >
-        {activityBotId ? (
-          <View style={{ paddingTop: 22 }}>
-            <BotAvatar
-              color={activityBot?.color ?? tokens.mutedForeground}
-              identity={activityBotId}
-              size={inGroup ? 20 : 28}
-              status={activityStatus}
-            />
-          </View>
-        ) : null}
+        {separatorIds.has(message.id) ? <TimeSeparator createdAt={message.createdAt} /> : null}
         <View
           style={{
-            width: isCenteredAgentEvent(message.blocks) ? "100%" : undefined,
-            maxWidth: isCenteredAgentEvent(message.blocks)
-              ? "100%"
-              : activityBotId
-                ? undefined
-                : "90%",
-            flex: activityBotId ? 1 : undefined,
-            flexShrink: 1,
+            width: "100%",
+            flexDirection: "row",
+            alignItems: "flex-start",
+            gap: 8,
+            justifyContent: message.role === "user" ? "flex-end" : "flex-start",
           }}
         >
-          <MessageContextMenu
-            actions={menu}
-            maxWidth={
-              isCenteredAgentEvent(message.blocks)
-                ? windowWidth - 40
-                : activityBotId
-                  ? windowWidth - 40 - (inGroup ? 28 : 36)
-                  : (windowWidth - 40) * 0.9
-            }
-            colorScheme={colorScheme}
-            onAction={onMenuAction}
-            onLongPress={actionProps.onLongPress}
-          >
-            <ThreadReadOnlyContext.Provider value={readOnly}>
-              <MessageBubble
-                botId={botId ?? snap?.members?.[0]?.botId ?? ""}
-                groupId={groupId}
-                message={message}
-                botName={displayName}
-                bots={mentionBots}
-                members={snap?.members}
-                replyPreview={
-                  message.replyToMessageId ? messagesById.get(message.replyToMessageId) : undefined
-                }
-                canAnswer={!readOnly && message.id === answerableAskMessageId}
-                onAnswer={answerMessage}
-                onOpenBot={openBot}
-                onOpenComputer={openComputer}
-                onChoiceDismissed={(question) => {
-                  setDismissedChoiceQuestions((current) => {
-                    const existing = current.get(message.id);
-                    if (existing?.has(question)) return current;
-                    const next = new Map(current);
-                    const questions = new Set(existing);
-                    questions.add(question);
-                    next.set(message.id, questions);
-                    return next;
-                  });
-                }}
-                onPreviewMarkdown={setMarkdownPreview}
-                onPreviewImage={(target) =>
-                  router.push({
-                    pathname: "/image",
-                    params: { ...target, ...(groupId ? { groupId } : { botId }) },
-                  })
-                }
-                actionProps={actionProps}
+          {activityBotId ? (
+            <View style={{ paddingTop: 22 }}>
+              <BotAvatar
+                color={activityBot?.color ?? tokens.mutedForeground}
+                identity={activityBotId}
+                size={inGroup ? 20 : 28}
+                status={activityStatus}
               />
-            </ThreadReadOnlyContext.Provider>
-          </MessageContextMenu>
-          {messageReactions ? (
-            <View
-              style={{
-                flexDirection: "row",
-                flexWrap: "wrap",
-                gap: 4,
-                marginTop: 4,
-                justifyContent: message.role === "user" ? "flex-end" : "flex-start",
-              }}
-            >
-              {[...messageReactions].map(([emoji, count]) => (
-                <Text
-                  key={emoji}
-                  style={{
-                    color: tokens.foreground,
-                    backgroundColor: tokens.muted,
-                    borderColor: tokens.border,
-                    borderWidth: 1,
-                    borderRadius: 16,
-                    paddingHorizontal: 8,
-                    paddingVertical: 2,
-                    fontSize: 13,
-                  }}
-                >
-                  {emoji}
-                  {count > 1 ? ` ${count}` : ""}
-                </Text>
-              ))}
             </View>
           ) : null}
+          <View
+            style={{
+              width: isCenteredAgentEvent(message.blocks) ? "100%" : undefined,
+              maxWidth: isCenteredAgentEvent(message.blocks)
+                ? "100%"
+                : activityBotId
+                  ? undefined
+                  : "90%",
+              flex: activityBotId ? 1 : undefined,
+              flexShrink: 1,
+            }}
+          >
+            {isPeerReceiptBlocks(message.blocks) ? null : (
+              <ReplyLine
+                threadTarget={artifactTarget}
+                targetId={message.replyToMessageId}
+                quote={message.replyQuote}
+                preview={message.replyPreview}
+                author={replyAuthor}
+                fallbackText={parent ? previewMessageText(parent) : undefined}
+                onJump={(messageId) => {
+                  void applyMessageJump({ botId, groupId, messageId }).catch(() => undefined);
+                }}
+              />
+            )}
+            <MessageContextMenu
+              actions={menu}
+              maxWidth={
+                isCenteredAgentEvent(message.blocks)
+                  ? windowWidth - 40
+                  : activityBotId
+                    ? windowWidth - 40 - (inGroup ? 28 : 36)
+                    : (windowWidth - 40) * 0.9
+              }
+              colorScheme={colorScheme}
+              onAction={onMenuAction}
+              onLongPress={actionProps.onLongPress}
+            >
+              <ThreadReadOnlyContext.Provider value={readOnly}>
+                <MessageBubble
+                  botId={botId ?? snap?.members?.[0]?.botId ?? ""}
+                  groupId={groupId}
+                  message={message}
+                  botName={displayName}
+                  bots={mentionBots}
+                  members={snap?.members}
+                  canAnswer={!readOnly && message.id === answerableAskMessageId}
+                  onAnswer={answerMessage}
+                  onOpenBot={openBot}
+                  onOpenComputer={openComputer}
+                  onChoiceDismissed={(question) => {
+                    setDismissedChoiceQuestions((current) => {
+                      const existing = current.get(message.id);
+                      if (existing?.has(question)) return current;
+                      const next = new Map(current);
+                      const questions = new Set(existing);
+                      questions.add(question);
+                      next.set(message.id, questions);
+                      return next;
+                    });
+                  }}
+                  onPreviewMarkdown={setMarkdownPreview}
+                  onPreviewImage={(target) =>
+                    router.push({
+                      pathname: "/image",
+                      params: { ...target, ...(groupId ? { groupId } : { botId }) },
+                    })
+                  }
+                  actionProps={actionProps}
+                />
+              </ThreadReadOnlyContext.Provider>
+            </MessageContextMenu>
+            {messageReactions ? (
+              <View
+                style={{
+                  flexDirection: "row",
+                  flexWrap: "wrap",
+                  gap: 4,
+                  marginTop: 4,
+                  justifyContent: message.role === "user" ? "flex-end" : "flex-start",
+                }}
+              >
+                {[...messageReactions].map(([emoji, count]) => (
+                  <Text
+                    key={emoji}
+                    style={{
+                      color: tokens.foreground,
+                      backgroundColor: tokens.muted,
+                      borderColor: tokens.border,
+                      borderWidth: 1,
+                      borderRadius: 16,
+                      paddingHorizontal: 8,
+                      paddingVertical: 2,
+                      fontSize: 13,
+                    }}
+                  >
+                    {emoji}
+                    {count > 1 ? ` ${count}` : ""}
+                  </Text>
+                ))}
+              </View>
+            ) : null}
+          </View>
         </View>
       </View>
     );
@@ -2320,6 +2369,9 @@ function Thread() {
             renderItem={({ item }) =>
               item.kind === "voiceChat" ? (
                 <View style={{ marginTop: 12, width: "100%" }}>
+                  {item.messages[0] && separatorIds.has(item.messages[0].id) ? (
+                    <TimeSeparator createdAt={item.messages[0].createdAt} />
+                  ) : null}
                   <VoiceChatCard group={item} />
                 </View>
               ) : (
@@ -2419,30 +2471,23 @@ function Thread() {
               paddingVertical: 10,
             }}
           >
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: tokens.mutedForeground, fontSize: 12 }}>
-                {t("Replying to")}
-              </Text>
-              <Text style={{ color: tokens.foreground, fontSize: 13 }} numberOfLines={1}>
-                {replyQuote ? `“${replyQuote}”` : previewMessageText(replyTarget)}
-              </Text>
-            </View>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={t("Cancel reply")}
-              hitSlop={8}
+            <ComposerReplyPreview
+              author={
+                replyTarget.role === "user"
+                  ? t("You")
+                  : (memberName(snap?.members, replyTarget.botId) ?? displayName ?? t("Bot"))
+              }
+              quote={replyQuote}
+              text={previewMessageText(replyTarget)}
+              attachment={replyAttachment(replyTarget.blocks)}
+              threadTarget={artifactTarget}
+            />
+            <ReplyDismissButton
               onPress={() => {
                 setReplyTarget(null);
                 setReplyQuote(null);
               }}
-            >
-              <NativeSymbol
-                ios="xmark.circle.fill"
-                android="close-circle"
-                size={20}
-                color={tokens.mutedForeground}
-              />
-            </Pressable>
+            />
           </GlassSurface>
         ) : null}
         {attachmentNotice ? (
@@ -3147,9 +3192,9 @@ function previewMessageText(message: MobileMessage): string {
     .join(" ")
     .trim();
   if (text) return text;
-  if (message.blocks.some((block) => block.kind === "image" || block.kind === "file")) {
-    return t("Attachment");
-  }
+  const attachment = replyAttachment(message.blocks);
+  if (attachment)
+    return attachment.kind === "image" ? t("Photo") : attachment.name || t("Attachment");
   return t("Message");
 }
 
@@ -3186,7 +3231,6 @@ const MessageBubble = memo(function MessageBubble({
   groupId,
   message,
   members,
-  replyPreview,
   canAnswer,
   onAnswer,
   onOpenBot,
@@ -3202,7 +3246,6 @@ const MessageBubble = memo(function MessageBubble({
   groupId?: string;
   message: MobileMessage;
   members?: MobileSnapshot["members"];
-  replyPreview?: MobileMessage;
   canAnswer: boolean;
   onAnswer: (message: MobileMessage, answer: string, username?: string) => Promise<void>;
   onOpenBot: (botId: string, name: string) => void;
@@ -3669,30 +3712,14 @@ const MessageBubble = memo(function MessageBubble({
             {speaker}
           </Text>
         ) : null}
-        {replyPreview || (message.replyToMessageId && message.replyQuote) ? (
-          <Text
-            style={{
-              color: message.role === "user" ? tokens.secondaryForeground : tokens.mutedForeground,
-              fontSize: 12.5,
-            }}
-            numberOfLines={2}
-          >
-            {message.replyQuote
-              ? `“${message.replyQuote}”`
-              : replyPreview
-                ? previewMessageText(replyPreview)
-                : ""}
-          </Text>
-        ) : null}
         {caption ? (
-          <Text
-            style={{
-              color: message.role === "user" ? tokens.secondaryForeground : tokens.foreground,
-              fontSize: 15,
-            }}
-          >
-            {caption}
-          </Text>
+          <MessageCaption
+            role={message.role}
+            text={caption}
+            tokens={tokens}
+            colorScheme={colorScheme}
+            streaming={message.id.startsWith("progress:")}
+          />
         ) : null}
         {attachments.map((attachment, index) =>
           attachment.kind === "image" ? (
@@ -3829,7 +3856,6 @@ const MessageBubble = memo(function MessageBubble({
           message={{ ...message, blocks: segment.blocks }}
           speaker={index === firstContent ? speaker : undefined}
           speakerColor={index === firstContent ? speakerColor : undefined}
-          replyPreview={index === firstContent ? replyPreview : undefined}
           actionProps={actionProps}
         />
       ))}
@@ -3871,13 +3897,11 @@ function MessageTextCard({
   message,
   speaker,
   speakerColor,
-  replyPreview,
   actionProps,
 }: {
   message: MobileMessage;
   speaker?: string;
   speakerColor?: string;
-  replyPreview?: MobileMessage;
   actionProps: MessageActionProps;
 }) {
   const colorScheme = useResolvedAppearance();
@@ -3908,40 +3932,13 @@ function MessageTextCard({
           {speaker}
         </Text>
       ) : null}
-      {replyPreview || (message.replyToMessageId && message.replyQuote) ? (
-        <Text
-          style={{
-            color: message.role === "user" ? tokens.secondaryForeground : tokens.mutedForeground,
-            fontSize: 12.5,
-            marginBottom: 6,
-          }}
-          numberOfLines={2}
-        >
-          {message.replyQuote
-            ? `“${message.replyQuote}”`
-            : replyPreview
-              ? previewMessageText(replyPreview)
-              : ""}
-        </Text>
-      ) : null}
-      {
-        // User bubbles stay literal text on web and mobile. Only explicit URLs
-        // and email addresses are links, so a sent address is tappable without
-        // formatting bold or headings.
-        message.role === "user" ? (
-          <LinkifiedText color={tokens.secondaryForeground} linkColor={tokens.link}>
-            {contentText}
-          </LinkifiedText>
-        ) : (
-          <ChatMarkdown
-            palette={tokens}
-            colorScheme={colorScheme}
-            streaming={message.id.startsWith("progress:")}
-          >
-            {contentText}
-          </ChatMarkdown>
-        )
-      }
+      <MessageCaption
+        role={message.role}
+        text={contentText}
+        tokens={tokens}
+        colorScheme={colorScheme}
+        streaming={message.id.startsWith("progress:")}
+      />
     </Pressable>
   );
 }
