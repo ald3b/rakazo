@@ -749,6 +749,7 @@ msgstr "Can't reach the server."
 #: src/components/AskCard.tsx
 #: src/components/ComputerMaintenanceActions.tsx
 #: src/components/ComputerUpdateProgress.tsx
+#: src/components/markdown-link-prompt.tsx
 #: src/components/teach/TeachComputerOverlay.tsx
 #: src/pages/Artifacts.tsx
 #: src/pages/KnowledgeSection.tsx
@@ -3077,6 +3078,7 @@ msgstr "on the 1st at {0}"
 msgid "Only empty spaces can be deleted. Delete its bots and groups first."
 msgstr "Only empty spaces can be deleted. Delete its bots and groups first."
 
+#: src/components/markdown-link-prompt.tsx
 #: src/pages/ScratchpadSection.tsx
 #: src/pages/Shell.tsx
 msgid "Open"
@@ -3102,6 +3104,10 @@ msgstr "Open <0>{0}</0> to finish signing in."
 #: src/components/ComputersUnavailableHint.tsx
 msgid "Open computer settings"
 msgstr "Open computer settings"
+
+#: src/components/markdown-link-prompt.tsx
+msgid "Open external link?"
+msgstr "Open external link?"
 
 #: src/pages/Shell.tsx
 msgid "Open in full window"
@@ -4490,10 +4496,18 @@ msgstr "Use Protected input for passwords."
 msgid "Use this model"
 msgstr "Use this model"
 
+#: src/pages/ModelSettingsOverlay.tsx
+msgid "Use your own key"
+msgstr "Use your own key"
+
 #: src/components/AskCard.tsx
 #: src/pages/shell/bot-credentials.tsx
 msgid "Username"
 msgstr "Username"
+
+#: src/pages/ModelSettingsOverlay.tsx
+msgid "Uses this server's own {hostCredentialSource} credentials to access {selectedProviderName}."
+msgstr "Uses this server's own {hostCredentialSource} credentials to access {selectedProviderName}."
 
 #: src/pages/shell/bot-credentials.tsx
 msgid "Value"

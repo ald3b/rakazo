@@ -1,4 +1,6 @@
 export const ZH_MESSAGES: Record<string, string> = {
+  "Try Again": "重试",
+  "Not sent · Tap to retry": "未发送 · 轻点重试",
   Photo: "照片",
   Today: "今天",
   Yesterday: "昨天",
@@ -165,6 +167,9 @@ export const ZH_MESSAGES: Record<string, string> = {
   "Connect a voice provider first.": "请先连接语音提供商。",
   "Allow speech recognition in Settings, or connect ElevenLabs, OpenAI, or Fish Audio.":
     "请在“设置”中允许语音识别，或连接 ElevenLabs、OpenAI 或 Fish Audio。",
+  "Use your own key": "使用自己的密钥",
+  "Uses this server's own {source} credentials to access {provider}.":
+    "使用此服务器自己的 {source} 凭据访问 {provider}。",
   "Connect API key": "连接 API 密钥",
   "Connect Executor": "连接 Executor",
   "Connect MCP server {name}": "连接 MCP 服务器 {name}",
@@ -392,7 +397,6 @@ export const ZH_MESSAGES: Record<string, string> = {
   "Other model…": "其他模型…",
   Password: "密码",
   "Password recovery is not configured for this server": "此服务器未配置密码找回",
-  "Password updated": "密码已更新",
   "Passwords do not match": "两次输入的密码不一致",
   "Paste a replacement key": "粘贴替换密钥",
   "Paste your API key": "粘贴你的 API 密钥",
@@ -685,16 +689,33 @@ export const ZH_MESSAGES: Record<string, string> = {
   "Your phone's built-in voice — free, no account needed": "手机自带的语音 — 免费，无需账户",
   "Speaks with your phone's own text-to-speech instead of a connected provider.":
     "使用手机自带的语音朗读，而不是已连接的语音服务。",
+
+  "Open external link?": "打开外部链接？",
+  Open: "打开",
   // ai-data-sharing
+  "AI models": "AI 模型",
+  Memory: "记忆",
+  "Privacy policies": "隐私政策",
+  Rakazo: "Rakazo",
+  "Withdraw all permissions": "撤销所有权限",
+  "Withdraw all permissions?": "撤销所有权限？",
+  "New mobile actions won't send data to these services. Runs already in progress and routines keep going until you stop them.":
+    "新的手机端操作不会向这些服务发送数据。正在执行的任务和例行任务会继续，直到你将其停止。",
+  Withdraw: "撤销",
+  "Share data with {name}?": "与 {name} 分享数据？",
+  "You can turn this off in Account → AI data sharing.": "你可以在账户 → AI 数据共享中关闭此功能。",
+  Allow: "允许",
+  "Messages, chat history, bot instructions, memories, attachments, screenshots and connected-app content are sent to run your bots, including routines.":
+    "消息、聊天记录、Bot 指令、记忆、附件、截图及已连接应用的内容会被发送，以运行你的 Bot，包括例行任务。",
+  "Your recordings are sent for transcription, and text you play is sent to generate speech.":
+    "你的录音会被发送用于转录，你播放的文本会被发送用于生成语音。",
+  "Conversation summaries, memories, searches and bot and Space IDs are sent to store and recall context.":
+    "对话摘要、记忆、搜索请求及 Bot 和空间 ID 会被发送，用于存储和检索上下文。",
   "AI data sharing": "AI 数据共享",
   "Allow {name} on mobile": "在手机上允许 {name}",
   "Could not load permissions.": "无法加载权限。",
   "No AI services configured.": "未配置 AI 服务。",
   "Privacy policy": "隐私政策",
-  "Provider privacy policy": "服务商隐私政策",
-  "Withdraw all mobile permissions": "撤销所有手机端权限",
-  "Withdrawal applies to new mobile actions. Stop existing runs and disable routines separately.":
-    "撤销仅适用于新的手机端操作。请另行停止正在进行的运行并停用例程。",
   "Continue with {name}": "通过 {name} 继续",
   "Could not load sign-in options": "无法加载登录选项",
   "Deletion code": "删除验证码",
