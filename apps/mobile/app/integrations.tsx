@@ -10,7 +10,6 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   Image,
   Linking,
   Pressable,
@@ -29,6 +28,7 @@ import { mobileTokens } from "../lib/appearance";
 import { useI18n } from "../lib/i18n";
 import { loadLastBotId } from "../lib/last-bot";
 import { native, useThemedStyles } from "../lib/native";
+import { toast } from "../lib/toast";
 import { errorText } from "../lib/user-error";
 
 type SourceKind = "treg" | "executor" | "mcp" | "api" | "graphql";
@@ -267,10 +267,10 @@ export default function Integrations() {
         await abortableDelay(2_000, controller.signal);
       }
       if (controller.signal.aborted) return;
-      Alert.alert(
-        t("Connection pending"),
-        t("Finish connecting in the browser, then refresh this page."),
-      );
+      toast.show(t("Connection pending"), {
+        variant: "info",
+        detail: t("Finish connecting in the browser, then refresh this page."),
+      });
     } catch (reason) {
       if (controller.signal.aborted) return;
       setCatalogError(errorText(reason, t("Could not connect")));

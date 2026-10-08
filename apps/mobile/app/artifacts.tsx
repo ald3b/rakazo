@@ -28,6 +28,7 @@ import {
 } from "../lib/artifacts";
 import { useI18n } from "../lib/i18n";
 import { native, useThemedStyles } from "../lib/native";
+import { toast } from "../lib/toast";
 import { errorText } from "../lib/user-error";
 
 const PAGE_SIZE = 30;
@@ -167,7 +168,10 @@ export default function ArtifactsScreen() {
                 setItems((current) => current?.filter((row) => row.id !== item.id) ?? current),
               )
               .catch((error: unknown) =>
-                Alert.alert(t("Could not delete this artifact"), errorText(error, t("Try again."))),
+                toast.show(t("Could not delete this artifact"), {
+                  variant: "error",
+                  detail: errorText(error, t("Try again.")),
+                }),
               ),
         },
       ],

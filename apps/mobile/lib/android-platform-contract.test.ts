@@ -256,7 +256,7 @@ describe("Android mobile platform contract", () => {
     expect(thread).not.toContain("Steer ");
     expect(thread).not.toContain("steering message");
     expect(thread).toContain('t("Message {name}"');
-    expect(thread).toContain("const clientNonce = newClientNonce()");
+    expect(thread).toContain("const clientNonce = attempt.clientNonce;");
     expect(thread).toContain("Work stopped, but the thread could not refresh");
     expect(stopSource).toContain("const targetBotId = botId;");
     expect(stopSource).toContain("const targetGroupId = groupId;");
@@ -264,7 +264,7 @@ describe("Android mobile platform contract", () => {
       "targetGroupId ? { groupId: targetGroupId } : { botId: targetBotId! },",
     );
     expect(stopSource).toMatch(
-      /if \(isCurrentTarget\(targetBotId, targetGroupId\)\) \{\s*setError\(errorText\(err, t\("Failed to stop work"\)\)\);/,
+      /if \(isCurrentTarget\(targetBotId, targetGroupId\)\) \{\s*feedback\.actionFailed\(err, t\("Failed to stop work"\)\);/,
     );
     expect(stopSource).toMatch(
       /if \(isCurrentTarget\(targetBotId, targetGroupId\)\) \{\s*(?:const detail = [^\n]+;\s*)?setError\(t\("Work stopped, but the thread could not refresh: \{detail\}", \{ detail \}\)\);/,

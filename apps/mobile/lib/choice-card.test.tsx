@@ -8,7 +8,7 @@ import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const rpc = vi.hoisted(() => vi.fn());
-const alert = vi.hoisted(() => vi.fn());
+const showToast = vi.hoisted(() => vi.fn());
 
 vi.mock("react-native", async () => {
   const { createElement } = await import("react");
@@ -47,7 +47,6 @@ vi.mock("react-native", async () => {
   }
 
   return {
-    Alert: { alert },
     Pressable: MockPressable,
     StyleSheet: { create: <T,>(styles: T) => styles },
     Text: MockText,
@@ -57,6 +56,7 @@ vi.mock("react-native", async () => {
 });
 
 vi.mock("./api", () => ({ rpc }));
+vi.mock("./toast", () => ({ toast: { show: showToast } }));
 
 vi.mock("./native", () => ({
   native: { fill: "fill", fillPressed: "fill-pressed" },
@@ -98,7 +98,7 @@ describe("ChoiceCard", () => {
 
   beforeEach(() => {
     rpc.mockReset();
-    alert.mockReset();
+    showToast.mockReset();
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   });
 
@@ -202,7 +202,10 @@ describe("ChoiceCard", () => {
       await Promise.resolve();
     });
 
-    expect(alert).toHaveBeenCalledWith("Could not complete action", "Network down");
+    expect(showToast).toHaveBeenCalledWith("Could not complete action", {
+      variant: "error",
+      detail: "Network down",
+    });
     expect(button(view, "Day-to-day work").disabled).toBe(false);
     expect(button(view, "Inbox & email").disabled).toBe(false);
     expect(view.querySelector("[data-testid='choice-card-dismiss']")).not.toBeNull();

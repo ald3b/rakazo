@@ -2,6 +2,7 @@ import type { AvatarStyle } from "@rakazo/contracts";
 import * as SecureStore from "expo-secure-store";
 import { clearAvatarStyle, saveAvatarStyle } from "./avatar-style";
 import { stopLiveNotifications } from "./live-notifications";
+import { toast } from "./toast";
 
 const SESSION_KEY = "rakazo.session_token";
 
@@ -22,6 +23,7 @@ export async function loadSessionToken() {
 
 export async function saveSessionToken(token: string) {
   sessionGeneration += 1;
+  toast.resume();
   await SecureStore.setItemAsync(SESSION_KEY, token);
   sessionInvalidated = false;
   sessionFallback = undefined;
@@ -30,6 +32,8 @@ export async function saveSessionToken(token: string) {
 /** Clears the session. Returns false only when SecureStore could neither delete nor overwrite. */
 export async function clearSessionToken(): Promise<boolean> {
   sessionGeneration += 1;
+  // A notice from the previous account must not outlive it, even one from a late failure.
+  toast.suspend();
   await stopLiveNotifications(true).catch(() => undefined);
   const tokenCleared = await clearStoredSessionToken();
   // Best-effort: a stuck style must not block sign-out or restore a wiped token.

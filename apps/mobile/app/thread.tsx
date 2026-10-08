@@ -171,15 +171,30 @@ import {
   subscribeResponseStreaming,
 } from "../lib/response-streaming";
 import { selectableTextFromMarkdown } from "../lib/selectable-text";
+import type { SendAttempt } from "../lib/thread-feedback";
+import { useThreadFeedback } from "../lib/thread-feedback";
 import { ThreadJumpAnchor } from "../lib/thread-jump";
 import { ThreadReadOnlyContext } from "../lib/thread-read-only";
 import type { ThreadScrollAction, ThreadScrollState } from "../lib/thread-scroll";
 import { ThreadScrollBehavior } from "../lib/thread-scroll";
+import { toast } from "../lib/toast";
 import { errorText } from "../lib/user-error";
 import { speakQueue, speakText } from "../lib/voice";
 import { probeProviderTranscribe, resolveVoiceCallPlan } from "../lib/voice-call-entry";
 
 type PendingAttachment = PickedAttachment & { threadKey: string };
+type ThreadSendRequest = {
+  initialBotTarget: string | undefined;
+  originThreadKey: string | undefined;
+  groupTarget: string | undefined;
+  botTarget: string | undefined;
+  reroutedToGroup: boolean;
+  plan: ReturnType<typeof resolveComposerSendPlan>;
+  attachments: PendingAttachment[];
+  replyToMessageId: string | undefined;
+  replyQuote: string | undefined;
+};
+type ThreadSendAttempt = SendAttempt<ThreadSendRequest>;
 type AskAction = NonNullable<Extract<MessageBlock, { kind: "ask" }>["actions"]>[number];
 
 function newClientNonce(): string {
@@ -498,7 +513,8 @@ function Thread() {
   const [quoteTarget, setQuoteTarget] = useState<MobileMessage | null>(null);
   const [attachmentNotice, setAttachmentNotice] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const feedback = useThreadFeedback<ThreadSendRequest>(threadKey, newClientNonce);
+  const { error, setError } = feedback;
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [selectableText, setSelectableText] = useState<string | null>(null);
   const [loadingNewer, setLoadingNewer] = useState(false);
@@ -869,7 +885,10 @@ function Thread() {
       await restoreArchivedBot(botId);
       router.setParams({ readOnly: "0" });
     } catch (cause) {
-      Alert.alert(t("Could not restore bot"), errorText(cause, t("Try again.")));
+      toast.show(t("Could not restore bot"), {
+        variant: "error",
+        detail: errorText(cause, t("Try again.")),
+      });
     } finally {
       setRestoring(false);
     }
@@ -894,7 +913,7 @@ function Thread() {
             : snapRef.current,
         );
       })
-      .catch((err: unknown) => setError(errorText(err, t("Could not clear conversation"))));
+      .catch((err: unknown) => feedback.actionFailed(err, t("Could not clear conversation")));
   }
 
   const botActions = [
@@ -935,7 +954,10 @@ function Thread() {
         void rpc("bots/archive", { botId })
           .then(leaveBot)
           .catch((error) =>
-            Alert.alert(t("Could not archive bot"), errorText(error, t("Try again."))),
+            toast.show(t("Could not archive bot"), {
+              variant: "error",
+              detail: errorText(error, t("Try again.")),
+            }),
           ),
     },
     {
@@ -995,6 +1017,7 @@ function Thread() {
       commitSnap(
         mergeMobileSnapshot(snapRef.current, next, expandedHistoryThread.current === next.threadId),
       );
+      feedback.refreshed();
     }
     return result.snapshot ?? undefined;
   }
@@ -1141,7 +1164,7 @@ function Thread() {
       commitSnap(prependMobileMessagePage(snapRef.current, page));
     } catch (err) {
       loadingOlderContent.current = false;
-      setError(errorText(err, t("Could not load earlier messages")));
+      feedback.actionFailed(err, t("Could not load earlier messages"));
     } finally {
       setLoadingOlder(false);
     }
@@ -1387,7 +1410,6 @@ function Thread() {
     setReplyQuote(null);
     setQuoteTarget(null);
     setAttachmentNotice(null);
-    setError(null);
   }, [threadKey]);
 
   function updateDraft(value: string) {
@@ -1457,11 +1479,11 @@ function Thread() {
     selectedMentions.length > 0 ||
     activePendingAttachments.length > 0;
 
-  async function send() {
-    if (readOnly) return;
+  /** What a send delivers, fixed when it starts so Retry resends exactly the failed draft. */
+  function composerSend(): { draft: string; request: ThreadSendRequest } | null {
     const initialBotTarget = botId;
     const initialGroupTarget = groupId;
-    if ((!initialBotTarget && !initialGroupTarget) || sending) return;
+    if (!initialBotTarget && !initialGroupTarget) return null;
     const originThreadKey = initialGroupTarget ?? initialBotTarget;
     const attachments = attachmentsForThread(pendingAttachments, originThreadKey);
     const plan = resolveComposerSendPlan({
@@ -1469,12 +1491,55 @@ function Thread() {
       mentions: selectedMentions,
       hasAttachments: attachments.length > 0,
     });
-    if (plan.isNoOp) return;
+    if (plan.isNoOp) return null;
     const reroutedToGroup = Boolean(
       plan.rerouteGroupId && plan.rerouteGroupId !== initialGroupTarget,
     );
     const groupTarget = plan.rerouteGroupId ?? initialGroupTarget;
     const botTarget = reroutedToGroup ? undefined : initialBotTarget;
+    const replyToMessageId = reroutedToGroup ? undefined : replyTarget?.id;
+    const quote = reroutedToGroup ? undefined : (replyQuote ?? undefined);
+    return {
+      draft: JSON.stringify([
+        groupTarget,
+        botTarget,
+        plan.trimmed,
+        plan.mentionPayload,
+        plan.routineIds,
+        attachments.map((attachment) => attachment.id),
+        replyToMessageId,
+        quote,
+      ]),
+      request: {
+        initialBotTarget,
+        originThreadKey,
+        groupTarget,
+        botTarget,
+        reroutedToGroup,
+        plan,
+        attachments,
+        replyToMessageId,
+        replyQuote: quote,
+      },
+    };
+  }
+
+  async function send(retry?: ThreadSendAttempt) {
+    if (readOnly || sending) return;
+    const composed = retry ? null : composerSend();
+    const attempt = retry ?? (composed && feedback.sendAttempt(composed.draft, composed.request));
+    if (!attempt) return;
+    const {
+      initialBotTarget,
+      originThreadKey,
+      groupTarget,
+      botTarget,
+      reroutedToGroup,
+      plan,
+      attachments,
+      replyToMessageId,
+      replyQuote: quote,
+    } = attempt.request;
     const trimmed = plan.trimmed;
     const dropDelayedSetup = () => {
       // Only after successful engagement so a failed upload/send keeps the setup card.
@@ -1485,17 +1550,18 @@ function Thread() {
     setError(null);
     try {
       if (plan.shouldRunRoutines) {
-        const sendNonce = newClientNonce();
         await Promise.all(
           plan.routineIds.map((routineId) =>
             rpc("routines/testRun", {
               routineId,
-              clientNonce: `routine-mention:${sendNonce}:${routineId}`,
+              clientNonce: `routine-mention:${attempt.clientNonce}:${routineId}`,
             }),
           ),
         );
       }
       const clearOriginComposer = () => {
+        // A retried draft leaves the composer alone once the user has changed it.
+        if (retry && composerDraftRef.current() !== attempt.draft) return;
         setPendingAttachments((current) =>
           current.filter((attachment) => attachment.threadKey !== originThreadKey),
         );
@@ -1509,6 +1575,7 @@ function Thread() {
         setAttachmentNotice(null);
       };
       if (!plan.shouldSend) {
+        feedback.sent();
         dropDelayedSetup();
         clearOriginComposer();
         if (reroutedToGroup && groupTarget) {
@@ -1528,15 +1595,20 @@ function Thread() {
       }
       const artifactIds: string[] = [];
       for (const pending of attachments) {
-        const artifact = await rpc<{ id: string }>("artifacts/create", {
-          ...(groupTarget ? { groupId: groupTarget } : { botId: botTarget! }),
-          name: pending.name,
-          mimeType: pending.mimeType,
-          contentBase64: pending.contentBase64,
-        });
-        artifactIds.push(artifact.id);
+        const uploaded =
+          attempt.artifactIds.get(pending.id) ??
+          (
+            await rpc<{ id: string }>("artifacts/create", {
+              ...(groupTarget ? { groupId: groupTarget } : { botId: botTarget! }),
+              name: pending.name,
+              mimeType: pending.mimeType,
+              contentBase64: pending.contentBase64,
+            })
+          ).id;
+        attempt.artifactIds.set(pending.id, uploaded);
+        artifactIds.push(uploaded);
       }
-      const clientNonce = newClientNonce();
+      const clientNonce = attempt.clientNonce;
       await rpc(
         "threads/send",
         groupTarget
@@ -1546,8 +1618,8 @@ function Thread() {
               text: trimmed || undefined,
               mentions: plan.mentionPayload.length ? plan.mentionPayload : undefined,
               artifactIds: artifactIds.length ? artifactIds : undefined,
-              replyToMessageId: reroutedToGroup ? undefined : replyTarget?.id,
-              replyQuote: reroutedToGroup ? undefined : (replyQuote ?? undefined),
+              replyToMessageId,
+              replyQuote: quote,
             }
           : {
               botId: botTarget!,
@@ -1555,10 +1627,11 @@ function Thread() {
               text: trimmed || undefined,
               mentions: plan.mentionPayload.length ? plan.mentionPayload : undefined,
               artifactIds: artifactIds.length ? artifactIds : undefined,
-              replyToMessageId: replyTarget?.id,
-              replyQuote: replyQuote ?? undefined,
+              replyToMessageId,
+              replyQuote: quote,
             },
       );
+      feedback.sent();
       dropDelayedSetup();
       void loadSessionToken()
         .then((token) => resumeLiveNotifications(currentApiBase(), token, selectedSpaceId() ?? ""))
@@ -1580,15 +1653,18 @@ function Thread() {
         void refresh().catch(() => undefined);
       }
     } catch (err) {
-      if (reroutedToGroup && groupTarget) {
-        setError(errorText(err, t("Failed to send message")));
-      } else if (isCurrentTarget(botTarget, groupTarget)) {
-        setError(errorText(err, t("Failed to send message")));
+      if ((reroutedToGroup && groupTarget) || isCurrentTarget(botTarget, groupTarget)) {
+        feedback.sendFailed(attempt, err, (failed) => void sendRef.current(failed));
       }
     } finally {
       setSending(false);
     }
   }
+
+  const sendRef = useRef(send);
+  sendRef.current = send;
+  const composerDraftRef = useRef(() => composerSend()?.draft);
+  composerDraftRef.current = () => composerSend()?.draft;
 
   async function stop() {
     if (readOnly) return;
@@ -1604,7 +1680,7 @@ function Thread() {
       );
     } catch (err) {
       if (isCurrentTarget(targetBotId, targetGroupId)) {
-        setError(errorText(err, t("Failed to stop work")));
+        feedback.actionFailed(err, t("Failed to stop work"));
       }
       setSending(false);
       return;
@@ -1675,10 +1751,17 @@ function Thread() {
       void speakQueue(items)
         .then((spoken) => {
           if (!spoken)
-            Alert.alert(t("Could not speak"), t("Add a voice provider in Voice settings."));
+            toast.show(t("Could not speak"), {
+              variant: "error",
+              detail: t("Add a voice provider in Voice settings."),
+              action: { label: t("Open Voice"), run: () => router.push("/voice") },
+            });
         })
         .catch((err: unknown) =>
-          Alert.alert(t("Could not speak"), errorText(err, t("Try again."))),
+          toast.show(t("Could not speak"), {
+            variant: "error",
+            detail: errorText(err, t("Try again.")),
+          }),
         );
     },
     [botId, displayName, mentionBots, snap?.members, visibleMessages],
@@ -1876,7 +1959,7 @@ function Thread() {
       });
     } catch (err) {
       if (!isCurrentTarget(targetBotId, targetGroupId)) return;
-      setError(errorText(err, t("Could not update reaction")));
+      feedback.actionFailed(err, t("Could not update reaction"));
     }
   }
 
@@ -3750,7 +3833,10 @@ const MessageBubble = memo(function MessageBubble({
                         attachment.name ?? t("Image"),
                         attachment.mimeType ?? "image/png",
                       ).catch((err) =>
-                        Alert.alert(t("Could not open image"), errorText(err, t("Try again."))),
+                        toast.show(t("Could not open image"), {
+                          variant: "error",
+                          detail: errorText(err, t("Try again.")),
+                        }),
                       )
                     : undefined
                 }
@@ -3783,7 +3869,10 @@ const MessageBubble = memo(function MessageBubble({
                         attachment.name ?? t("File"),
                         attachment.mimeType ?? "text/plain",
                       ).catch((err) =>
-                        Alert.alert(t("Could not open file"), errorText(err, t("Try again."))),
+                        toast.show(t("Could not open file"), {
+                          variant: "error",
+                          detail: errorText(err, t("Try again.")),
+                        }),
                       )
                   : undefined
               }
