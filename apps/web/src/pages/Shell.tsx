@@ -2103,11 +2103,12 @@ export function ShellPage() {
     revokePendingAttachmentPreviews([attachment]);
     setPendingAttachments((current) => current.filter((item) => item.id !== attachment.id));
   }, []);
+  /** Resolves false when nothing reached the server, so the composer can restore its draft. */
   const sendMessage = useCallback(
     async (text: string, mentions: ComposerMention[] = []) => {
       const initialBotTarget = activeBotId.current;
       const initialGroupTarget = activeGroupId.current;
-      if ((!initialBotTarget && !initialGroupTarget) || sending) return;
+      if ((!initialBotTarget && !initialGroupTarget) || sending) return false;
       const originThreadKey = initialGroupTarget ?? initialBotTarget;
       const attachments = attachmentsForThread(pendingAttachments, originThreadKey);
       const plan = resolveComposerSendPlan({
@@ -2115,7 +2116,7 @@ export function ShellPage() {
         mentions,
         hasAttachments: attachments.length > 0,
       });
-      if (plan.isNoOp) return;
+      if (plan.isNoOp) return false;
       const reroutedToGroup = Boolean(
         plan.rerouteGroupId && plan.rerouteGroupId !== initialGroupTarget,
       );
@@ -2138,10 +2139,13 @@ export function ShellPage() {
           cancelFocusPrompt();
         }
       };
+      // Once a routine or the message is accepted, resending would repeat it.
+      let accepted = false;
       try {
         if (plan.shouldRunRoutines) {
           const sendNonce = newClientNonce();
-          await Promise.all(
+          // Settle every run first so one that was accepted is never repeated.
+          const runs = await Promise.allSettled(
             plan.routineIds.map((routineId) =>
               rpc.routines.testRun({
                 routineId,
@@ -2149,6 +2153,8 @@ export function ShellPage() {
               }),
             ),
           );
+          accepted = runs.some((run) => run.status === "fulfilled");
+          for (const run of runs) if (run.status === "rejected") throw run.reason;
         }
         if (!plan.shouldSend) {
           dropDelayedSetup();
@@ -2160,14 +2166,14 @@ export function ShellPage() {
           setAttachmentNotice(null);
           if (reroutedToGroup && groupTarget) {
             navigate(`/app/g/${groupTarget}`);
-            return;
+            return true;
           }
           if (groupTarget && activeGroupId.current === groupTarget) {
             await refreshGroupThreadRef.current(groupTarget);
           } else if (botTarget && activeBotId.current === botTarget) {
             await refreshThreadRef.current(botTarget);
           }
-          return;
+          return true;
         }
         const artifactIds: string[] = [];
         for (const pending of attachments) {
@@ -2194,6 +2200,7 @@ export function ShellPage() {
             replyToMessageId: reroutedToGroup ? undefined : activeReplyTarget?.id,
             replyQuote: reroutedToGroup ? undefined : (activeReplyQuote ?? undefined),
           });
+          accepted = true;
         } else if (botTarget) {
           const sent = await rpc.threads.send({
             botId: botTarget,
@@ -2204,6 +2211,7 @@ export function ShellPage() {
             replyToMessageId: activeReplyTarget?.id,
             replyQuote: activeReplyQuote ?? undefined,
           });
+          accepted = true;
           if (activeBotId.current === botTarget) {
             updateSnapshot((current) =>
               applyThreadSendReceipt(
@@ -2228,12 +2236,13 @@ export function ShellPage() {
         void refreshBots().catch(() => undefined);
         if (reroutedToGroup && groupTarget) {
           navigate(`/app/g/${groupTarget}`);
-          return;
+          return true;
         }
         if (groupTarget && activeGroupId.current === groupTarget) setAttachmentNotice(null);
         if (botTarget && activeBotId.current === botTarget) setAttachmentNotice(null);
         if (groupTarget) void refreshGroupThreadRef.current(groupTarget).catch(() => undefined);
         else if (botTarget) void refreshThreadRef.current(botTarget).catch(() => undefined);
+        return true;
       } catch (error) {
         if (reroutedToGroup && groupTarget) {
           setSendError(errorText(error, t`Failed to send message`));
@@ -2242,6 +2251,7 @@ export function ShellPage() {
         } else if (botTarget && activeBotId.current === botTarget) {
           setSendError(errorText(error, t`Failed to send message`));
         }
+        return accepted;
       } finally {
         sendingRef.current = false;
         setSending(false);
@@ -5242,7 +5252,7 @@ const QuoteSelectionButton = memo(function QuoteSelectionButton({
   );
 });
 
-const Composer = memo(function Composer({
+export const Composer = memo(function Composer({
   activeName,
   running,
   disabled,
@@ -5283,7 +5293,7 @@ const Composer = memo(function Composer({
   fileInputRef: RefObject<HTMLInputElement | null>;
   onAttachmentPick: (files: FileList | null) => void | Promise<void>;
   onRemoveAttachment: (attachment: PendingAttachment) => void;
-  onSend: (text: string, mentions?: ComposerMention[]) => Promise<void>;
+  onSend: (text: string, mentions?: ComposerMention[]) => Promise<boolean>;
   onStop: () => Promise<void>;
   onVoice?: () => void;
   replyTarget?: ThreadMessage | null;
@@ -5302,6 +5312,9 @@ const Composer = memo(function Composer({
   const [slashQuery, setSlashQuery] = useState<string | null>(null);
   const [selectedSkill, setSelectedSkill] = useState<AgentSkillCatalogEntry | null>(null);
   const [selectedMentions, setSelectedMentions] = useState<ComposerMention[]>([]);
+  const composerEmptyRef = useRef(true);
+  composerEmptyRef.current =
+    draft.length === 0 && selectedSkill === null && selectedMentions.length === 0;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [composerExpanded, setComposerExpanded] = useState(false);
   const attachButtonRef = useRef<HTMLButtonElement>(null);
@@ -5507,7 +5520,7 @@ const Composer = memo(function Composer({
     mentionQuery === null &&
     (slashSkillOptions.length > 0 || slashActionOptions.length > 0);
 
-  function send() {
+  async function send() {
     if (!canSend || sending || disabled) return;
     const text = serializeComposerPrompt(draft, selectedSkill, selectedMentions);
     setDraft("");
@@ -5517,7 +5530,12 @@ const Composer = memo(function Composer({
     setSelectedSkill(null);
     const mentions = selectedMentions;
     setSelectedMentions([]);
-    void onSend(text, mentions);
+    if (await onSend(text, mentions)) return;
+    // Put the failed message back unless a new one was started meanwhile.
+    if (!composerEmptyRef.current) return;
+    setDraft(draft);
+    setSelectedSkill(selectedSkill);
+    setSelectedMentions(mentions);
   }
 
   function handleDragEnter(event: DragEvent<HTMLFieldSetElement>) {
@@ -5990,7 +6008,7 @@ const Composer = memo(function Composer({
               }
               if (action.type === "send") {
                 event.preventDefault();
-                send();
+                void send();
               }
             }}
             disabled={disabled}
