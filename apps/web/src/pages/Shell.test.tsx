@@ -96,7 +96,7 @@ describe("Composer", () => {
     type(textarea, "hello");
     pressEnter(textarea);
     await act(async () => {});
-    expect(onSend).toHaveBeenCalledWith("hello", []);
+    expect(onSend).toHaveBeenCalledWith("hello", [], expect.any(String));
     expect(textarea.value).toBe("");
   });
 
@@ -117,7 +117,7 @@ describe("Composer", () => {
     pressEnter(textarea);
     type(textarea, "hello");
     pressEnter(textarea);
-    expect(onSend).toHaveBeenCalledWith("@Bob hello", [bob]);
+    expect(onSend).toHaveBeenCalledWith("@Bob hello", [bob], expect.any(String));
     expect(textarea.value).toBe("");
     expect(mentionChips()).toEqual([]);
     await act(async () => finishSend(false));
@@ -141,7 +141,7 @@ describe("Composer", () => {
     );
     type(textarea, "the notes");
     pressEnter(textarea);
-    expect(onSend).toHaveBeenCalledWith("/summarize\nthe notes", []);
+    expect(onSend).toHaveBeenCalledWith("/summarize\nthe notes", [], expect.any(String));
     expect(skillChip()).toBeUndefined();
     await act(async () => finishSend(false));
     expect(textarea.value).toBe("the notes");
@@ -161,5 +161,74 @@ describe("Composer", () => {
     type(textarea, "newer");
     await act(async () => finishSend(false));
     expect(textarea.value).toBe("newer");
+  });
+
+  it("does not restore after a newer draft was typed then cleared while sending", async () => {
+    let finishSend = (_sent: boolean) => {};
+    const textarea = renderComposer(
+      () =>
+        new Promise<boolean>((resolve) => {
+          finishSend = resolve;
+        }),
+    );
+    type(textarea, "hello");
+    pressEnter(textarea);
+    type(textarea, "newer");
+    type(textarea, "");
+    await act(async () => finishSend(false));
+    expect(textarea.value).toBe("");
+  });
+
+  it("reuses the nonce on an unchanged retry but renews it after an edit", async () => {
+    const onSend = vi.fn().mockResolvedValue(false);
+    const textarea = renderComposer(onSend);
+    type(textarea, "hello");
+    pressEnter(textarea);
+    await act(async () => {});
+    pressEnter(textarea);
+    await act(async () => {});
+    const firstNonce = onSend.mock.calls[0]?.[2];
+    expect(firstNonce).toEqual(expect.any(String));
+    expect(onSend.mock.calls[1]?.[2]).toBe(firstNonce);
+    type(textarea, "hello edited");
+    type(textarea, "hello");
+    pressEnter(textarea);
+    await act(async () => {});
+    expect(onSend.mock.calls[2]?.[2]).not.toBe(firstNonce);
+  });
+
+  it("does not restore after an attachment was picked while sending", async () => {
+    let finishSend = (_sent: boolean) => {};
+    const textarea = renderComposer(
+      () =>
+        new Promise<boolean>((resolve) => {
+          finishSend = resolve;
+        }),
+    );
+    type(textarea, "hello");
+    pressEnter(textarea);
+    const input = container?.querySelector<HTMLInputElement>('input[type="file"]');
+    if (!input) throw new Error("attachment input not found");
+    Object.defineProperty(input, "files", {
+      value: [new File(["notes"], "notes.txt", { type: "text/plain" })],
+    });
+    act(() => input.dispatchEvent(new Event("change", { bubbles: true })));
+    await act(async () => finishSend(false));
+    expect(textarea.value).toBe("");
+  });
+
+  it("uses a fresh nonce for another message after a successful retry", async () => {
+    const onSend = vi.fn().mockResolvedValueOnce(false).mockResolvedValue(true);
+    const textarea = renderComposer(onSend);
+    type(textarea, "hello");
+    pressEnter(textarea);
+    await act(async () => {});
+    pressEnter(textarea);
+    await act(async () => {});
+    type(textarea, "hello");
+    pressEnter(textarea);
+    await act(async () => {});
+    expect(onSend.mock.calls[1]?.[2]).toBe(onSend.mock.calls[0]?.[2]);
+    expect(onSend.mock.calls[2]?.[2]).not.toBe(onSend.mock.calls[0]?.[2]);
   });
 });

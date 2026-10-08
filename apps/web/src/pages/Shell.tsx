@@ -2103,9 +2103,9 @@ export function ShellPage() {
     revokePendingAttachmentPreviews([attachment]);
     setPendingAttachments((current) => current.filter((item) => item.id !== attachment.id));
   }, []);
-  /** Resolves false when nothing reached the server, so the composer can restore its draft. */
+  /** Resolves false when no acceptance was confirmed, so the composer can restore its draft. */
   const sendMessage = useCallback(
-    async (text: string, mentions: ComposerMention[] = []) => {
+    async (text: string, mentions: ComposerMention[], clientNonce: string) => {
       const initialBotTarget = activeBotId.current;
       const initialGroupTarget = activeGroupId.current;
       if ((!initialBotTarget && !initialGroupTarget) || sending) return false;
@@ -2139,17 +2139,16 @@ export function ShellPage() {
           cancelFocusPrompt();
         }
       };
-      // Once a routine or the message is accepted, resending would repeat it.
+      // Keep the draft cleared once any part of the submission is confirmed accepted.
       let accepted = false;
       try {
         if (plan.shouldRunRoutines) {
-          const sendNonce = newClientNonce();
           // Settle every run first so one that was accepted is never repeated.
           const runs = await Promise.allSettled(
             plan.routineIds.map((routineId) =>
               rpc.routines.testRun({
                 routineId,
-                clientNonce: `routine-mention:${sendNonce}:${routineId}`,
+                clientNonce: `routine-mention:${clientNonce}:${routineId}`,
               }),
             ),
           );
@@ -2189,7 +2188,6 @@ export function ShellPage() {
           );
           artifactIds.push(artifact.id);
         }
-        const clientNonce = newClientNonce();
         if (groupTarget) {
           await rpc.threads.send({
             groupId: groupTarget,
@@ -5293,7 +5291,7 @@ export const Composer = memo(function Composer({
   fileInputRef: RefObject<HTMLInputElement | null>;
   onAttachmentPick: (files: FileList | null) => void | Promise<void>;
   onRemoveAttachment: (attachment: PendingAttachment) => void;
-  onSend: (text: string, mentions?: ComposerMention[]) => Promise<boolean>;
+  onSend: (text: string, mentions: ComposerMention[], clientNonce: string) => Promise<boolean>;
   onStop: () => Promise<void>;
   onVoice?: () => void;
   replyTarget?: ThreadMessage | null;
@@ -5312,9 +5310,8 @@ export const Composer = memo(function Composer({
   const [slashQuery, setSlashQuery] = useState<string | null>(null);
   const [selectedSkill, setSelectedSkill] = useState<AgentSkillCatalogEntry | null>(null);
   const [selectedMentions, setSelectedMentions] = useState<ComposerMention[]>([]);
-  const composerEmptyRef = useRef(true);
-  composerEmptyRef.current =
-    draft.length === 0 && selectedSkill === null && selectedMentions.length === 0;
+  const editRevision = useRef(0);
+  const retryNonce = useRef<string | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [composerExpanded, setComposerExpanded] = useState(false);
   const attachButtonRef = useRef<HTMLButtonElement>(null);
@@ -5426,7 +5423,19 @@ export const Composer = memo(function Composer({
     return () => observer.disconnect();
   }, [draft]);
 
+  function markEdited() {
+    editRevision.current += 1;
+    retryNonce.current = null;
+  }
+
+  function pickAttachments(files: FileList | null) {
+    if (!files?.length) return;
+    markEdited();
+    void onAttachmentPick(files);
+  }
+
   function updateDraft(value: string) {
+    markEdited();
     setDraft(value);
     const mentionMatch = /(?:^|\s)@([\w-]*)$/.exec(value);
     setMentionQuery(mentionMatch ? (mentionMatch[1] ?? "") : null);
@@ -5442,6 +5451,7 @@ export const Composer = memo(function Composer({
   }
 
   function insertMention(mention: ComposerMention) {
+    markEdited();
     setDraft((current) => current.replace(/@([\w-]*)$/, ""));
     setMentionQuery(null);
     setMentionHighlightIndex(0);
@@ -5454,18 +5464,21 @@ export const Composer = memo(function Composer({
   }
 
   function insertSkill(skill: AgentSkillCatalogEntry) {
+    markEdited();
     setSelectedSkill(skill);
     setDraft("");
     setSlashQuery(null);
   }
 
   function runSlashAction(action: SlashActionId) {
+    markEdited();
     setDraft("");
     setSlashQuery(null);
     onSlashAction?.(action);
   }
 
   function removeLastChip() {
+    markEdited();
     if (selectedMentions.length > 0) {
       setSelectedMentions((current) => current.slice(0, -1));
       return;
@@ -5522,6 +5535,9 @@ export const Composer = memo(function Composer({
 
   async function send() {
     if (!canSend || sending || disabled) return;
+    const revision = editRevision.current;
+    const clientNonce = retryNonce.current ?? newClientNonce();
+    retryNonce.current = null;
     const text = serializeComposerPrompt(draft, selectedSkill, selectedMentions);
     setDraft("");
     setMentionQuery(null);
@@ -5530,9 +5546,10 @@ export const Composer = memo(function Composer({
     setSelectedSkill(null);
     const mentions = selectedMentions;
     setSelectedMentions([]);
-    if (await onSend(text, mentions)) return;
-    // Put the failed message back unless a new one was started meanwhile.
-    if (!composerEmptyRef.current) return;
+    if (await onSend(text, mentions, clientNonce)) return;
+    // Restore only an untouched draft, retaining its nonce for an unchanged retry.
+    if (editRevision.current !== revision) return;
+    retryNonce.current = clientNonce;
     setDraft(draft);
     setSelectedSkill(selectedSkill);
     setSelectedMentions(mentions);
@@ -5581,7 +5598,7 @@ export const Composer = memo(function Composer({
     event.preventDefault();
     dragDepth.current = 0;
     setDraggingFiles(false);
-    if (!disabled) void onAttachmentPick(dataTransfer.files);
+    if (!disabled) pickAttachments(dataTransfer.files);
   }
 
   function handlePaste(event: ClipboardEvent<HTMLTextAreaElement>) {
@@ -5589,7 +5606,7 @@ export const Composer = memo(function Composer({
     // Only intercept real FileList pastes; leave text-only / empty-files native.
     if (disabled || !clipboardData || !isFilePaste(clipboardData)) return;
     event.preventDefault();
-    void onAttachmentPick(clipboardData.files);
+    pickAttachments(clipboardData.files);
     const text = clipboardData.getData("text/plain");
     if (!text) return;
     const textarea = event.currentTarget;
@@ -5792,7 +5809,10 @@ export const Composer = memo(function Composer({
               <button
                 type="button"
                 aria-label={t`Remove ${attachment.file.name}`}
-                onClick={() => onRemoveAttachment(attachment)}
+                onClick={() => {
+                  markEdited();
+                  onRemoveAttachment(attachment);
+                }}
                 className="text-muted-foreground hover:text-foreground"
               >
                 <X size={13} strokeWidth={2} />
@@ -5899,7 +5919,7 @@ export const Composer = memo(function Composer({
           multiple
           accept={ATTACHMENT_ACCEPT}
           className="hidden"
-          onChange={(event) => void onAttachmentPick(event.target.files)}
+          onChange={(event) => pickAttachments(event.target.files)}
         />
         <Button
           ref={attachButtonRef}
@@ -5932,7 +5952,10 @@ export const Composer = memo(function Composer({
               <button
                 type="button"
                 aria-label={t`Remove skill ${selectedSkill.name}`}
-                onClick={() => setSelectedSkill(null)}
+                onClick={() => {
+                  markEdited();
+                  setSelectedSkill(null);
+                }}
                 className="text-muted-foreground hover:text-foreground"
               >
                 <X size={12} strokeWidth={2} />
@@ -5953,13 +5976,14 @@ export const Composer = memo(function Composer({
               <button
                 type="button"
                 aria-label={t`Remove mention ${mention.name}`}
-                onClick={() =>
+                onClick={() => {
+                  markEdited();
                   setSelectedMentions((current) =>
                     current.filter(
                       (selected) => mentionChipKey(selected) !== mentionChipKey(mention),
                     ),
-                  )
-                }
+                  );
+                }}
                 className="text-muted-foreground hover:text-foreground"
               >
                 <X size={12} strokeWidth={2} />
