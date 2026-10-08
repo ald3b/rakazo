@@ -5669,10 +5669,8 @@ export function createRouter(deps: RouterDeps) {
           }),
           (async () => {
             const exported: ExportManifest["files"] = [];
-            // On a Team Computer the bot's own files are its folder, not the shared home.
             const directory = resolveBotWorkspacePath(computerMode, bot.id, "");
-            // Hidden entries at the top of the bot's folder are machine state: caches,
-            // browser profiles, shell history and desktop config.
+            // Root dotfiles contain computer state rather than portable bot files.
             for await (const file of deps.home.exportHome(homeKey, exportContext, {
               directory,
               skipHidden: true,

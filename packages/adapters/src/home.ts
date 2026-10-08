@@ -100,15 +100,13 @@ export class LocalAgentHomeStore implements AgentHomeStore {
     await this.waitForBotWrite(botId);
     await this.recoverInterruptedCommit(botId);
     const dir = this.botDir(botId);
-    await mkdir(dir, { recursive: true });
-    const expected = safeJoin(await realpath(dir), directory);
-    // Containment is checked against the directory itself, so links out of it, or a linked
-    // directory, cannot pull in a sibling's files. A missing directory has none; other
-    // failures must not pass for an empty export.
-    const root = await realpath(expected).catch((error: unknown) => {
-      if (isMissing(error) || (error as NodeJS.ErrnoException).code === "ELOOP") return null;
-      throw error;
-    });
+    // Resolve the configured store first so a linked home cannot redefine containment.
+    const storeRoot = await resolveExportPath(this.root);
+    if (!storeRoot) return;
+    const home = await resolveExportPath(dir);
+    if (home !== safeJoin(storeRoot, `homes/${botId}`)) return;
+    const expected = safeJoin(home, directory);
+    const root = await resolveExportPath(expected);
     if (root !== expected) return;
     yield* walkFiles(root, root, skipHidden);
   }
@@ -277,14 +275,16 @@ async function containedTarget(root: string, candidate: string) {
   return resolvedTarget;
 }
 
-function assertContained(root: string, candidate: string) {
+function isContained(root: string, candidate: string) {
   const relative = path.relative(root, candidate);
-  if (
+  return (
     relative === "" ||
     (!path.isAbsolute(relative) && !relative.startsWith(`..${path.sep}`) && relative !== "..")
-  )
-    return;
-  throw new Error("Path escapes the bot home");
+  );
+}
+
+function assertContained(root: string, candidate: string) {
+  if (!isContained(root, candidate)) throw new Error("Path escapes the bot home");
 }
 
 function isHiddenTopEntry(root: string, candidate: string) {
@@ -302,6 +302,20 @@ async function pathExists(target: string) {
   } catch {
     return false;
   }
+}
+
+async function resolveExportPath(candidate: string) {
+  return realpath(candidate).catch((error: unknown) => {
+    if (isMissing(error) || (error as NodeJS.ErrnoException).code === "ELOOP") return null;
+    throw error;
+  });
+}
+
+async function exportTarget(root: string, candidate: string, skipHidden: boolean) {
+  const resolved = await resolveExportPath(candidate);
+  if (!resolved || !isContained(root, resolved)) return null;
+  if (skipHidden && isHiddenTopEntry(root, resolved)) return null;
+  return resolved;
 }
 
 async function traversalTarget(root: string, candidate: string) {
@@ -362,20 +376,15 @@ async function* walkFiles(
   outputPath = "",
   visited = new Set<string>(),
 ): AsyncGenerator<PortableFile> {
-  const resolvedCurrent = await traversalTarget(root, current).catch(() => null);
+  const resolvedCurrent = await exportTarget(root, current, skipHidden);
   if (!resolvedCurrent || visited.has(resolvedCurrent)) return;
   visited.add(resolvedCurrent);
-  const entries = await readdir(resolvedCurrent, { withFileTypes: true }).catch(() => []);
+  const entries = await readdir(resolvedCurrent, { withFileTypes: true });
   for (const entry of entries) {
-    const full = await traversalTarget(root, path.join(resolvedCurrent, entry.name)).catch(
-      () => null,
-    );
     const portablePath = path.posix.join(outputPath, entry.name);
-    // Checked on the exported name and the resolved path, so neither a hidden link nor a
-    // visible link to a hidden entry is exported.
-    if (!full || (skipHidden && (portablePath.startsWith(".") || isHiddenTopEntry(root, full)))) {
-      continue;
-    }
+    if (skipHidden && portablePath.startsWith(".")) continue;
+    const full = await exportTarget(root, path.join(resolvedCurrent, entry.name), skipHidden);
+    if (!full) continue;
     const info = await stat(full);
     if (info.isDirectory()) {
       yield* walkFiles(root, full, skipHidden, portablePath, visited);
