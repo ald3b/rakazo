@@ -174,8 +174,8 @@ import {
   subscribeResponseStreaming,
 } from "../lib/response-streaming";
 import { selectableTextFromMarkdown } from "../lib/selectable-text";
-import type { SendAttempt } from "../lib/thread-feedback";
-import { deliverSend, useThreadFeedback } from "../lib/thread-feedback";
+import type { ComposerSnapshot, SendAttempt } from "../lib/thread-feedback";
+import { deliverSend, settleComposer, useThreadFeedback } from "../lib/thread-feedback";
 import { ThreadJumpAnchor } from "../lib/thread-jump";
 import { ThreadReadOnlyContext } from "../lib/thread-read-only";
 import type { ThreadScrollAction, ThreadScrollState } from "../lib/thread-scroll";
@@ -537,6 +537,16 @@ function Thread() {
   const visibleMessages = reactionView.visibleMessages;
   const latestMessageId = visibleMessages.at(-1)?.id ?? null;
   const activePendingAttachments = attachmentsForThread(pendingAttachments, threadKey);
+  const composerSnapshot: ComposerSnapshot = {
+    promptText: serializeComposerPrompt(draft, selectedSkill, selectedMentions),
+    mentions: selectedMentions,
+    skill: selectedSkill,
+    replyTargetId: replyTarget?.id,
+    replyQuote,
+    attachmentIds: activePendingAttachments.map((attachment) => attachment.id),
+  };
+  const composerRef = useRef({ snapshot: composerSnapshot, pendingAttachments });
+  composerRef.current = { snapshot: composerSnapshot, pendingAttachments };
   const composerMentionTargets = useMemo(
     () =>
       buildComposerMentionOptions({
@@ -1433,10 +1443,6 @@ function Thread() {
     if (selectedSkill) setSelectedSkill(null);
   }
 
-  function serializeComposerPromptText(): string {
-    return serializeComposerPrompt(draft, selectedSkill, selectedMentions);
-  }
-
   function runSlashAction(action: SlashActionId) {
     setDraft("");
     setSlashQuery(null);
@@ -1474,9 +1480,10 @@ function Thread() {
     const initialGroupTarget = groupId;
     if ((!initialBotTarget && !initialGroupTarget) || sending) return;
     const originThreadKey = initialGroupTarget ?? initialBotTarget;
+    const submitted = composerSnapshot;
     const attachments = attachmentsForThread(pendingAttachments, originThreadKey);
     const plan = resolveComposerSendPlan({
-      text: serializeComposerPromptText(),
+      text: submitted.promptText,
       mentions: selectedMentions,
       hasAttachments: attachments.length > 0,
     });
@@ -1488,7 +1495,7 @@ function Thread() {
     const botTarget = reroutedToGroup ? undefined : initialBotTarget;
     const attempt = feedback.sendAttempt({
       originThreadKey: originThreadKey!,
-      displayText: serializeComposerPromptText(),
+      displayText: submitted.promptText,
       replyPreview: replyQuote ?? (replyTarget ? previewMessageText(replyTarget) : null),
       initialBotTarget,
       botTarget,
@@ -1501,9 +1508,13 @@ function Thread() {
     });
     await deliver(attempt, () => {
       if (originThreadKey !== (activeGroupId.current ?? activeBotId.current)) return;
-      setPendingAttachments((current) =>
-        current.filter((attachment) => attachment.threadKey !== originThreadKey),
+      const settled = settleComposer(
+        submitted,
+        composerRef.current.snapshot,
+        composerRef.current.pendingAttachments,
       );
+      setPendingAttachments(settled.pendingAttachments);
+      if (!settled.clearComposer) return;
       setDraft("");
       setMentionQuery(null);
       setSlashQuery(null);

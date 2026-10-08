@@ -8,8 +8,8 @@ import { createRoot } from "react-dom/client";
 import { ActionSheetIOS, Alert, Platform } from "react-native";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FailedSendBubble } from "../components/failed-send-bubble";
-import type { SendPayload } from "./thread-feedback";
-import { deliverSend, useThreadFeedback } from "./thread-feedback";
+import type { ComposerSnapshot, SendPayload } from "./thread-feedback";
+import { deliverSend, settleComposer, useThreadFeedback } from "./thread-feedback";
 
 vi.mock("react-native", () => ({
   View: ({ children }: { children?: ReactNode }) => createElement("div", null, children),
@@ -20,12 +20,14 @@ vi.mock("react-native", () => ({
     onPress,
     disabled,
     accessibilityLabel,
+    accessibilityHint,
     onLongPress,
   }: {
     children?: ReactNode;
     onPress: () => void;
     disabled: boolean;
     accessibilityLabel: string;
+    accessibilityHint?: string;
     onLongPress: () => void;
   }) =>
     createElement(
@@ -36,6 +38,7 @@ vi.mock("react-native", () => ({
         onContextMenu: onLongPress,
         disabled,
         "aria-label": accessibilityLabel,
+        "aria-description": accessibilityHint,
       },
       children,
     ),
@@ -79,6 +82,46 @@ function payload(text = "Hello"): SendPayload {
   };
 }
 
+describe("composer settlement", () => {
+  const submitted: ComposerSnapshot = {
+    promptText: "Hello",
+    mentions: [{ kind: "bot", id: "bot-1", name: "Bot" }],
+    skill: null,
+    replyTargetId: "reply-1",
+    replyQuote: "Quoted message",
+    attachmentIds: ["attachment-1"],
+  };
+  const attachment = { id: "attachment-1" };
+  const otherThreadAttachment = { id: "other-thread-attachment" };
+
+  it("clears an unchanged composition and removes only its submitted attachments", () => {
+    expect(
+      settleComposer(submitted, structuredClone(submitted), [attachment, otherThreadAttachment]),
+    ).toEqual({ clearComposer: true, pendingAttachments: [otherThreadAttachment] });
+  });
+
+  it.each<Partial<ComposerSnapshot>>([
+    { promptText: "Edited" },
+    { mentions: [{ kind: "bot", id: "bot-2", name: "Bot" }] },
+    { skill: { id: "skill-1", name: "Skill", description: "", source: "user", readOnly: false } },
+    { replyTargetId: "reply-2" },
+    { replyQuote: "Edited quote" },
+    { attachmentIds: ["attachment-1", "attachment-2"] },
+    { attachmentIds: [] },
+  ])("keeps an edited composition and removes only submitted attachments: %j", (edit) => {
+    const addedAttachment = { id: "attachment-2" };
+    const current = { ...submitted, ...edit };
+    const before = structuredClone(current);
+    expect(
+      settleComposer(submitted, current, [attachment, addedAttachment, otherThreadAttachment]),
+    ).toEqual({
+      clearComposer: false,
+      pendingAttachments: [addedAttachment, otherThreadAttachment],
+    });
+    expect(current).toEqual(before);
+  });
+});
+
 describe("thread feedback", () => {
   let root: Root;
   let container: HTMLDivElement;
@@ -107,12 +150,15 @@ describe("thread feedback", () => {
     expect(container.textContent).toContain("photo.png");
     expect(container.textContent).toContain("Quoted message");
     const button = container.querySelector("button")!;
-    expect(button.getAttribute("aria-label")).toBe("Not sent · Tap to retry");
+    expect(button.getAttribute("aria-label")).toBe("Hello, photo.png. Not sent · Tap to retry");
+    expect(button.getAttribute("aria-description")).toBe("Long press to delete");
     act(() => button.click());
     expect(retry).toHaveBeenCalledOnce();
     act(() => feedback.start(attempt));
     expect(button.disabled).toBe(true);
     expect(container.textContent).toContain("Sending…");
+    expect(button.getAttribute("aria-label")).toBe("Hello, photo.png. Sending…");
+    expect(button.hasAttribute("aria-description")).toBe(false);
     expect(feedback.start(attempt)).toBe(false);
     act(() => feedback.sendFailed(attempt));
     expect(button.disabled).toBe(false);

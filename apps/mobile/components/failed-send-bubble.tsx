@@ -17,6 +17,9 @@ export function FailedSendBubble({
   const tokens = useMobileTokens();
   const { payload, sending } = attempt;
   const caption = sending ? t("Sending…") : t("Not sent · Tap to retry");
+  const messageLabel = [payload.displayText, ...payload.attachments.map(({ name }) => name)]
+    .filter(Boolean)
+    .join(", ");
   const color = sending ? tokens.mutedForeground : tokens.destructive;
 
   function showActions() {
@@ -45,7 +48,8 @@ export function FailedSendBubble({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={caption}
+      accessibilityLabel={messageLabel ? `${messageLabel}. ${caption}` : caption}
+      accessibilityHint={sending ? undefined : t("Long press to delete")}
       accessibilityState={{ disabled: sending }}
       disabled={sending}
       onPress={onRetry}

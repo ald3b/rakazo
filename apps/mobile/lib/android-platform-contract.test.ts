@@ -271,7 +271,7 @@ describe("Android mobile platform contract", () => {
     );
   });
 
-  it("clears only the origin composer after first delivery settles and preserves send errors", () => {
+  it("clears only the unchanged origin composer after delivery settles and preserves send errors", () => {
     const thread = readFileSync(resolve(mobileRoot, "app/thread.tsx"), "utf8");
     const send = thread.slice(
       thread.indexOf("async function send()"),
@@ -282,9 +282,11 @@ describe("Android mobile platform contract", () => {
     expect(send.slice(0, firstDelivery)).not.toContain('setDraft("")');
     const clear = send.slice(firstDelivery, send.indexOf("async function deliver"));
     expect(clear).toMatch(
-      /if \(originThreadKey !== \(activeGroupId.current \?\? activeBotId.current\)\) return;\s*setPendingAttachments/,
+      /if \(originThreadKey !== \(activeGroupId.current \?\? activeBotId.current\)\) return;\s*const settled = settleComposer/,
     );
-    expect(clear).toContain('setDraft("")');
+    expect(clear).toContain("composerRef.current.snapshot");
+    expect(clear).toContain("composerRef.current.pendingAttachments");
+    expect(clear).toMatch(/if \(!settled.clearComposer\) return;\s*setDraft\(""\)/);
     expect(send).toMatch(/finally \{\s*onSettled\?\.\(\);/);
     expect(send).toContain('attempt.error = errorText(err, t("Failed to send message"))');
     expect(thread).toContain("onRetry={() => void deliver(attempt)}");

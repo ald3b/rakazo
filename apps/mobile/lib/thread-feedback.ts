@@ -1,7 +1,30 @@
-import type { resolveComposerSendPlan } from "@rakazo/core";
+import type { AgentSkillCatalogEntry } from "@rakazo/contracts";
+import type { ComposerMention, resolveComposerSendPlan } from "@rakazo/core";
 import { useEffect, useRef, useState } from "react";
 import type { rpc } from "./api";
 import type { PickedAttachment } from "./pick-attachments";
+
+export type ComposerSnapshot = {
+  promptText: string;
+  mentions: ComposerMention[];
+  skill: AgentSkillCatalogEntry | null;
+  replyTargetId?: string;
+  replyQuote: string | null;
+  attachmentIds: string[];
+};
+
+export function settleComposer<T extends { id: string }>(
+  submitted: ComposerSnapshot,
+  current: ComposerSnapshot,
+  pendingAttachments: T[],
+) {
+  return {
+    clearComposer: JSON.stringify(current) === JSON.stringify(submitted),
+    pendingAttachments: pendingAttachments.filter(
+      (attachment) => !submitted.attachmentIds.includes(attachment.id),
+    ),
+  };
+}
 
 export type SendPayload = {
   originThreadKey: string;
