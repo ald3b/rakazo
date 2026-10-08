@@ -69,6 +69,7 @@ import { registerPushToken } from "../lib/push";
 import { querySpaceSearch } from "../lib/search";
 import { mobileSearchDestination } from "../lib/search-destination";
 import { dedupeSearchHits, searchHitListKey, searchHitRowPreview } from "../lib/search-list";
+import { toast } from "../lib/toast";
 import { errorText } from "../lib/user-error";
 
 const FALLBACK_COLOR = botColors[3];
@@ -77,7 +78,7 @@ type InboxItem = InboxSpaceItem | { type: "search"; hit: SearchHit };
 
 async function openMobileSpace(spaceId: string | undefined, open: () => void) {
   if (spaceId && !(await selectSpace(spaceId))) {
-    Alert.alert(t("Could not switch spaces"), t("Try again."));
+    toast.show(t("Could not switch spaces"), { variant: "error", detail: t("Try again.") });
     return;
   }
   open();
@@ -359,7 +360,7 @@ export default function Home() {
     } catch (err) {
       const message = errorText(err, t("Could not switch spaces"));
       setError(message);
-      Alert.alert(message, t("Try again."));
+      toast.show(message, { variant: "error", detail: t("Try again.") });
     } finally {
       spaceActionRef.current.busy = false;
       setSpaceBusy(false);
@@ -390,7 +391,10 @@ export default function Home() {
         setError(t("Could not switch spaces"));
       }
     } catch (err) {
-      Alert.alert(t("Could not delete space"), errorText(err, t("Try again.")));
+      toast.show(t("Could not delete space"), {
+        variant: "error",
+        detail: errorText(err, t("Try again.")),
+      });
     } finally {
       spaceActionRef.current.busy = false;
       setSpaceBusy(false);

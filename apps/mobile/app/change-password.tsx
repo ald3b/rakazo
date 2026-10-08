@@ -1,7 +1,6 @@
 import { Stack, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -16,6 +15,7 @@ import { changePassword } from "../lib/api";
 import { mobileTokens } from "../lib/appearance";
 import { useI18n } from "../lib/i18n";
 import { native, useThemedStyles } from "../lib/native";
+import { toast } from "../lib/toast";
 import { errorText } from "../lib/user-error";
 
 export default function ChangePassword() {
@@ -58,7 +58,7 @@ export default function ChangePassword() {
       setNewPassword("");
       setConfirmation("");
       close();
-      Alert.alert(t("Password updated"));
+      toast.show(t("Password updated"), { variant: "success" });
     } catch (cause) {
       setError(errorText(cause, t("Could not change password")));
     } finally {

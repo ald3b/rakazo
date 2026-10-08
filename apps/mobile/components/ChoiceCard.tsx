@@ -1,7 +1,7 @@
 import type { MessageBlock } from "@rakazo/contracts";
 import { useRef, useState } from "react";
 import type { ViewProps } from "react-native";
-import { Alert, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { rpc } from "../lib/api";
 import { useI18n } from "../lib/i18n";
 import {
@@ -11,6 +11,7 @@ import {
 } from "../lib/message-presentation";
 import { native, useMobileTokens } from "../lib/native";
 import { useThreadReadOnly } from "../lib/thread-read-only";
+import { toast } from "../lib/toast";
 import { errorText } from "../lib/user-error";
 import { NativeSymbol } from "./native-symbol";
 
@@ -86,7 +87,10 @@ export function ChoiceCard({
       setLocalAnswerId(optionId);
       if (optionId === DISMISSED_CHOICE_ANSWER_ID) onDismissed?.();
     } catch (reason) {
-      Alert.alert(t("Could not complete action"), errorText(reason, t("Please try again.")));
+      toast.show(t("Could not complete action"), {
+        variant: "error",
+        detail: errorText(reason, t("Please try again.")),
+      });
     } finally {
       pending.current = false;
       setBusy(false);

@@ -171,10 +171,12 @@ import {
   subscribeResponseStreaming,
 } from "../lib/response-streaming";
 import { selectableTextFromMarkdown } from "../lib/selectable-text";
+import { useThreadFeedback } from "../lib/thread-feedback";
 import { ThreadJumpAnchor } from "../lib/thread-jump";
 import { ThreadReadOnlyContext } from "../lib/thread-read-only";
 import type { ThreadScrollAction, ThreadScrollState } from "../lib/thread-scroll";
 import { ThreadScrollBehavior } from "../lib/thread-scroll";
+import { toast } from "../lib/toast";
 import { errorText } from "../lib/user-error";
 import { speakQueue, speakText } from "../lib/voice";
 import { probeProviderTranscribe, resolveVoiceCallPlan } from "../lib/voice-call-entry";
@@ -498,7 +500,8 @@ function Thread() {
   const [quoteTarget, setQuoteTarget] = useState<MobileMessage | null>(null);
   const [attachmentNotice, setAttachmentNotice] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const feedback = useThreadFeedback(threadKey, newClientNonce);
+  const { error, setError } = feedback;
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [selectableText, setSelectableText] = useState<string | null>(null);
   const [loadingNewer, setLoadingNewer] = useState(false);
@@ -869,7 +872,10 @@ function Thread() {
       await restoreArchivedBot(botId);
       router.setParams({ readOnly: "0" });
     } catch (cause) {
-      Alert.alert(t("Could not restore bot"), errorText(cause, t("Try again.")));
+      toast.show(t("Could not restore bot"), {
+        variant: "error",
+        detail: errorText(cause, t("Try again.")),
+      });
     } finally {
       setRestoring(false);
     }
@@ -894,7 +900,7 @@ function Thread() {
             : snapRef.current,
         );
       })
-      .catch((err: unknown) => setError(errorText(err, t("Could not clear conversation"))));
+      .catch((err: unknown) => feedback.actionFailed(err, t("Could not clear conversation")));
   }
 
   const botActions = [
@@ -935,7 +941,10 @@ function Thread() {
         void rpc("bots/archive", { botId })
           .then(leaveBot)
           .catch((error) =>
-            Alert.alert(t("Could not archive bot"), errorText(error, t("Try again."))),
+            toast.show(t("Could not archive bot"), {
+              variant: "error",
+              detail: errorText(error, t("Try again.")),
+            }),
           ),
     },
     {
@@ -995,6 +1004,7 @@ function Thread() {
       commitSnap(
         mergeMobileSnapshot(snapRef.current, next, expandedHistoryThread.current === next.threadId),
       );
+      feedback.refreshed();
     }
     return result.snapshot ?? undefined;
   }
@@ -1141,7 +1151,7 @@ function Thread() {
       commitSnap(prependMobileMessagePage(snapRef.current, page));
     } catch (err) {
       loadingOlderContent.current = false;
-      setError(errorText(err, t("Could not load earlier messages")));
+      feedback.actionFailed(err, t("Could not load earlier messages"));
     } finally {
       setLoadingOlder(false);
     }
@@ -1387,7 +1397,6 @@ function Thread() {
     setReplyQuote(null);
     setQuoteTarget(null);
     setAttachmentNotice(null);
-    setError(null);
   }, [threadKey]);
 
   function updateDraft(value: string) {
@@ -1476,6 +1485,18 @@ function Thread() {
     const groupTarget = plan.rerouteGroupId ?? initialGroupTarget;
     const botTarget = reroutedToGroup ? undefined : initialBotTarget;
     const trimmed = plan.trimmed;
+    const attempt = feedback.sendAttempt(
+      JSON.stringify([
+        groupTarget,
+        botTarget,
+        trimmed,
+        plan.mentionPayload,
+        plan.routineIds,
+        attachments.map((attachment) => attachment.id),
+        replyTarget?.id,
+        replyQuote,
+      ]),
+    );
     const dropDelayedSetup = () => {
       // Only after successful engagement so a failed upload/send keeps the setup card.
       // Covers group-mention reroute while the bot thread stays mounted underneath.
@@ -1485,12 +1506,11 @@ function Thread() {
     setError(null);
     try {
       if (plan.shouldRunRoutines) {
-        const sendNonce = newClientNonce();
         await Promise.all(
           plan.routineIds.map((routineId) =>
             rpc("routines/testRun", {
               routineId,
-              clientNonce: `routine-mention:${sendNonce}:${routineId}`,
+              clientNonce: `routine-mention:${attempt.clientNonce}:${routineId}`,
             }),
           ),
         );
@@ -1528,15 +1548,20 @@ function Thread() {
       }
       const artifactIds: string[] = [];
       for (const pending of attachments) {
-        const artifact = await rpc<{ id: string }>("artifacts/create", {
-          ...(groupTarget ? { groupId: groupTarget } : { botId: botTarget! }),
-          name: pending.name,
-          mimeType: pending.mimeType,
-          contentBase64: pending.contentBase64,
-        });
-        artifactIds.push(artifact.id);
+        const uploaded =
+          attempt.artifactIds.get(pending.id) ??
+          (
+            await rpc<{ id: string }>("artifacts/create", {
+              ...(groupTarget ? { groupId: groupTarget } : { botId: botTarget! }),
+              name: pending.name,
+              mimeType: pending.mimeType,
+              contentBase64: pending.contentBase64,
+            })
+          ).id;
+        attempt.artifactIds.set(pending.id, uploaded);
+        artifactIds.push(uploaded);
       }
-      const clientNonce = newClientNonce();
+      const clientNonce = attempt.clientNonce;
       await rpc(
         "threads/send",
         groupTarget
@@ -1559,6 +1584,7 @@ function Thread() {
               replyQuote: replyQuote ?? undefined,
             },
       );
+      feedback.sent();
       dropDelayedSetup();
       void loadSessionToken()
         .then((token) => resumeLiveNotifications(currentApiBase(), token, selectedSpaceId() ?? ""))
@@ -1580,15 +1606,16 @@ function Thread() {
         void refresh().catch(() => undefined);
       }
     } catch (err) {
-      if (reroutedToGroup && groupTarget) {
-        setError(errorText(err, t("Failed to send message")));
-      } else if (isCurrentTarget(botTarget, groupTarget)) {
-        setError(errorText(err, t("Failed to send message")));
+      if ((reroutedToGroup && groupTarget) || isCurrentTarget(botTarget, groupTarget)) {
+        feedback.sendFailed(attempt, err, () => void sendRef.current());
       }
     } finally {
       setSending(false);
     }
   }
+
+  const sendRef = useRef(send);
+  sendRef.current = send;
 
   async function stop() {
     if (readOnly) return;
@@ -1604,7 +1631,7 @@ function Thread() {
       );
     } catch (err) {
       if (isCurrentTarget(targetBotId, targetGroupId)) {
-        setError(errorText(err, t("Failed to stop work")));
+        feedback.actionFailed(err, t("Failed to stop work"));
       }
       setSending(false);
       return;
@@ -1675,10 +1702,17 @@ function Thread() {
       void speakQueue(items)
         .then((spoken) => {
           if (!spoken)
-            Alert.alert(t("Could not speak"), t("Add a voice provider in Voice settings."));
+            toast.show(t("Could not speak"), {
+              variant: "error",
+              detail: t("Add a voice provider in Voice settings."),
+              action: { label: t("Open Voice"), run: () => router.push("/voice") },
+            });
         })
         .catch((err: unknown) =>
-          Alert.alert(t("Could not speak"), errorText(err, t("Try again."))),
+          toast.show(t("Could not speak"), {
+            variant: "error",
+            detail: errorText(err, t("Try again.")),
+          }),
         );
     },
     [botId, displayName, mentionBots, snap?.members, visibleMessages],
@@ -1876,7 +1910,7 @@ function Thread() {
       });
     } catch (err) {
       if (!isCurrentTarget(targetBotId, targetGroupId)) return;
-      setError(errorText(err, t("Could not update reaction")));
+      feedback.actionFailed(err, t("Could not update reaction"));
     }
   }
 
@@ -3750,7 +3784,10 @@ const MessageBubble = memo(function MessageBubble({
                         attachment.name ?? t("Image"),
                         attachment.mimeType ?? "image/png",
                       ).catch((err) =>
-                        Alert.alert(t("Could not open image"), errorText(err, t("Try again."))),
+                        toast.show(t("Could not open image"), {
+                          variant: "error",
+                          detail: errorText(err, t("Try again.")),
+                        }),
                       )
                     : undefined
                 }
@@ -3783,7 +3820,10 @@ const MessageBubble = memo(function MessageBubble({
                         attachment.name ?? t("File"),
                         attachment.mimeType ?? "text/plain",
                       ).catch((err) =>
-                        Alert.alert(t("Could not open file"), errorText(err, t("Try again."))),
+                        toast.show(t("Could not open file"), {
+                          variant: "error",
+                          detail: errorText(err, t("Try again.")),
+                        }),
                       )
                   : undefined
               }

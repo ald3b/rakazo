@@ -32,6 +32,7 @@ import { t, useI18n } from "../lib/i18n";
 import { presentMessageActionSheet } from "../lib/message-action-sheet";
 import { native, useResolvedAppearance, useThemedStyles } from "../lib/native";
 import { iosAtLeast } from "../lib/native-controls";
+import { toast } from "../lib/toast";
 import { errorText } from "../lib/user-error";
 
 type PreviewContent =
@@ -127,7 +128,10 @@ export default function ArtifactDetailScreen() {
             void removeArtifact(artifactId)
               .then(() => router.back())
               .catch((error: unknown) =>
-                Alert.alert(t("Could not delete this artifact"), errorText(error, t("Try again."))),
+                toast.show(t("Could not delete this artifact"), {
+                  variant: "error",
+                  detail: errorText(error, t("Try again.")),
+                }),
               ),
         },
       ],
@@ -169,7 +173,10 @@ export default function ArtifactDetailScreen() {
     try {
       await shareLocalFile(content.file.uri, content.artifact.mimeType, content.artifact.name);
     } catch (error) {
-      Alert.alert(t("Could not share this artifact"), errorText(error, t("Try again.")));
+      toast.show(t("Could not share this artifact"), {
+        variant: "error",
+        detail: errorText(error, t("Try again.")),
+      });
     }
   }, [content, t]);
 

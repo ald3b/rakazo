@@ -1,13 +1,14 @@
 import type { AiConsentStatus } from "@rakazo/contracts";
 import { AI_DATA_DISCLOSURES, AI_PRIVACY_URL } from "@rakazo/contracts";
 import { useEffect, useState } from "react";
-import { Alert, Linking, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Linking, ScrollView, StyleSheet, Text, View } from "react-native";
 import { NativeActionButton } from "../components/native-action-button";
 import { NativeSwitch } from "../components/native-switch";
 import { promptAiConsent } from "../lib/ai-consent";
 import { rpc } from "../lib/api";
 import { useI18n } from "../lib/i18n";
 import { native, useThemedStyles } from "../lib/native";
+import { toast } from "../lib/toast";
 import { errorText } from "../lib/user-error";
 
 export default function AiDataSharing() {
@@ -16,7 +17,7 @@ export default function AiDataSharing() {
   const [pending, setPending] = useState(false);
   const styles = useThemedStyles(createStyles);
   const error = (cause: unknown) =>
-    Alert.alert(t("AI data sharing"), errorText(cause, t("Could not load permissions.")));
+    toast.show(errorText(cause, t("Could not load permissions.")), { variant: "error" });
   useEffect(() => {
     void rpc<AiConsentStatus>("aiConsent/status").then(setStatus).catch(error);
   }, []);

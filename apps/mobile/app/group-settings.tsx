@@ -8,6 +8,7 @@ import { NativeActionButton } from "../components/native-action-button";
 import { type MobileBot, type MobileGroup, rpc } from "../lib/api";
 import { useI18n } from "../lib/i18n";
 import { native, useMobileTokens } from "../lib/native";
+import { toast } from "../lib/toast";
 import { errorText } from "../lib/user-error";
 
 export default function GroupSettingsScreen() {
@@ -69,7 +70,10 @@ export default function GroupSettingsScreen() {
           void rpc("groups/remove", { groupId })
             .then(() => router.replace("/"))
             .catch((err) =>
-              Alert.alert(t("Could not delete group"), errorText(err, t("Try again."))),
+              toast.show(t("Could not delete group"), {
+                variant: "error",
+                detail: errorText(err, t("Try again.")),
+              }),
             ),
       },
     ]);
