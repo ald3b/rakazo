@@ -1,13 +1,12 @@
 import type { Space } from "@rakazo/contracts";
 import { Stack, useRouter } from "expo-router";
 import { useState } from "react";
-import { ScrollView, Text, TextInput } from "react-native";
+import { Alert, ScrollView, Text, TextInput } from "react-native";
 import { NativeActionButton } from "../components/native-action-button";
 import { cancelHeaderOptions } from "../components/sheet-header";
 import { rpc, selectSpace } from "../lib/api";
 import { useI18n } from "../lib/i18n";
 import { native, useMobileTokens } from "../lib/native";
-import { toast } from "../lib/toast";
 import { errorText } from "../lib/user-error";
 
 export default function NewSpace() {
@@ -26,10 +25,7 @@ export default function NewSpace() {
     try {
       const space = await rpc<Space>("spaces/create", { name: trimmed });
       if (!(await selectSpace(space.id))) {
-        toast.show(t("Space created"), {
-          variant: "info",
-          detail: t("It could not be opened. Try again from the sidebar."),
-        });
+        Alert.alert(t("Space created"), t("It could not be opened. Try again from the sidebar."));
         router.dismissAll();
         router.replace("/");
         return;

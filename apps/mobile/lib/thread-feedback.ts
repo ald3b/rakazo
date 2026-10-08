@@ -1,60 +1,107 @@
+import type { resolveComposerSendPlan } from "@rakazo/core";
 import { useEffect, useRef, useState } from "react";
-import { t } from "./i18n";
-import { toast } from "./toast";
-import { errorText } from "./user-error";
+import type { rpc } from "./api";
+import type { PickedAttachment } from "./pick-attachments";
 
-/**
- * A failed send keeps its client nonce and finished uploads. Sending the same draft again
- * (Retry, or Send) reuses them, so a send the server already accepted replays instead of
- * posting the message or its files twice; an edited draft starts a fresh attempt.
- */
-export type SendAttempt = {
-  draft: string;
-  clientNonce: string;
-  /** Uploaded artifact id per pending attachment id. */
-  artifactIds: Map<string, string>;
+export type SendPayload = {
+  originThreadKey: string;
+  displayText: string;
+  replyPreview: string | null;
+  initialBotTarget?: string;
+  botTarget?: string;
+  groupTarget?: string;
+  reroutedToGroup: boolean;
+  plan: ReturnType<typeof resolveComposerSendPlan>;
+  attachments: PickedAttachment[];
+  replyTargetId?: string;
+  replyQuote: string | null;
 };
 
-/**
- * How a thread reports trouble: a failed action as a toast, a failed send as a toast with Retry,
- * and a failed load as the line above the thread until the server answers again.
- */
+export type SendAttempt = {
+  payload: SendPayload;
+  clientNonce: string;
+  artifactIds: Map<string, string>;
+  sending: boolean;
+  error?: string;
+};
+
+export async function deliverSend(payload: SendPayload, attempt: SendAttempt, request: typeof rpc) {
+  const { plan, groupTarget, botTarget, reroutedToGroup, attachments } = payload;
+  if (plan.shouldRunRoutines) {
+    await Promise.all(
+      plan.routineIds.map((routineId) =>
+        request("routines/testRun", {
+          routineId,
+          clientNonce: `routine-mention:${attempt.clientNonce}:${routineId}`,
+        }),
+      ),
+    );
+  }
+  if (!plan.shouldSend) return;
+  const artifactIds: string[] = [];
+  for (const pending of attachments) {
+    let id = attempt.artifactIds.get(pending.id);
+    if (!id) {
+      const artifact = await request<{ id: string }>("artifacts/create", {
+        ...(groupTarget ? { groupId: groupTarget } : { botId: botTarget! }),
+        name: pending.name,
+        mimeType: pending.mimeType,
+        contentBase64: pending.contentBase64,
+      });
+      id = artifact.id;
+      attempt.artifactIds.set(pending.id, id);
+    }
+    artifactIds.push(id);
+  }
+  await request("threads/send", {
+    ...(groupTarget ? { groupId: groupTarget } : { botId: botTarget! }),
+    clientNonce: attempt.clientNonce,
+    text: plan.trimmed || undefined,
+    mentions: plan.mentionPayload.length ? plan.mentionPayload : undefined,
+    artifactIds: artifactIds.length ? artifactIds : undefined,
+    replyToMessageId: reroutedToGroup ? undefined : payload.replyTargetId,
+    replyQuote: reroutedToGroup ? undefined : (payload.replyQuote ?? undefined),
+  });
+}
+
 export function useThreadFeedback(threadKey: string | undefined, newNonce: () => string) {
   const [error, setError] = useState<string | null>(null);
-  const failedSend = useRef<SendAttempt | null>(null);
-  const sendToastKey = `send:${threadKey}`;
+  const [failedSends, setFailedSends] = useState<SendAttempt[]>([]);
+  const activeThread = useRef(threadKey);
+  activeThread.current = threadKey;
 
-  useEffect(() => {
-    setError(null);
-    failedSend.current = null;
-    // Retry belongs to the thread whose draft failed to send.
-    return () => toast.dismiss(sendToastKey);
-  }, [sendToastKey]);
+  useEffect(() => setError(null), [threadKey]);
 
   return {
     error,
-    setError,
-    /** A refresh reached the server, so an earlier load failure no longer describes the thread. */
-    refreshed: () => setError(null),
-    sendAttempt(draft: string): SendAttempt {
-      const failed = failedSend.current;
-      if (failed?.draft === draft) return failed;
-      return { draft, clientNonce: newNonce(), artifactIds: new Map() };
+    setError(value: string | null) {
+      if (threadKey === activeThread.current) setError(value);
     },
-    sent() {
-      failedSend.current = null;
+    refreshed(key = threadKey) {
+      if (key === activeThread.current) setError(null);
     },
-    /** The draft stays in the composer; Retry sends it again as the same attempt. */
-    sendFailed(attempt: SendAttempt, cause: unknown, retry: () => void) {
-      failedSend.current = attempt;
-      toast.show(errorText(cause, t("Failed to send message")), {
-        variant: "error",
-        action: { label: t("Retry"), run: retry },
-        dedupeKey: sendToastKey,
-      });
+    failedSends: failedSends.filter((attempt) => attempt.payload.originThreadKey === threadKey),
+    sendAttempt(payload: SendPayload): SendAttempt {
+      return { payload, clientNonce: newNonce(), artifactIds: new Map(), sending: false };
     },
-    actionFailed(cause: unknown, fallback: string) {
-      toast.show(errorText(cause, fallback), { variant: "error" });
+    start(attempt: SendAttempt) {
+      if (attempt.sending) return false;
+      attempt.sending = true;
+      setFailedSends((current) => [...current]);
+      return true;
+    },
+    sent(attempt: SendAttempt) {
+      attempt.sending = false;
+      setFailedSends((current) => current.filter((item) => item !== attempt));
+    },
+    sendFailed(attempt: SendAttempt) {
+      attempt.sending = false;
+      setFailedSends((current) =>
+        current.includes(attempt) ? [...current] : [...current, attempt],
+      );
+    },
+    discard(attempt: SendAttempt) {
+      setFailedSends((current) => current.filter((item) => item !== attempt));
     },
   };
 }

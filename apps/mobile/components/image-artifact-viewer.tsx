@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Image, StyleSheet, Text, View } from "react-native";
+import { Alert, Image, StyleSheet, Text, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -10,7 +10,6 @@ import { useI18n } from "../lib/i18n";
 import type { ImageSize } from "../lib/inline-image";
 import { fitImageSize } from "../lib/inline-image";
 import { iosAtLeast } from "../lib/native-controls";
-import { toast } from "../lib/toast";
 import { errorText } from "../lib/user-error";
 import { GlassIconButton } from "./glass-icon-button";
 
@@ -202,12 +201,7 @@ export function ImageArtifactViewer({
   const share = () =>
     void imageArtifactUri(requestTarget(), target.artifactId, target.mimeType)
       .then((uri) => shareLocalFile(uri, target.mimeType, target.name))
-      .catch((error) =>
-        toast.show(t("Could not share image"), {
-          variant: "error",
-          detail: errorText(error, t("Try again.")),
-        }),
-      );
+      .catch((error) => Alert.alert(t("Could not share image"), errorText(error, t("Try again."))));
 
   return (
     // Insets come from the SafeAreaProvider mounted by app/image.tsx, seeded with the window

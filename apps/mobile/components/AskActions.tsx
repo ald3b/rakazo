@@ -1,10 +1,8 @@
 import { useState } from "react";
-import type { ViewProps } from "react-native";
-import { Pressable, Text, View } from "react-native";
+import { Alert, Pressable, Text, View, type ViewProps } from "react-native";
 import { mobileTokens } from "../lib/appearance";
 import { useI18n } from "../lib/i18n";
 import { native } from "../lib/native";
-import { toast } from "../lib/toast";
 import { errorText } from "../lib/user-error";
 
 type AskAction = { id: string; label: string };
@@ -39,10 +37,7 @@ export function AskActions({
     try {
       await onAnswer(answer);
     } catch (error) {
-      toast.show(t("Could not submit answer"), {
-        variant: "error",
-        detail: errorText(error, t("Please try again.")),
-      });
+      Alert.alert(t("Could not submit answer"), errorText(error, t("Please try again.")));
     } finally {
       setPendingAction(null);
     }

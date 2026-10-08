@@ -1,126 +1,289 @@
 // @vitest-environment jsdom
 
-import { act } from "react";
+import { resolveComposerSendPlan } from "@rakazo/core";
+import type { ReactNode } from "react";
+import { act, createElement } from "react";
 import type { Root } from "react-dom/client";
 import { createRoot } from "react-dom/client";
+import { ActionSheetIOS, Alert, Platform } from "react-native";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { useThreadFeedback } from "./thread-feedback";
-import type { ToastState } from "./toast";
-import { toast, useToastState } from "./toast";
+import { FailedSendBubble } from "../components/failed-send-bubble";
+import type { SendPayload } from "./thread-feedback";
+import { deliverSend, useThreadFeedback } from "./thread-feedback";
 
-vi.mock("./i18n", () => {
-  const t = (text: string) => text;
-  return { t, useI18n: () => ({ t }) };
-});
+vi.mock("react-native", () => ({
+  View: ({ children }: { children?: ReactNode }) => createElement("div", null, children),
+  Text: ({ children }: { children?: ReactNode }) => createElement("span", null, children),
+  Image: () => null,
+  Pressable: ({
+    children,
+    onPress,
+    disabled,
+    accessibilityLabel,
+    onLongPress,
+  }: {
+    children?: ReactNode;
+    onPress: () => void;
+    disabled: boolean;
+    accessibilityLabel: string;
+    onLongPress: () => void;
+  }) =>
+    createElement(
+      "button",
+      {
+        type: "button",
+        onClick: onPress,
+        onContextMenu: onLongPress,
+        disabled,
+        "aria-label": accessibilityLabel,
+      },
+      children,
+    ),
+  Platform: { OS: "ios" },
+  ActionSheetIOS: { showActionSheetWithOptions: vi.fn() },
+  Alert: { alert: vi.fn() },
+}));
+vi.mock("../components/native-symbol", () => ({ NativeSymbol: () => null }));
+vi.mock("./native", () => ({ useMobileTokens: () => ({}) }));
+vi.mock("./i18n", () => ({ useI18n: () => ({ t: (text: string) => text }) }));
 
 let feedback: ReturnType<typeof useThreadFeedback>;
-let shown: ToastState;
 let nonces = 0;
-
+const retry = vi.fn();
 function Probe({ threadKey }: { threadKey: string }) {
   feedback = useThreadFeedback(threadKey, () => `nonce-${++nonces}`);
-  shown = useToastState();
-  return null;
+  return feedback.failedSends.map((attempt) => (
+    <FailedSendBubble
+      key={attempt.clientNonce}
+      attempt={attempt}
+      onRetry={retry}
+      onDelete={() => feedback.discard(attempt)}
+    />
+  ));
+}
+
+function payload(text = "Hello"): SendPayload {
+  return {
+    originThreadKey: "bot-1",
+    displayText: text,
+    replyPreview: "Quoted message",
+    initialBotTarget: "bot-1",
+    botTarget: "bot-1",
+    reroutedToGroup: false,
+    plan: resolveComposerSendPlan({ text, mentions: [], hasAttachments: true }),
+    attachments: [
+      { id: "attachment-1", name: "photo.png", mimeType: "image/png", contentBase64: "fake" },
+    ],
+    replyTargetId: "reply-1",
+    replyQuote: "Quoted message",
+  };
 }
 
 describe("thread feedback", () => {
   let root: Root;
   let container: HTMLDivElement;
-
   function render(threadKey: string) {
     act(() => root.render(<Probe threadKey={threadKey} />));
   }
-
   beforeEach(() => {
-    vi.useFakeTimers();
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    vi.clearAllMocks();
+    Platform.OS = "ios";
     container = document.createElement("div");
     document.body.append(container);
     root = createRoot(container);
     render("bot-1");
   });
-
   afterEach(() => {
-    act(() => {
-      root.unmount();
-      toast.clear();
-    });
+    act(() => root.unmount());
     container.remove();
-    vi.useRealTimers();
     vi.unstubAllGlobals();
   });
 
-  it("reports a failed send with a Retry that sends again", () => {
-    const retry = vi.fn();
-    const attempt = feedback.sendAttempt("draft");
-    act(() => feedback.sendFailed(attempt, new Error("Network down"), retry));
-
-    expect(shown?.toast).toMatchObject({
-      message: "Network down",
-      variant: "error",
-      action: { label: "Retry" },
-    });
-    shown?.toast.action?.run();
+  it("renders the outgoing payload and caption, and pressing it retries", () => {
+    const attempt = feedback.sendAttempt(payload());
+    act(() => feedback.sendFailed(attempt));
+    expect(container.textContent).toContain("Hello");
+    expect(container.textContent).toContain("photo.png");
+    expect(container.textContent).toContain("Quoted message");
+    const button = container.querySelector("button")!;
+    expect(button.getAttribute("aria-label")).toBe("Not sent · Tap to retry");
+    act(() => button.click());
     expect(retry).toHaveBeenCalledOnce();
+    act(() => feedback.start(attempt));
+    expect(button.disabled).toBe(true);
+    expect(container.textContent).toContain("Sending…");
+    expect(feedback.start(attempt)).toBe(false);
+    act(() => feedback.sendFailed(attempt));
+    expect(button.disabled).toBe(false);
   });
 
-  it("reuses a failed attempt's nonce and uploads for the same draft only", () => {
-    const failed = feedback.sendAttempt("draft");
-    failed.artifactIds.set("attachment-1", "artifact-1");
-    act(() => feedback.sendFailed(failed, new Error("Timed out"), vi.fn()));
-
-    const retry = feedback.sendAttempt("draft");
-    expect(retry.clientNonce).toBe(failed.clientNonce);
-    expect(retry.artifactIds.get("attachment-1")).toBe("artifact-1");
-
-    const edited = feedback.sendAttempt("edited draft");
-    expect(edited.clientNonce).not.toBe(failed.clientNonce);
-    expect(edited.artifactIds.size).toBe(0);
+  it("keeps the first delivery out of the failed bubbles until it fails", async () => {
+    const attempt = feedback.sendAttempt(payload());
+    let reject!: (error: Error) => void;
+    const pending = new Promise<never>((_resolve, rejectRequest) => {
+      reject = rejectRequest;
+    });
+    const request = vi.fn().mockReturnValue(pending);
+    act(() => {
+      feedback.start(attempt);
+    });
+    const delivery = deliverSend(attempt.payload, attempt, request);
+    expect(attempt.sending).toBe(true);
+    expect(container.textContent).toBe("");
+    expect(feedback.failedSends).toEqual([]);
+    reject(new Error("Quota exceeded"));
+    await expect(delivery).rejects.toThrow("Quota exceeded");
+    act(() => {
+      attempt.error = "Quota exceeded";
+      feedback.sendFailed(attempt);
+    });
+    expect(container.textContent).toContain("Not sent · Tap to retry");
   });
 
-  it("starts fresh after a send goes through", () => {
-    const failed = feedback.sendAttempt("draft");
-    act(() => feedback.sendFailed(failed, new Error("Timed out"), vi.fn()));
-    feedback.sent();
-
-    expect(feedback.sendAttempt("draft").clientNonce).not.toBe(failed.clientNonce);
-  });
-
-  it("drops the Retry and the failed attempt when the thread changes", () => {
-    const failed = feedback.sendAttempt("draft");
-    act(() => feedback.sendFailed(failed, new Error("Timed out"), vi.fn()));
-    act(() => feedback.setError("Could not reach the server"));
-
+  it("reuses the frozen target, nonce, routine nonces, and uploaded artifact ids on retry", async () => {
+    const frozen = payload();
+    frozen.groupTarget = "rerouted-group";
+    frozen.botTarget = undefined;
+    frozen.reroutedToGroup = true;
+    frozen.plan.shouldRunRoutines = true;
+    frozen.plan.routineIds = ["routine-1"];
+    const attempt = feedback.sendAttempt(frozen);
+    const request = vi.fn().mockImplementation(async (method: string) => {
+      if (method === "artifacts/create") return { id: "artifact-1" };
+      if (method === "threads/send") throw new Error("Response lost");
+    });
+    await expect(deliverSend(frozen, attempt, request)).rejects.toThrow("Response lost");
+    act(() => feedback.sendFailed(attempt));
     render("bot-2");
-    expect(shown).toMatchObject({ leaving: true });
-    expect(feedback.error).toBeNull();
-    expect(feedback.sendAttempt("draft").clientNonce).not.toBe(failed.clientNonce);
+    request.mockImplementation(async (method: string) =>
+      method === "artifacts/create" ? { id: "artifact-2" } : undefined,
+    );
+    await deliverSend(attempt.payload, attempt, request);
+    const sends = request.mock.calls.filter(([method]) => method === "threads/send");
+    expect(sends).toHaveLength(2);
+    expect(sends[0]).toEqual(sends[1]);
+    expect(sends[1]![1]).toMatchObject({
+      groupId: "rerouted-group",
+      text: "Hello",
+      clientNonce: attempt.clientNonce,
+      artifactIds: ["artifact-1"],
+    });
+    expect(sends[1]![1].replyToMessageId).toBeUndefined();
+    expect(request.mock.calls.filter(([method]) => method === "artifacts/create")).toHaveLength(1);
+    const routines = request.mock.calls.filter(([method]) => method === "routines/testRun");
+    expect(routines[0]).toEqual(routines[1]);
+    expect(routines[1]![1].clientNonce).toBe(`routine-mention:${attempt.clientNonce}:routine-1`);
+    act(() => feedback.sent(attempt));
+    render("bot-1");
+    expect(feedback.failedSends).toEqual([]);
   });
 
-  it("drops the Retry when the thread closes", () => {
-    act(() => feedback.sendFailed(feedback.sendAttempt("draft"), new Error("x"), vi.fn()));
-    act(() => root.unmount());
-    root = createRoot(container);
-    act(() => root.render(<Probe threadKey="bot-1" />));
-    expect(shown).toMatchObject({ leaving: true });
+  it("retains completed uploads when a later attachment fails", async () => {
+    const frozen = payload();
+    frozen.attachments.push({ ...frozen.attachments[0]!, id: "attachment-2" });
+    const attempt = feedback.sendAttempt(frozen);
+    const request = vi
+      .fn()
+      .mockResolvedValueOnce({ id: "artifact-1" })
+      .mockRejectedValueOnce(new Error("Upload interrupted"));
+    await expect(deliverSend(frozen, attempt, request)).rejects.toThrow("Upload interrupted");
+    request.mockResolvedValueOnce({ id: "artifact-2" }).mockResolvedValueOnce(undefined);
+    await deliverSend(frozen, attempt, request);
+    expect(request).toHaveBeenCalledTimes(4);
+    expect(request.mock.calls[3]![1]).toMatchObject({ artifactIds: ["artifact-1", "artifact-2"] });
   });
 
-  it("keeps a load failure until a refresh reaches the server", () => {
+  it("offers native retry, destructive delete, and cancel with the failure reason", () => {
+    const attempt = feedback.sendAttempt(payload());
+    attempt.error = "Quota exceeded";
+    act(() => feedback.sendFailed(attempt));
+    act(() =>
+      container
+        .querySelector("button")!
+        .dispatchEvent(new MouseEvent("contextmenu", { bubbles: true })),
+    );
+    const showSheet = vi.mocked(ActionSheetIOS.showActionSheetWithOptions);
+    expect(showSheet).toHaveBeenCalledWith(
+      {
+        message: "Quota exceeded",
+        options: ["Try Again", "Delete", "Cancel"],
+        destructiveButtonIndex: 1,
+        cancelButtonIndex: 2,
+      },
+      expect.any(Function),
+    );
+    const choose = showSheet.mock.calls[0]![1];
+    act(() => choose(2));
+    expect(feedback.failedSends).toEqual([attempt]);
+    act(() => choose(0));
+    expect(retry).toHaveBeenCalledOnce();
+    act(() => choose(1));
+    expect(feedback.failedSends).toEqual([]);
+  });
+
+  it("shows the latest failure reason in the Android alert", () => {
+    Platform.OS = "android";
+    const attempt = feedback.sendAttempt(payload());
+    act(() => {
+      attempt.error = "Quota exceeded";
+      feedback.sendFailed(attempt);
+    });
+    act(() => feedback.start(attempt));
+    act(() => {
+      attempt.error = "Bot archived";
+      feedback.sendFailed(attempt);
+    });
+    act(() =>
+      container
+        .querySelector("button")!
+        .dispatchEvent(new MouseEvent("contextmenu", { bubbles: true })),
+    );
+    expect(Alert.alert).toHaveBeenCalledWith("Not sent · Tap to retry", "Bot archived", [
+      { text: "Try Again", onPress: retry },
+      { text: "Delete", style: "destructive", onPress: expect.any(Function) },
+      { text: "Cancel", style: "cancel" },
+    ]);
+  });
+
+  it("gives new and edited messages fresh nonces and upload caches", () => {
+    const failed = feedback.sendAttempt(payload());
+    failed.artifactIds.set("attachment-1", "artifact-1");
+    act(() => feedback.sendFailed(failed));
+    for (const text of ["Hello", "Edited"]) {
+      const fresh = feedback.sendAttempt(payload(text));
+      expect(fresh.clientNonce).not.toBe(failed.clientNonce);
+      expect(fresh.artifactIds.size).toBe(0);
+    }
+  });
+
+  it("keeps failures scoped to the origin and does not replace another failed message", () => {
+    const first = feedback.sendAttempt(payload());
+    const second = feedback.sendAttempt(payload("Another"));
+    act(() => {
+      feedback.sendFailed(first);
+      feedback.sendFailed(second);
+    });
+    render("bot-2");
+    expect(feedback.failedSends).toEqual([]);
+    expect(container.textContent).toBe("");
+    render("bot-1");
+    expect(feedback.failedSends).toEqual([first, second]);
+    act(() => feedback.discard(first));
+    expect(feedback.failedSends).toEqual([second]);
+  });
+
+  it("keeps load failures separate from sends and clears them when a refresh reaches the server", () => {
     act(() => feedback.setError("Could not reach the server"));
+    act(() => feedback.sendFailed(feedback.sendAttempt(payload())));
     expect(feedback.error).toBe("Could not reach the server");
-
     act(() => feedback.refreshed());
     expect(feedback.error).toBeNull();
-  });
-
-  it("reports a failed action as a toast, not the thread line", () => {
-    act(() => feedback.actionFailed(new Error("Reaction rejected"), "Could not update reaction"));
-    expect(shown?.toast).toMatchObject({ message: "Reaction rejected", variant: "error" });
-    expect(shown?.toast.action).toBeUndefined();
+    act(() => feedback.setError("Load failed"));
+    render("bot-2");
     expect(feedback.error).toBeNull();
-
-    act(() => toast.clear());
-    act(() => feedback.actionFailed({}, "Could not update reaction"));
-    expect(shown?.toast.message).toBe("Could not update reaction");
+    act(() => feedback.setError("Current load failed"));
+    act(() => feedback.refreshed("bot-1"));
+    expect(feedback.error).toBe("Current load failed");
   });
 });

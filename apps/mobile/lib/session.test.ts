@@ -20,8 +20,6 @@ vi.mock("expo-secure-store", () => ({
 vi.mock("./live-notifications.js", () => ({
   stopLiveNotifications: vi.fn(async () => undefined),
 }));
-const clearToasts = vi.hoisted(() => vi.fn());
-vi.mock("./toast.js", () => ({ toast: { clear: clearToasts } }));
 
 describe("mobile session storage", () => {
   beforeEach(async () => {
@@ -45,14 +43,6 @@ describe("mobile session storage", () => {
 
     expect(SecureStore.deleteItemAsync).toHaveBeenCalledWith(AVATAR_STYLE_KEY);
     expect(getCachedAvatarStyle()).toBe("robot");
-  });
-
-  it("drops toasts from the account that signed out", async () => {
-    await saveSessionToken("secret-token");
-    clearToasts.mockClear();
-    await clearSessionToken();
-
-    expect(clearToasts).toHaveBeenCalledOnce();
   });
 
   it("ignores an avatar style response from a session that was cleared", async () => {

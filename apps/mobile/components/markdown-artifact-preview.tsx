@@ -1,6 +1,6 @@
 import { ChatMarkdown } from "@rakazo/chat-ui/native";
 import { useEffect, useState } from "react";
-import { Modal, SafeAreaView, ScrollView, Text, View } from "react-native";
+import { Alert, Modal, SafeAreaView, ScrollView, Text, View } from "react-native";
 import { mobileTokens } from "../lib/appearance";
 import {
   type MobileArtifactTarget,
@@ -10,7 +10,6 @@ import {
 import { useI18n } from "../lib/i18n";
 import { useResolvedAppearance } from "../lib/native";
 import { iosAtLeast } from "../lib/native-controls";
-import { toast } from "../lib/toast";
 import { errorText } from "../lib/user-error";
 import { GlassIconButton } from "./glass-icon-button";
 
@@ -91,10 +90,7 @@ export function MarkdownArtifactPreview({
                   target.name,
                   target.mimeType,
                 ).catch((error) =>
-                  toast.show(t("Could not share file"), {
-                    variant: "error",
-                    detail: errorText(error, t("Try again.")),
-                  }),
+                  Alert.alert(t("Could not share file"), errorText(error, t("Try again."))),
                 )
               }
             />

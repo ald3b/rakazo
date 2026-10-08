@@ -90,6 +90,7 @@ import { BotAvatar } from "../components/bot-avatar";
 import { ChoiceCard } from "../components/ChoiceCard";
 import { ComputerCard } from "../components/ComputerCard";
 import { ComposerReplyPreview } from "../components/composer-reply-preview";
+import { FailedSendBubble } from "../components/failed-send-bubble";
 import { GlassSurface } from "../components/glass-surface";
 import type { ImageArtifactPreviewTarget } from "../components/image-artifact-viewer";
 import { InlineImageAttachment } from "../components/inline-image-attachment";
@@ -173,12 +174,12 @@ import {
   subscribeResponseStreaming,
 } from "../lib/response-streaming";
 import { selectableTextFromMarkdown } from "../lib/selectable-text";
-import { useThreadFeedback } from "../lib/thread-feedback";
+import type { SendAttempt } from "../lib/thread-feedback";
+import { deliverSend, useThreadFeedback } from "../lib/thread-feedback";
 import { ThreadJumpAnchor } from "../lib/thread-jump";
 import { ThreadReadOnlyContext } from "../lib/thread-read-only";
 import type { ThreadScrollAction, ThreadScrollState } from "../lib/thread-scroll";
 import { ThreadScrollBehavior } from "../lib/thread-scroll";
-import { toast } from "../lib/toast";
 import { errorText } from "../lib/user-error";
 import { speakQueue, speakText } from "../lib/voice";
 import { probeProviderTranscribe, resolveVoiceCallPlan } from "../lib/voice-call-entry";
@@ -502,6 +503,7 @@ function Thread() {
   const [quoteTarget, setQuoteTarget] = useState<MobileMessage | null>(null);
   const [attachmentNotice, setAttachmentNotice] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const pendingDeliveries = useRef(0);
   const feedback = useThreadFeedback(threadKey, newClientNonce);
   const { error, setError } = feedback;
   const [loadingOlder, setLoadingOlder] = useState(false);
@@ -874,10 +876,7 @@ function Thread() {
       await restoreArchivedBot(botId);
       router.setParams({ readOnly: "0" });
     } catch (cause) {
-      toast.show(t("Could not restore bot"), {
-        variant: "error",
-        detail: errorText(cause, t("Try again.")),
-      });
+      Alert.alert(t("Could not restore bot"), errorText(cause, t("Try again.")));
     } finally {
       setRestoring(false);
     }
@@ -890,7 +889,6 @@ function Thread() {
 
   function clearConversation() {
     if (!botId) return;
-    setError(null);
     void rpc("threads/clear", { botId })
       .then(() => {
         expandedHistoryThread.current = null;
@@ -902,7 +900,9 @@ function Thread() {
             : snapRef.current,
         );
       })
-      .catch((err: unknown) => feedback.actionFailed(err, t("Could not clear conversation")));
+      .catch((err: unknown) =>
+        Alert.alert(t("Could not clear conversation"), errorText(err, t("Try again."))),
+      );
   }
 
   const botActions = [
@@ -943,10 +943,7 @@ function Thread() {
         void rpc("bots/archive", { botId })
           .then(leaveBot)
           .catch((error) =>
-            toast.show(t("Could not archive bot"), {
-              variant: "error",
-              detail: errorText(error, t("Try again.")),
-            }),
+            Alert.alert(t("Could not archive bot"), errorText(error, t("Try again."))),
           ),
     },
     {
@@ -1006,7 +1003,9 @@ function Thread() {
       commitSnap(
         mergeMobileSnapshot(snapRef.current, next, expandedHistoryThread.current === next.threadId),
       );
-      feedback.refreshed();
+    }
+    if (isCurrentTarget(targetBotId, targetGroupId)) {
+      feedback.refreshed(targetGroupId ?? targetBotId);
     }
     return result.snapshot ?? undefined;
   }
@@ -1153,7 +1152,7 @@ function Thread() {
       commitSnap(prependMobileMessagePage(snapRef.current, page));
     } catch (err) {
       loadingOlderContent.current = false;
-      feedback.actionFailed(err, t("Could not load earlier messages"));
+      setError(errorText(err, t("Could not load earlier messages")));
     } finally {
       setLoadingOlder(false);
     }
@@ -1399,6 +1398,7 @@ function Thread() {
     setReplyQuote(null);
     setQuoteTarget(null);
     setAttachmentNotice(null);
+    setError(null);
   }, [threadKey]);
 
   function updateDraft(value: string) {
@@ -1486,138 +1486,74 @@ function Thread() {
     );
     const groupTarget = plan.rerouteGroupId ?? initialGroupTarget;
     const botTarget = reroutedToGroup ? undefined : initialBotTarget;
-    const trimmed = plan.trimmed;
-    const attempt = feedback.sendAttempt(
-      JSON.stringify([
-        groupTarget,
-        botTarget,
-        trimmed,
-        plan.mentionPayload,
-        plan.routineIds,
-        attachments.map((attachment) => attachment.id),
-        replyTarget?.id,
-        replyQuote,
-      ]),
-    );
-    const dropDelayedSetup = () => {
-      // Only after successful engagement so a failed upload/send keeps the setup card.
-      // Covers group-mention reroute while the bot thread stays mounted underneath.
-      if (initialBotTarget) cancelFocusPrompt(initialBotTarget);
-    };
-    setSending(true);
-    setError(null);
-    try {
-      if (plan.shouldRunRoutines) {
-        await Promise.all(
-          plan.routineIds.map((routineId) =>
-            rpc("routines/testRun", {
-              routineId,
-              clientNonce: `routine-mention:${attempt.clientNonce}:${routineId}`,
-            }),
-          ),
-        );
-      }
-      const clearOriginComposer = () => {
-        setPendingAttachments((current) =>
-          current.filter((attachment) => attachment.threadKey !== originThreadKey),
-        );
-        setDraft("");
-        setMentionQuery(null);
-        setSlashQuery(null);
-        setSelectedSkill(null);
-        setSelectedMentions([]);
-        setReplyTarget(null);
-        setReplyQuote(null);
-        setAttachmentNotice(null);
-      };
-      if (!plan.shouldSend) {
-        dropDelayedSetup();
-        clearOriginComposer();
-        if (reroutedToGroup && groupTarget) {
-          router.push({
-            pathname: "/group-thread",
-            params: {
-              groupId: groupTarget,
-              name: plan.rerouteGroupName ?? t("Group"),
-            },
-          });
-          return;
-        }
-        if (isCurrentTarget(botTarget, groupTarget)) {
-          await refresh();
-        }
-        return;
-      }
-      const artifactIds: string[] = [];
-      for (const pending of attachments) {
-        const uploaded =
-          attempt.artifactIds.get(pending.id) ??
-          (
-            await rpc<{ id: string }>("artifacts/create", {
-              ...(groupTarget ? { groupId: groupTarget } : { botId: botTarget! }),
-              name: pending.name,
-              mimeType: pending.mimeType,
-              contentBase64: pending.contentBase64,
-            })
-          ).id;
-        attempt.artifactIds.set(pending.id, uploaded);
-        artifactIds.push(uploaded);
-      }
-      const clientNonce = attempt.clientNonce;
-      await rpc(
-        "threads/send",
-        groupTarget
-          ? {
-              groupId: groupTarget,
-              clientNonce,
-              text: trimmed || undefined,
-              mentions: plan.mentionPayload.length ? plan.mentionPayload : undefined,
-              artifactIds: artifactIds.length ? artifactIds : undefined,
-              replyToMessageId: reroutedToGroup ? undefined : replyTarget?.id,
-              replyQuote: reroutedToGroup ? undefined : (replyQuote ?? undefined),
-            }
-          : {
-              botId: botTarget!,
-              clientNonce,
-              text: trimmed || undefined,
-              mentions: plan.mentionPayload.length ? plan.mentionPayload : undefined,
-              artifactIds: artifactIds.length ? artifactIds : undefined,
-              replyToMessageId: replyTarget?.id,
-              replyQuote: replyQuote ?? undefined,
-            },
+    const attempt = feedback.sendAttempt({
+      originThreadKey: originThreadKey!,
+      displayText: serializeComposerPromptText(),
+      replyPreview: replyQuote ?? (replyTarget ? previewMessageText(replyTarget) : null),
+      initialBotTarget,
+      botTarget,
+      groupTarget,
+      reroutedToGroup,
+      plan,
+      attachments: attachments.map((attachment) => ({ ...attachment })),
+      replyTargetId: replyTarget?.id,
+      replyQuote,
+    });
+    await deliver(attempt, () => {
+      if (originThreadKey !== (activeGroupId.current ?? activeBotId.current)) return;
+      setPendingAttachments((current) =>
+        current.filter((attachment) => attachment.threadKey !== originThreadKey),
       );
-      feedback.sent();
-      dropDelayedSetup();
-      void loadSessionToken()
-        .then((token) => resumeLiveNotifications(currentApiBase(), token, selectedSpaceId() ?? ""))
-        .catch(() => undefined);
-      clearOriginComposer();
-      if (reroutedToGroup && groupTarget) {
-        router.push({
-          pathname: "/group-thread",
-          params: {
-            groupId: groupTarget,
-            name: plan.rerouteGroupName ?? t("Group"),
-          },
-        });
-        return;
-      }
-      if (isCurrentTarget(botTarget, groupTarget)) {
-        // A sent message lands at the latest end, past an older page opened from search.
-        if (pinnedAroundRef.current) showLatest();
-        void refresh().catch(() => undefined);
-      }
-    } catch (err) {
-      if ((reroutedToGroup && groupTarget) || isCurrentTarget(botTarget, groupTarget)) {
-        feedback.sendFailed(attempt, err, () => void sendRef.current());
-      }
-    } finally {
-      setSending(false);
-    }
+      setDraft("");
+      setMentionQuery(null);
+      setSlashQuery(null);
+      setSelectedSkill(null);
+      setSelectedMentions([]);
+      setReplyTarget(null);
+      setReplyQuote(null);
+      setAttachmentNotice(null);
+    });
   }
 
-  const sendRef = useRef(send);
-  sendRef.current = send;
+  async function deliver(attempt: SendAttempt, onSettled?: () => void) {
+    if (readOnly || !feedback.start(attempt)) return;
+    const { initialBotTarget, botTarget, groupTarget, reroutedToGroup, plan } = attempt.payload;
+    pendingDeliveries.current += 1;
+    setSending(true);
+    try {
+      await deliverSend(attempt.payload, attempt, rpc);
+    } catch (err) {
+      attempt.error = errorText(err, t("Failed to send message"));
+      feedback.sendFailed(attempt);
+      if (attempt.payload.originThreadKey === (activeGroupId.current ?? activeBotId.current)) {
+        if (pinnedAroundRef.current) showLatest();
+        performScroll(scrollBehavior.current.jumpToLatest());
+        setThreadScrollState(scrollBehavior.current.state());
+      }
+      return;
+    } finally {
+      onSettled?.();
+      pendingDeliveries.current -= 1;
+      setSending(pendingDeliveries.current > 0);
+    }
+    feedback.sent(attempt);
+    if (initialBotTarget) cancelFocusPrompt(initialBotTarget);
+    void loadSessionToken()
+      .then((token) => resumeLiveNotifications(currentApiBase(), token, selectedSpaceId() ?? ""))
+      .catch(() => undefined);
+    if (attempt.payload.originThreadKey !== (activeGroupId.current ?? activeBotId.current)) return;
+    if (reroutedToGroup && groupTarget) {
+      router.push({
+        pathname: "/group-thread",
+        params: { groupId: groupTarget, name: plan.rerouteGroupName ?? t("Group") },
+      });
+      return;
+    }
+    if (isCurrentTarget(botTarget, groupTarget)) {
+      if (pinnedAroundRef.current) showLatest();
+      void refresh().catch(() => undefined);
+    }
+  }
 
   async function stop() {
     if (readOnly) return;
@@ -1625,7 +1561,6 @@ function Thread() {
     const targetGroupId = groupId;
     if ((!targetBotId && !targetGroupId) || sending) return;
     setSending(true);
-    setError(null);
     try {
       await rpc(
         "threads/stop",
@@ -1633,7 +1568,7 @@ function Thread() {
       );
     } catch (err) {
       if (isCurrentTarget(targetBotId, targetGroupId)) {
-        feedback.actionFailed(err, t("Failed to stop work"));
+        Alert.alert(t("Failed to stop work"), errorText(err, t("Try again.")));
       }
       setSending(false);
       return;
@@ -1704,17 +1639,13 @@ function Thread() {
       void speakQueue(items)
         .then((spoken) => {
           if (!spoken)
-            toast.show(t("Could not speak"), {
-              variant: "error",
-              detail: t("Add a voice provider in Voice settings."),
-              action: { label: t("Open Voice"), run: () => router.push("/voice") },
-            });
+            Alert.alert(t("Could not speak"), t("Add a voice provider in Voice settings."), [
+              { text: t("Cancel"), style: "cancel" },
+              { text: t("Open Voice"), onPress: () => router.push("/voice") },
+            ]);
         })
         .catch((err: unknown) =>
-          toast.show(t("Could not speak"), {
-            variant: "error",
-            detail: errorText(err, t("Try again.")),
-          }),
+          Alert.alert(t("Could not speak"), errorText(err, t("Try again."))),
         );
     },
     [botId, displayName, mentionBots, snap?.members, visibleMessages],
@@ -1912,7 +1843,7 @@ function Thread() {
       });
     } catch (err) {
       if (!isCurrentTarget(targetBotId, targetGroupId)) return;
-      feedback.actionFailed(err, t("Could not update reaction"));
+      Alert.alert(t("Could not update reaction"), errorText(err, t("Try again.")));
     }
   }
 
@@ -2280,6 +2211,15 @@ function Thread() {
       </Pressable>
     ) : null;
 
+  const failedSendBubbles = feedback.failedSends.map((attempt) => (
+    <FailedSendBubble
+      key={attempt.clientNonce}
+      attempt={attempt}
+      onRetry={() => void deliver(attempt)}
+      onDelete={() => feedback.discard(attempt)}
+    />
+  ));
+
   return (
     <KeyboardAvoidingView
       behavior="height"
@@ -2348,6 +2288,7 @@ function Thread() {
             {threadWindowMessages(visibleMessages, pinnedNewerCursor).map((message, index) =>
               renderMessageRow(message, { enableJump: true, index }),
             )}
+            {pinnedNewerCursor === null ? failedSendBubbles : null}
             {pinnedNewerCursor === null ? (
               workingFooter
             ) : loadingNewer ? (
@@ -2399,7 +2340,12 @@ function Thread() {
               setThreadScrollState(scrollBehavior.current.state());
             }}
             ListFooterComponent={loadEarlierControl}
-            ListHeaderComponent={workingFooter}
+            ListHeaderComponent={
+              <>
+                {failedSendBubbles}
+                {workingFooter}
+              </>
+            }
             renderItem={({ item }) =>
               item.kind === "voiceChat" ? (
                 <View style={{ marginTop: 12, width: "100%" }}>
@@ -3788,10 +3734,7 @@ const MessageBubble = memo(function MessageBubble({
                         attachment.name ?? t("Image"),
                         attachment.mimeType ?? "image/png",
                       ).catch((err) =>
-                        toast.show(t("Could not open image"), {
-                          variant: "error",
-                          detail: errorText(err, t("Try again.")),
-                        }),
+                        Alert.alert(t("Could not open image"), errorText(err, t("Try again."))),
                       )
                     : undefined
                 }
@@ -3824,10 +3767,7 @@ const MessageBubble = memo(function MessageBubble({
                         attachment.name ?? t("File"),
                         attachment.mimeType ?? "text/plain",
                       ).catch((err) =>
-                        toast.show(t("Could not open file"), {
-                          variant: "error",
-                          detail: errorText(err, t("Try again.")),
-                        }),
+                        Alert.alert(t("Could not open file"), errorText(err, t("Try again."))),
                       )
                   : undefined
               }

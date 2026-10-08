@@ -1,12 +1,11 @@
 import type { MessageBlock } from "@rakazo/contracts";
 import { useEffect, useState } from "react";
 import type { ViewProps } from "react-native";
-import { StyleSheet, Text, View } from "react-native";
+import { Alert, StyleSheet, Text, View } from "react-native";
 import { rpc } from "../lib/api";
 import { useI18n } from "../lib/i18n";
 import { native, useMobileTokens } from "../lib/native";
 import { useThreadReadOnly } from "../lib/thread-read-only";
-import { toast } from "../lib/toast";
 import { errorText } from "../lib/user-error";
 import { NativeActionButton } from "./native-action-button";
 
@@ -60,9 +59,9 @@ export function McpApprovalCard({
       }
       setLocalStatus(action === "approve" ? "connected" : "dismissed");
     } catch (reason) {
-      toast.show(
+      Alert.alert(
         action === "approve" ? t("Could not approve this server") : t("Could not complete action"),
-        { variant: "error", detail: errorText(reason, t("Please try again.")) },
+        errorText(reason, t("Please try again.")),
       );
     } finally {
       setPendingAction(null);

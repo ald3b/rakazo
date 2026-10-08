@@ -9,7 +9,6 @@ import { confirmDeleteBot, restoreArchivedBot } from "../lib/bot-lifecycle";
 import { useFloatingHeaderInset } from "../lib/floating-header";
 import { useI18n } from "../lib/i18n";
 import { useMobileTokens } from "../lib/native";
-import { toast } from "../lib/toast";
 import { errorText } from "../lib/user-error";
 
 export default function ArchivedBots() {
@@ -53,10 +52,7 @@ export default function ArchivedBots() {
       await restoreArchivedBot(bot.id);
       removed(bot.id);
     } catch (cause) {
-      toast.show(t("Could not restore bot"), {
-        variant: "error",
-        detail: errorText(cause, t("Try again.")),
-      });
+      Alert.alert(t("Could not restore bot"), errorText(cause, t("Try again.")));
     } finally {
       setPending(false);
     }
