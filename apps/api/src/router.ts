@@ -9,6 +9,7 @@ import type {
   MemoryStore,
   SandboxProvider,
   SecretStore,
+  UsageOperationKind,
 } from "@rakazo/adapter-kit";
 import {
   computerControlExpireJobKey,
@@ -153,6 +154,7 @@ import {
   CannotDeleteDefaultSpaceError,
   CannotDeleteLastSpaceError,
   CannotDeleteSpaceAsNonOwnerError,
+  CannotRenameSpaceAsNonOwnerError,
   ComputerLimitError,
   claimEmptySpaceDeletionForMember,
   createExternalConversationRepos,
@@ -178,6 +180,7 @@ import {
   parseComputerMode,
   pushSessionExpiresAt,
   releaseSpaceDeletionClaim,
+  renameSpaceForMember,
   renewSpaceDeletionClaim,
   restoreBotUnderComputerQuota,
   SPACE_DELETION_CLAIM_TIMEOUT_MS,
@@ -805,12 +808,37 @@ export function createRouter(deps: RouterDeps) {
           name: space.name,
           isDefault: false,
           hasContent: false,
+          canRename: true,
           canDelete: true,
           bots: [],
           groups: [],
           externalConversations: [],
           botSections: [],
         };
+      }),
+      rename: authed.spaces.rename.handler(async ({ context, input }) => {
+        try {
+          return await renameSpaceForMember(deps.prisma, {
+            currentSpaceId: context.actor.spaceId,
+            userId: context.actor.userId,
+            spaceId: input.spaceId,
+            name: input.name,
+          });
+        } catch (error) {
+          if (error instanceof SpaceNotFoundError) {
+            throw new ORPCError("NOT_FOUND", { message: error.message });
+          }
+          if (error instanceof CannotRenameSpaceAsNonOwnerError) {
+            throw new ORPCError("FORBIDDEN", { message: error.message });
+          }
+          if (error instanceof InvalidSpaceNameError) {
+            throw new ORPCError("BAD_REQUEST", { message: error.message });
+          }
+          if (error instanceof SpaceDeletionInProgressError) {
+            throw new ORPCError("CONFLICT", { message: error.message });
+          }
+          throw error;
+        }
       }),
       remove: authed.spaces.remove.handler(async ({ context, input }) => {
         let claimId: string | null = null;
@@ -1448,6 +1476,7 @@ export function createRouter(deps: RouterDeps) {
             modelProvider: source.modelProvider,
             modelId: source.modelId,
             thinkingLevel: source.thinkingLevel,
+            disabledBuiltinTools: source.disabledBuiltinTools,
           })
           .catch((error: unknown) => {
             throw mapSpaceLifecycleError(error);
@@ -1608,6 +1637,9 @@ export function createRouter(deps: RouterDeps) {
               ? { teamChatAmbientEnabled: input.teamChatAmbientEnabled }
               : {}),
             ...(input.teamChatRules !== undefined ? { teamChatRules: input.teamChatRules } : {}),
+            ...(input.disabledBuiltinTools !== undefined
+              ? { disabledBuiltinTools: input.disabledBuiltinTools }
+              : {}),
           },
         });
         const bots = await repos.listBots(context.actor);
@@ -5492,19 +5524,45 @@ export function createRouter(deps: RouterDeps) {
           model: row.model,
           inputTokens: row.inputTokens,
           outputTokens: row.outputTokens,
+          cacheReadTokens: row.cacheReadTokens,
+          cacheWriteTokens: row.cacheWriteTokens,
+          cacheWrite1hTokens: row.cacheWrite1hTokens,
+          reasoningTokens: row.reasoningTokens,
+          totalTokens: row.totalTokens,
+          costUsd: row.costUsd,
+          costSource: row.costSource,
+          pricingVersion: row.pricingVersion,
+          usageSource: row.usageSource,
+          callId: row.callId,
+          operationId: row.operationId,
+          operationKind: row.operationKind as UsageOperationKind,
+          parentRunId: row.parentRunId,
+          agentId: row.agentId,
           createdAt: row.createdAt.toISOString(),
         }));
       }),
       summary: authed.usage.summary.handler(async ({ context }) => {
-        const result = await deps.prisma.usageRecord.aggregate({
-          where: { spaceId: context.actor.spaceId, userId: context.actor.userId },
-          _sum: { inputTokens: true, outputTokens: true },
-          _count: { _all: true },
-        });
+        const [result, runGroups] = await Promise.all([
+          deps.prisma.usageRecord.aggregate({
+            where: { spaceId: context.actor.spaceId, userId: context.actor.userId },
+            _sum: { inputTokens: true, outputTokens: true, totalTokens: true },
+            _count: { _all: true, inputTokens: true, outputTokens: true, totalTokens: true },
+          }),
+          deps.prisma.usageRecord.groupBy({
+            by: ["runId", "parentRunId"],
+            where: { spaceId: context.actor.spaceId, userId: context.actor.userId },
+          }),
+        ]);
+        const runs = new Set(runGroups.map((row) => row.parentRunId ?? row.runId).filter(Boolean))
+          .size;
+        const completeSum = (field: "inputTokens" | "outputTokens" | "totalTokens") =>
+          result._count[field] === result._count._all ? (result._sum[field] ?? 0) : null;
         return {
-          inputTokens: result._sum.inputTokens ?? 0,
-          outputTokens: result._sum.outputTokens ?? 0,
-          runs: result._count._all,
+          inputTokens: completeSum("inputTokens"),
+          outputTokens: completeSum("outputTokens"),
+          totalTokens: completeSum("totalTokens"),
+          modelCalls: result._count._all,
+          runs,
         };
       }),
     },
@@ -5798,6 +5856,7 @@ async function spaceNavigationDto(
         name: membership.space.name,
         isDefault: membership.space.isDefault,
         hasContent: spacesWithContent.has(membership.spaceId),
+        canRename: membership.role === "owner" && membership.space.deletingAt === null,
         canDelete:
           membership.role === "owner" &&
           !membership.space.isDefault &&

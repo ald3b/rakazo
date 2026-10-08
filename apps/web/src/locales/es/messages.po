@@ -80,7 +80,7 @@ msgid "{0} rollup hours"
 msgstr ""
 
 #. placeholder {0}: usage.runs
-#. placeholder {1}: usage.inputTokens + usage.outputTokens
+#. placeholder {1}: usage.totalTokens ?? "—"
 #: src/pages/AccountSettingsOverlay.tsx
 msgid "{0} runs · {1} tokens"
 msgstr "{0} ejecuciones · {1} tokens"
@@ -398,6 +398,10 @@ msgstr ""
 
 #: src/pages/ModelSettingsOverlay.tsx
 msgid "All providers"
+msgstr ""
+
+#: src/pages/ActivityList.tsx
+msgid "All statuses"
 msgstr ""
 
 #: src/pages/Artifacts.tsx
@@ -870,6 +874,10 @@ msgstr "¿Borrar la conversación de {0}?"
 msgid "Clear conversation"
 msgstr "Borrar conversación"
 
+#: src/pages/ActivityList.tsx
+msgid "Clear filter {label}"
+msgstr ""
+
 #: src/pages/shell/dialogs.tsx
 msgid "Clearing…"
 msgstr "Borrando…"
@@ -1331,6 +1339,10 @@ msgstr ""
 msgid "Could not load"
 msgstr "No se pudo cargar"
 
+#: src/pages/ActivityList.tsx
+msgid "Could not load activity"
+msgstr ""
+
 #: src/components/ApprovalRulesSettings.tsx
 msgid "Could not load approval rules"
 msgstr "No se pudieron cargar las reglas de aprobación"
@@ -1461,6 +1473,10 @@ msgstr ""
 #: src/pages/shell/dialogs.tsx
 msgid "Could not rename section"
 msgstr "No se pudo renombrar la sección"
+
+#: src/pages/shell/dialogs.tsx
+msgid "Could not rename space"
+msgstr "No se pudo renombrar el space"
 
 #: src/pages/shell/message-cards.tsx
 msgid "Could not render chart"
@@ -1828,6 +1844,10 @@ msgstr ""
 msgid "Direct MCP"
 msgstr ""
 
+#: src/pages/shell/bot-panel.tsx
+msgid "Disabled tools"
+msgstr ""
+
 #: src/pages/McpServersOverlay.tsx
 #: src/pages/MemorySettingsOverlay.tsx
 #: src/pages/ModelSettingsOverlay.tsx
@@ -2143,6 +2163,15 @@ msgstr "¿Olvidaste la contraseña?"
 #: src/pages/ModelSettingsOverlay.tsx
 msgid "Free"
 msgstr "Gratis"
+
+#: src/pages/ActivityList.tsx
+msgid "From"
+msgstr ""
+
+#. placeholder {0}: filters.dateRange.from
+#: src/pages/ActivityList.tsx
+msgid "From {0}"
+msgstr ""
 
 #: src/pages/WindowChrome.tsx
 msgid "Fullscreen"
@@ -2918,6 +2947,10 @@ msgstr ""
 msgid "No results"
 msgstr "Sin resultados"
 
+#: src/pages/ActivityList.tsx
+msgid "No runs match these filters."
+msgstr ""
+
 #: src/pages/RoutineRunHistory.tsx
 msgid "No runs yet"
 msgstr "Aún no hay ejecuciones"
@@ -3396,6 +3429,11 @@ msgstr "Quitando…"
 msgid "Rename section"
 msgstr "Renombrar sección"
 
+#: src/pages/Shell.tsx
+#: src/pages/shell/dialogs.tsx
+msgid "Rename space"
+msgstr "Renombrar space"
+
 #: src/pages/BillingSettingsPanel.tsx
 msgid "Renews {day}"
 msgstr ""
@@ -3445,6 +3483,10 @@ msgstr ""
 #: src/pages/shell/avatar-studio-popover.tsx
 msgid "Reset"
 msgstr "Restablecer"
+
+#: src/pages/ActivityList.tsx
+msgid "Reset all"
+msgstr ""
 
 #: src/components/ComputerMaintenanceActions.tsx
 msgid "Reset computer"
@@ -3650,6 +3692,10 @@ msgstr "Di sí o no, o responde en una frase."
 msgid "Search"
 msgstr "Buscar"
 
+#: src/pages/ActivityList.tsx
+msgid "Search activity"
+msgstr ""
+
 #: src/components/integrations/IntegrationSetup.tsx
 #: src/pages/PluginsOverlay.tsx
 msgid "Search apps"
@@ -3678,6 +3724,15 @@ msgstr "Buscar modelos"
 #: src/pages/ModelSettingsOverlay.tsx
 msgid "Search providers"
 msgstr "Buscar proveedores"
+
+#: src/pages/ActivityList.tsx
+msgid "Search runs"
+msgstr ""
+
+#. placeholder {0}: filters.query.trim()
+#: src/pages/ActivityList.tsx
+msgid "Search: {0}"
+msgstr ""
 
 #: src/pages/PluginsOverlay.tsx
 #: src/pages/SpaceSearch.tsx
@@ -3936,6 +3991,10 @@ msgstr "Iniciando"
 msgid "Starting…"
 msgstr "Iniciando…"
 
+#: src/pages/ActivityList.tsx
+msgid "Status"
+msgstr ""
+
 #: src/components/teach/SkillDraftCard.tsx
 msgid "Steps"
 msgstr "Pasos"
@@ -4151,6 +4210,15 @@ msgstr "Hora del día"
 msgid "Title"
 msgstr "Título"
 
+#: src/pages/ActivityList.tsx
+msgid "To"
+msgstr ""
+
+#. placeholder {0}: filters.dateRange.to
+#: src/pages/ActivityList.tsx
+msgid "To {0}"
+msgstr ""
+
 #: src/pages/shell/bot-picker.tsx
 msgid "To:"
 msgstr "Para:"
@@ -4187,6 +4255,7 @@ msgstr ""
 msgid "Trial ends {day}"
 msgstr ""
 
+#: src/pages/ActivityList.tsx
 #: src/pages/Onboarding.tsx
 msgid "Try again"
 msgstr "Intentarlo de nuevo"
@@ -4213,6 +4282,10 @@ msgstr "No disponible"
 
 #: src/pages/PluginsOverlay.tsx
 msgid "Uninstall"
+msgstr ""
+
+#: src/pages/shell/bot-panel.tsx
+msgid "Unknown tool"
 msgstr ""
 
 #: src/pages/MessagingSettingsOverlay.tsx

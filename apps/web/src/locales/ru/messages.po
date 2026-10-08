@@ -80,7 +80,7 @@ msgid "{0} rollup hours"
 msgstr "{0} ч. сводки"
 
 #. placeholder {0}: usage.runs
-#. placeholder {1}: usage.inputTokens + usage.outputTokens
+#. placeholder {1}: usage.totalTokens ?? "—"
 #: src/pages/AccountSettingsOverlay.tsx
 msgid "{0} runs · {1} tokens"
 msgstr "Запусков: {0} · токенов: {1}"
@@ -398,6 +398,10 @@ msgstr ""
 
 #: src/pages/ModelSettingsOverlay.tsx
 msgid "All providers"
+msgstr ""
+
+#: src/pages/ActivityList.tsx
+msgid "All statuses"
 msgstr ""
 
 #: src/pages/Artifacts.tsx
@@ -870,6 +874,10 @@ msgstr "Очистить диалог {0}?"
 msgid "Clear conversation"
 msgstr "Очистить диалог"
 
+#: src/pages/ActivityList.tsx
+msgid "Clear filter {label}"
+msgstr ""
+
 #: src/pages/shell/dialogs.tsx
 msgid "Clearing…"
 msgstr "Очистка…"
@@ -1331,6 +1339,10 @@ msgstr ""
 msgid "Could not load"
 msgstr "Не удалось загрузить"
 
+#: src/pages/ActivityList.tsx
+msgid "Could not load activity"
+msgstr ""
+
 #: src/components/ApprovalRulesSettings.tsx
 msgid "Could not load approval rules"
 msgstr "Не удалось загрузить правила одобрения."
@@ -1461,6 +1473,10 @@ msgstr "Не удалось переименовать соединение"
 #: src/pages/shell/dialogs.tsx
 msgid "Could not rename section"
 msgstr "Не удалось переименовать раздел"
+
+#: src/pages/shell/dialogs.tsx
+msgid "Could not rename space"
+msgstr "Не удалось переименовать пространство"
 
 #: src/pages/shell/message-cards.tsx
 msgid "Could not render chart"
@@ -1828,6 +1844,10 @@ msgstr "Обновление настольного приложения"
 msgid "Direct MCP"
 msgstr "Прямой MCP"
 
+#: src/pages/shell/bot-panel.tsx
+msgid "Disabled tools"
+msgstr ""
+
 #: src/pages/McpServersOverlay.tsx
 #: src/pages/MemorySettingsOverlay.tsx
 #: src/pages/ModelSettingsOverlay.tsx
@@ -2143,6 +2163,15 @@ msgstr "Забыли пароль?"
 #: src/pages/ModelSettingsOverlay.tsx
 msgid "Free"
 msgstr "Бесплатно"
+
+#: src/pages/ActivityList.tsx
+msgid "From"
+msgstr ""
+
+#. placeholder {0}: filters.dateRange.from
+#: src/pages/ActivityList.tsx
+msgid "From {0}"
+msgstr ""
 
 #: src/pages/WindowChrome.tsx
 msgid "Fullscreen"
@@ -2918,6 +2947,10 @@ msgstr "Удаленные MCP-серверы не найдены"
 msgid "No results"
 msgstr "Нет результатов"
 
+#: src/pages/ActivityList.tsx
+msgid "No runs match these filters."
+msgstr ""
+
 #: src/pages/RoutineRunHistory.tsx
 msgid "No runs yet"
 msgstr "Запусков пока нет"
@@ -3396,6 +3429,11 @@ msgstr "Удаление…"
 msgid "Rename section"
 msgstr "Переименовать раздел"
 
+#: src/pages/Shell.tsx
+#: src/pages/shell/dialogs.tsx
+msgid "Rename space"
+msgstr "Переименовать пространство"
+
 #: src/pages/BillingSettingsPanel.tsx
 msgid "Renews {day}"
 msgstr ""
@@ -3445,6 +3483,10 @@ msgstr ""
 #: src/pages/shell/avatar-studio-popover.tsx
 msgid "Reset"
 msgstr "Сбросить"
+
+#: src/pages/ActivityList.tsx
+msgid "Reset all"
+msgstr ""
 
 #: src/components/ComputerMaintenanceActions.tsx
 msgid "Reset computer"
@@ -3650,6 +3692,10 @@ msgstr "Скажите «да» или «нет» или ответьте пре
 msgid "Search"
 msgstr "Поиск"
 
+#: src/pages/ActivityList.tsx
+msgid "Search activity"
+msgstr ""
+
 #: src/components/integrations/IntegrationSetup.tsx
 #: src/pages/PluginsOverlay.tsx
 msgid "Search apps"
@@ -3678,6 +3724,15 @@ msgstr "Поиск моделей"
 #: src/pages/ModelSettingsOverlay.tsx
 msgid "Search providers"
 msgstr "Поиск поставщиков"
+
+#: src/pages/ActivityList.tsx
+msgid "Search runs"
+msgstr ""
+
+#. placeholder {0}: filters.query.trim()
+#: src/pages/ActivityList.tsx
+msgid "Search: {0}"
+msgstr ""
 
 #: src/pages/PluginsOverlay.tsx
 #: src/pages/SpaceSearch.tsx
@@ -3936,6 +3991,10 @@ msgstr "Запуск"
 msgid "Starting…"
 msgstr "Запуск…"
 
+#: src/pages/ActivityList.tsx
+msgid "Status"
+msgstr ""
+
 #: src/components/teach/SkillDraftCard.tsx
 msgid "Steps"
 msgstr "Шаги"
@@ -4151,6 +4210,15 @@ msgstr "Время суток"
 msgid "Title"
 msgstr "Заголовок"
 
+#: src/pages/ActivityList.tsx
+msgid "To"
+msgstr ""
+
+#. placeholder {0}: filters.dateRange.to
+#: src/pages/ActivityList.tsx
+msgid "To {0}"
+msgstr ""
+
 #: src/pages/shell/bot-picker.tsx
 msgid "To:"
 msgstr "К:"
@@ -4187,6 +4255,7 @@ msgstr ""
 msgid "Trial ends {day}"
 msgstr ""
 
+#: src/pages/ActivityList.tsx
 #: src/pages/Onboarding.tsx
 msgid "Try again"
 msgstr ""
@@ -4214,6 +4283,10 @@ msgstr "Недоступно"
 #: src/pages/PluginsOverlay.tsx
 msgid "Uninstall"
 msgstr "Удалить"
+
+#: src/pages/shell/bot-panel.tsx
+msgid "Unknown tool"
+msgstr ""
 
 #: src/pages/MessagingSettingsOverlay.tsx
 msgid "Unlink"
