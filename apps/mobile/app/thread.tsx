@@ -817,11 +817,11 @@ function Thread({ sessionEpoch }: { sessionEpoch: number }) {
       headerTitle: () => (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={!inGroup && botId ? t("Chat settings") : displayName || t("Thread")}
+          accessibilityLabel={!inGroup && botId ? t("Profile") : displayName || t("Thread")}
           disabled={readOnly || inGroup || !botId}
           onPress={() => {
             if (readOnly || !botId || inGroup) return;
-            router.push({ pathname: "/bot-settings", params: { botId } });
+            openProfile();
           }}
         >
           <GlassSurface style={styles.titleCapsule} fallbackStyle={styles.titleCapsuleFill}>
@@ -847,18 +847,34 @@ function Thread({ sessionEpoch }: { sessionEpoch: number }) {
       ...(iosAtLeast(26)
         ? {
             unstable_headerRightItems: () => [
-              {
-                type: "button" as const,
-                accessibilityLabel: inGroup ? t("Group settings") : t("Bot actions"),
-                icon: { type: "sfSymbol" as const, name: inGroup ? "gearshape" : "ellipsis" },
-                onPress: inGroup
-                  ? () =>
+              inGroup
+                ? {
+                    type: "button" as const,
+                    accessibilityLabel: t("Group settings"),
+                    icon: { type: "sfSymbol" as const, name: "gearshape" },
+                    onPress: () =>
                       router.push({
                         pathname: "/group-settings",
                         params: { groupId: groupId ?? "" },
-                      })
-                  : showBotActions,
-              },
+                      }),
+                  }
+                : {
+                    type: "menu" as const,
+                    accessibilityLabel: t("Bot actions"),
+                    icon: { type: "sfSymbol" as const, name: "ellipsis" },
+                    disabled: !botId,
+                    menu: {
+                      items: botActions.map((action) => ({
+                        type: "action" as const,
+                        label: action.text,
+                        ...(action.icon
+                          ? { icon: { type: "sfSymbol" as const, name: action.icon } }
+                          : {}),
+                        destructive: action.destructive,
+                        onPress: action.onPress,
+                      })),
+                    },
+                  },
             ],
           }
         : {}),
@@ -954,25 +970,18 @@ function Thread({ sessionEpoch }: { sessionEpoch: number }) {
       );
   }
 
+  function openProfile() {
+    router.push({
+      pathname: "/bot-profile",
+      params: { botId: botId ?? "", name: displayName ?? t("Bot") },
+    });
+  }
+
   const botActions = [
-    {
-      text: t("Chat settings"),
-      onPress: () =>
-        router.push({
-          pathname: "/bot-settings",
-          params: { botId: botId ?? "" },
-        }),
-    },
-    {
-      text: t("Open computer"),
-      onPress: () =>
-        router.push({
-          pathname: "/computer",
-          params: { botId: botId ?? "", name: displayName ?? t("Bot") },
-        }),
-    },
+    { text: t("Profile"), icon: "person.crop.circle" as const, onPress: openProfile },
     {
       text: t("Clear conversation"),
+      icon: "eraser" as const,
       destructive: true,
       onPress: () =>
         Alert.alert(
@@ -988,6 +997,7 @@ function Thread({ sessionEpoch }: { sessionEpoch: number }) {
     },
     {
       text: t("Archive"),
+      icon: "archivebox" as const,
       onPress: () =>
         void rpc("bots/archive", { botId })
           .then(leaveBot)
@@ -997,6 +1007,7 @@ function Thread({ sessionEpoch }: { sessionEpoch: number }) {
     },
     {
       text: t("Delete…"),
+      icon: "trash" as const,
       destructive: true,
       onPress: () => confirmDeleteBot({ id: botId ?? "", name: displayName || t("Bot") }, leaveBot),
     },
