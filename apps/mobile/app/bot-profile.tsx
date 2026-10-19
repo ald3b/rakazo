@@ -43,7 +43,7 @@ export default function BotProfile() {
         .then((next) => {
           if (!current) return;
           // A read that overlapped a save may predate it; keep the switch as the user left it.
-          const overlapped = saves !== notifySaves.current;
+          const overlapped = saves % 2 === 1 || saves !== notifySaves.current;
           setBot((shown) =>
             overlapped && shown ? { ...next, notifyOnFinish: shown.notifyOnFinish } : next,
           );

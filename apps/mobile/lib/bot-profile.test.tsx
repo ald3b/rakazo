@@ -372,6 +372,36 @@ describe("bot profile notifications", () => {
     },
   );
 
+  it("keeps the change when a reload starts and resolves while the save is pending", async () => {
+    const reads: Array<(bot: unknown) => void> = [];
+    let save!: () => void;
+    profileRpc(async () => [], {
+      bot: () => new Promise((resolve) => reads.push(resolve)),
+      update: () => new Promise<void>((resolve) => (save = resolve)),
+    });
+    await render(createElement(BotProfile));
+    await act(async () => reads[0]!(fixtureBot));
+    const refocus = () =>
+      act(async () => {
+        for (const effect of focus) effect();
+      });
+
+    await act(async () => notificationsSwitch()!.click());
+    await refocus();
+    await act(async () => reads[1]!({ ...fixtureBot, title: "Reloaded" }));
+    expect(container.textContent).toContain("Reloaded");
+    expect(notificationsSwitch()!.checked).toBe(false);
+    expect(notificationsSwitch()!.disabled).toBe(true);
+
+    await act(async () => save());
+    expect(notificationsSwitch()!.checked).toBe(false);
+    expect(notificationsSwitch()!.disabled).toBe(false);
+
+    await refocus();
+    await act(async () => reads[2]!(fixtureBot));
+    expect(notificationsSwitch()!.checked).toBe(true);
+  });
+
   it("moves the switch back and says so when the save fails", async () => {
     profileRpc(async () => [], {
       update: async () => {
