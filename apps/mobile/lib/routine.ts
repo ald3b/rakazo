@@ -14,6 +14,7 @@ function routineTriggers(routine: Routine): string {
         : routine.messageProvider
           ? [t("Message event")]
           : []),
+    ...(routine.watch ? [t("When something changes")] : []),
   ].join(", ");
 }
 

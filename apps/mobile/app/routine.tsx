@@ -13,11 +13,10 @@ import { errorText } from "../lib/user-error";
 export default function RoutineDetail() {
   const tokens = useMobileTokens();
   const { t } = useI18n();
-  const { botId, botName, routineId, from } = useLocalSearchParams<{
+  const { botId, botName, routineId } = useLocalSearchParams<{
     botId?: string;
     botName?: string;
     routineId?: string;
-    from?: string;
   }>();
   const router = useRouter();
   const [routine, setRoutine] = useState<Routine | null>(null);
@@ -94,18 +93,15 @@ export default function RoutineDetail() {
               {routine.prompt}
             </Text>
           </View>
-          {/* From the bot's profile the conversation is already behind it on the stack. */}
-          {from === "profile" ? null : (
-            <NativeActionButton
-              label={t("Open conversation")}
-              onPress={() =>
-                router.push({
-                  pathname: "/thread",
-                  params: { botId: botId ?? "", name: botName ?? t("Bot") },
-                })
-              }
-            />
-          )}
+          <NativeActionButton
+            label={t("Open conversation")}
+            onPress={() =>
+              router.push({
+                pathname: "/thread",
+                params: { botId: botId ?? "", name: botName ?? t("Bot") },
+              })
+            }
+          />
         </>
       ) : null}
     </ScrollView>
