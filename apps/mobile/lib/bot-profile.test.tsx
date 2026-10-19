@@ -11,6 +11,7 @@ import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import ArtifactsScreen from "../app/artifacts";
 import BotProfile from "../app/bot-profile";
+import RoutineDetail from "../app/routine";
 import type * as RoutineHelpers from "./routine";
 
 const { rpc, push, listSpaceArtifacts, params, color } = vi.hoisted(() => ({
@@ -190,7 +191,7 @@ describe("bot profile", () => {
     button("Weekly report").click();
     expect(push).toHaveBeenCalledWith({
       pathname: "/routine",
-      params: { botId: "bot-fixture", botName: "Fixture", routineId: "r2" },
+      params: { botId: "bot-fixture", botName: "Fixture", routineId: "r2", origin: "profile" },
     });
     expect(button("Morning digest")).toBeTruthy();
   });
@@ -230,6 +231,29 @@ describe("bot profile", () => {
 
     expect(container.textContent).not.toContain("Try again.");
     expect(button("Morning digest")).toBeTruthy();
+  });
+});
+
+describe("routine detail", () => {
+  beforeEach(() => {
+    params.current = { botId: "bot-fixture", botName: "Fixture", routineId: "r1" };
+    profileRpc(async () => [routine("r1", "Morning digest")]);
+  });
+
+  it("hides Open conversation when opened from Profile", async () => {
+    params.current.origin = "profile";
+    await render(createElement(RoutineDetail));
+    expect(container.textContent).toContain("Check the inbox");
+    expect(container.textContent).not.toContain("Open conversation");
+  });
+
+  it("offers Open conversation without the Profile origin", async () => {
+    await render(createElement(RoutineDetail));
+    button("Open conversation").click();
+    expect(push).toHaveBeenCalledWith({
+      pathname: "/thread",
+      params: { botId: "bot-fixture", name: "Fixture" },
+    });
   });
 });
 

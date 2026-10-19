@@ -130,7 +130,7 @@ export default function BotProfile() {
               onPress={() =>
                 router.push({
                   pathname: "/routine",
-                  params: { botId, botName: name, routineId: routine.id },
+                  params: { botId, botName: name, routineId: routine.id, origin: "profile" },
                 })
               }
             />
