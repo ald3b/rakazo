@@ -116,6 +116,11 @@ COPY --chmod=755 rakazo-browser /usr/local/bin/rakazo-browser
 COPY --chmod=755 rakazo-focus-or-launch /usr/local/bin/rakazo-focus-or-launch
 COPY --chmod=755 rakazo-page-browser /usr/local/bin/rakazo-page-browser
 COPY --chmod=644 rakazo-browser.desktop /usr/share/applications/rakazo-browser.desktop
+# Managed policy covers every Chromium the bot starts. Logins live only in Rakazo's secret
+# store, so Chromium saves no logins, addresses or cards. It also loads no extensions, runs
+# no javascript: URLs typed in the address bar, and opens no DevTools window. DevTools is a
+# URL block because DeveloperToolsAvailability also refuses the page-browser's CDP attach.
+COPY --chmod=644 chromium-policy.json /etc/chromium/policies/managed/rakazo.json
 COPY --chmod=644 fluxbox.init /etc/rakazo/fluxbox/init
 COPY --chmod=644 fluxbox.apps /etc/rakazo/fluxbox/apps
 COPY --chmod=644 fluxbox.menu /etc/rakazo/fluxbox/menu

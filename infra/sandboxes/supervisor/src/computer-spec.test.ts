@@ -2,6 +2,7 @@ import { spawn, spawnSync } from "node:child_process";
 import {
   chmodSync,
   copyFileSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -268,6 +269,117 @@ describe("graphical computer spec", () => {
     expect(dockerfile).toMatch(/wmctrl/);
     expect(dockerfile).toMatch(/rakazo-focus-or-launch/);
   });
+
+  it("locks the bot's Chromium down by managed policy", () => {
+    const root = path.resolve(import.meta.dirname, "../../computer");
+    const dockerfile = readFileSync(path.join(root, "Dockerfile"), "utf8");
+    const policy = JSON.parse(readFileSync(path.join(root, "chromium-policy.json"), "utf8"));
+    expect(dockerfile).toMatch(
+      /^COPY --chmod=644 chromium-policy\.json \/etc\/chromium\/policies\/managed\/rakazo\.json$/m,
+    );
+    expect(policy).toEqual({
+      PasswordManagerEnabled: false,
+      PasswordLeakDetectionEnabled: false,
+      AutofillAddressEnabled: false,
+      AutofillCreditCardEnabled: false,
+      URLBlocklist: ["javascript://*", "devtools://*", "chrome://inspect"],
+      ExtensionInstallBlocklist: ["*"],
+    });
+    // Chromium refuses CDP attach under this policy, which the page-browser helper needs.
+    expect(policy).not.toHaveProperty("DeveloperToolsAvailability");
+    // The debug port's own DevTools page can open in the window; without this flag Chromium
+    // refuses its connection.
+    const browser = readFileSync(path.join(root, "rakazo-browser"), "utf8");
+    expect(browser).not.toContain("--remote-allow-origins");
+    expect(ensureScreenCommand(0, "bot", "view-token")).not.toContain("--remote-allow-origins");
+  });
+
+  it("runs the page-browser helper in isolated mode", () => {
+    const helper = readFileSync(
+      path.resolve(import.meta.dirname, "../../computer/rakazo-page-browser"),
+      "utf8",
+    );
+    // -I ignores PYTHON* variables, user site-packages and the script directory, which the
+    // computer's own user can write.
+    expect(helper.split("\n", 1)[0]).toBe("#!/usr/bin/python3 -I");
+  });
+
+  it.skipIf(process.platform === "win32")(
+    "drops saved logins from every browser profile before the desktop starts",
+    () => {
+      const start = readFileSync(
+        path.resolve(import.meta.dirname, "../../computer/start.sh"),
+        "utf8",
+      );
+      const sweep = start.match(/^saved_logins\(\) \{[\s\S]*?^fi$/m)?.[0];
+      expect(sweep).toBeDefined();
+      expect(start.indexOf(sweep ?? "")).toBeLessThan(start.search(/^[^#\n]*&\s*$/m));
+      // A find or chmod planted in ~/.local/bin, which is on PATH, must not replace the sweep.
+      expect(sweep).not.toMatch(/(?<![/\w-])(?:find|chmod) /);
+      const home = mkdtempSync(path.join(tmpdir(), "rakazo-saved-logins-"));
+      const profiles = path.join(home, ".browser-profiles");
+      const run = (script = sweep ?? "exit 1") =>
+        spawnSync("bash", ["-c", script], {
+          env: { ...process.env, AGENT_HOME: home },
+          encoding: "utf8",
+          timeout: 5_000,
+        });
+      const files = {
+        removed: [
+          "chromium/Default/Login Data",
+          "chromium/Default/Login Data-journal",
+          "chromium/Default/Login Data For Account",
+          `chromium-bot-${"a".repeat(32)}/Profile 1/Login Data`,
+        ],
+        kept: [
+          "chromium/Default/Cookies",
+          "chromium/Default/Preferences",
+          `chromium-bot-${"a".repeat(32)}/Profile 1/History`,
+        ],
+      };
+      const stuck = path.join(profiles, "chromium-screen-2/Default");
+      try {
+        for (const file of [...files.removed, ...files.kept]) {
+          mkdirSync(path.dirname(path.join(profiles, file)), { recursive: true });
+          writeFileSync(path.join(profiles, file), "x");
+        }
+        const result = run();
+        expect(result.status, result.stderr).toBe(0);
+        for (const file of files.removed)
+          expect(existsSync(path.join(profiles, file)), file).toBe(false);
+        for (const file of files.kept)
+          expect(existsSync(path.join(profiles, file)), file).toBe(true);
+
+        // A profile folder made read-only is made writable again and cleared.
+        mkdirSync(stuck, { recursive: true });
+        writeFileSync(path.join(stuck, "Login Data"), "x");
+        chmodSync(stuck, 0o555);
+        const restored = run();
+        expect(restored.status, restored.stderr).toBe(0);
+        expect(existsSync(path.join(stuck, "Login Data"))).toBe(false);
+
+        // A store that still can't be removed stops startup instead of reaching the browser.
+        writeFileSync(path.join(stuck, "Login Data"), "x");
+        const find = path.join(home, "find");
+        writeFileSync(
+          find,
+          '#!/bin/sh\nfor arg; do [ "$arg" = -delete ] && exit 1; done\nexec /usr/bin/find "$@"\n',
+        );
+        chmodSync(find, 0o755);
+        const failed = run(sweep?.replaceAll("/usr/bin/find", find));
+        expect(failed.status).toBe(1);
+        expect(failed.stderr).toContain("failed to remove saved browser logins");
+        expect(existsSync(path.join(stuck, "Login Data"))).toBe(true);
+
+        rmSync(profiles, { recursive: true });
+        // A computer that never opened a browser has no profiles folder.
+        expect(run().status).toBe(0);
+      } finally {
+        if (existsSync(stuck)) chmodSync(stuck, 0o755);
+        rmSync(home, { recursive: true, force: true });
+      }
+    },
+  );
 
   it("ships a sha256-pinned gh CLI", () => {
     const root = path.resolve(import.meta.dirname, "../../computer");

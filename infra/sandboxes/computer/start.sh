@@ -10,6 +10,18 @@ export PATH="$AGENT_HOME/.local/bin:/usr/local/bin:$PATH"
 export NPM_CONFIG_PREFIX="$AGENT_HOME/.local"
 export PIP_USER=1
 cd "$AGENT_HOME"
+# Older images let Chromium save logins, and the managed policy only stops new saves.
+# No browser runs yet, so drop every profile's saved-login store. No profiles is fine;
+# a store that is still there afterwards stops startup. Full paths: PATH already includes
+# ~/.local/bin, which the computer's user can write.
+saved_logins() { /usr/bin/find "$AGENT_HOME/.browser-profiles" -mindepth 3 -maxdepth 3 -type f -name 'Login Data*' "$@" 2>/dev/null; }
+# The computer's user owns every profile folder, so a read-only one is made writable again.
+/usr/bin/find "$AGENT_HOME/.browser-profiles" -maxdepth 2 -type d -exec /bin/chmod u+rwx {} + 2>/dev/null
+saved_logins -delete
+if [[ -n "$(saved_logins -print -quit)" ]]; then
+  echo "failed to remove saved browser logins" >&2
+  exit 1
+fi
 
 # This script is PID 1. Without a handler, PID 1 ignores SIGTERM and `docker stop` waits its
 # full grace period before killing the container, so every stop, sleep and computer switch

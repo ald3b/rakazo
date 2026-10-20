@@ -1160,6 +1160,7 @@ async function ensureComputerImage() {
             "rakazo-browser",
             "rakazo-page-browser",
             "rakazo-browser.desktop",
+            "chromium-policy.json",
             "embed.html",
             "clipboard-bridge.js",
             "mobile-keyboard.js",

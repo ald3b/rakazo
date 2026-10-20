@@ -1,0 +1,8 @@
+{
+  "PasswordManagerEnabled": false,
+  "PasswordLeakDetectionEnabled": false,
+  "AutofillAddressEnabled": false,
+  "AutofillCreditCardEnabled": false,
+  "URLBlocklist": ["javascript://*", "devtools://*", "chrome://inspect"],
+  "ExtensionInstallBlocklist": ["*"]
+}
