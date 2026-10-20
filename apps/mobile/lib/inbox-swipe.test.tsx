@@ -332,7 +332,7 @@ describe("iOS swipe row", () => {
       ["Pin", "pin", null],
       ["Silence notifications", "bell.slash", null],
       ["Move to", "folder", null],
-      ["Archive", "eye.slash", "destructive"],
+      ["Archive", "eye.slash", null],
       ["Delete…", "trash", "destructive"],
     ]);
     // Menu items keep their titles; only the swipe buttons are icon-only.
@@ -358,6 +358,10 @@ describe("iOS swipe row", () => {
       "Archive",
       "Delete…",
     ]);
+    expect(items.querySelector('[data-label="Archive"]')?.getAttribute("data-role")).toBeNull();
+    expect(items.querySelector('[data-label="Delete…"]')?.getAttribute("data-role")).toBe(
+      "destructive",
+    );
     expect(entries(find('[data-ui="Menu"]')!)).toEqual([
       ["Work", "false", null],
       ["Home", "false", null],

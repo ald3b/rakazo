@@ -3,7 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const { rpc, alert } = vi.hoisted(() => ({ rpc: vi.fn(), alert: vi.fn() }));
 vi.mock("./api", () => ({ rpc }));
 vi.mock("react-native", () => ({ Alert: { alert } }));
-vi.mock("./i18n", () => ({ t: (message: string) => message }));
+vi.mock("./i18n", () => ({
+  t: (message: string, values?: { name: string }) =>
+    message.replace("{name}", values?.name ?? "{name}"),
+}));
 vi.mock("./user-error", () => ({ errorText: () => "Try again." }));
 
 import { confirmDeleteBot, confirmDeleteGroup, restoreArchivedBot } from "./bot-lifecycle";
@@ -42,14 +45,11 @@ describe("archived bot lifecycle", () => {
 });
 
 describe("group deletion", () => {
-  it("asks with the group settings wording and removes nothing on cancel", () => {
+  it("asks with a named deletion title and retention message and removes nothing on cancel", () => {
     const deleted = vi.fn();
     confirmDeleteGroup({ id: "group-fixture", name: "Team" }, deleted);
     const [title, message, buttons] = alert.mock.calls[0]!;
-    expect([title, message]).toEqual([
-      "Team",
-      "Delete this group? Bots and their solo threads are kept.",
-    ]);
+    expect([title, message]).toEqual(["Delete Team?", "Bots and their solo threads are kept."]);
     expect(
       buttons.map(({ text, style }: { text: string; style: string }) => [text, style]),
     ).toEqual([

@@ -64,7 +64,7 @@ export function InboxSwipeRow({
         key={action}
         label={t(label)}
         systemImage={systemImage}
-        role={action === "archive" || action === "delete" ? "destructive" : undefined}
+        role={(swipe && action === "archive") || action === "delete" ? "destructive" : undefined}
         modifiers={
           swipe
             ? [
