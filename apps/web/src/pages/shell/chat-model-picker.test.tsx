@@ -1,12 +1,26 @@
 // @vitest-environment jsdom
 
 import type { ChatModelChoice } from "@rakazo/core";
-import type { ReactNode } from "react";
-import { act } from "react";
+import type { PopoverContent } from "@rakazo/ui-web/components/ui/popover";
+import type { ComponentProps, ReactNode } from "react";
+import { act, createElement } from "react";
 import type { Root } from "react-dom/client";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ChatModelPicker } from "./chat-model-picker";
+
+const { popoverProps } = vi.hoisted(() => ({ popoverProps: vi.fn() }));
+
+vi.mock("@rakazo/ui-web/components/ui/popover", async (importOriginal) => {
+  const actual = await importOriginal<{ PopoverContent: typeof PopoverContent }>();
+  return {
+    ...actual,
+    PopoverContent: (props: ComponentProps<typeof PopoverContent>) => {
+      popoverProps(props);
+      return createElement(actual.PopoverContent, props);
+    },
+  };
+});
 
 vi.mock("@lingui/react/macro", () => {
   const t = (parts: TemplateStringsArray, ...values: unknown[]) =>
@@ -45,6 +59,7 @@ describe("ChatModelPicker", () => {
     );
     Element.prototype.scrollIntoView = () => undefined;
     onChange.mockReset();
+    popoverProps.mockClear();
     container = document.createElement("div");
     document.body.append(container);
     root = createRoot(container);
@@ -106,5 +121,15 @@ describe("ChatModelPicker", () => {
     expect(options()).toHaveLength(0);
     expect(document.querySelector("[cmdk-group-heading]")).toBeNull();
     expect(document.body.textContent).toContain("No matching models");
+  });
+
+  it("keeps the popup below the trigger without switching axes", () => {
+    render(choices(11), "");
+    act(() => container.querySelector<HTMLButtonElement>("button#model")!.click());
+    expect(popoverProps.mock.lastCall?.[0]).toMatchObject({
+      side: "bottom",
+      align: "start",
+      collisionAvoidance: { side: "none", align: "shift", fallbackAxisSide: "none" },
+    });
   });
 });

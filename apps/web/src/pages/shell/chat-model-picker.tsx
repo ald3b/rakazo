@@ -71,11 +71,12 @@ export function ChatModelPicker({
         <PopoverContent
           align="start"
           side="bottom"
+          collisionAvoidance={{ side: "none", align: "shift", fallbackAxisSide: "none" }}
           className="w-(--anchor-width) max-h-(--available-height) gap-0 overflow-hidden bg-popover p-0 opacity-100 animate-none! backdrop-filter-none"
         >
           <Command
             shouldFilter={false}
-            className="h-auto min-h-0 max-h-(--available-height) rounded-none bg-popover"
+            className="h-auto min-h-0 max-h-(--available-height) rounded-none bg-popover *:data-[slot=command-input-wrapper]:shrink-0"
           >
             <CommandInput
               value={query}
