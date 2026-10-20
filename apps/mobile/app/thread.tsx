@@ -4273,7 +4273,9 @@ function AskBlock({
           style={{
             // Dismissed reads like a declined approval, not a success.
             color: dismissed || ask.dismissed ? tokens.mutedForeground : tokens.success,
-            fontSize: 14,
+            ...(secretInput
+              ? { fontSize: 13.5, fontWeight: "600" as const, marginTop: 12 }
+              : { fontSize: 14 }),
           }}
         >
           {secretInput
@@ -4281,15 +4283,24 @@ function AskBlock({
             : t("Answered: {answer}", { answer: ask.answer ?? t("Done") })}
         </Text>
       ) : canAnswer && loginInput ? (
-        <NativeActionButton
-          label={t("Continue")}
-          fill={false}
-          onPress={() => {
-            sheetSession.current += 1;
-            setSheetOpen(true);
-          }}
-          style={{ alignSelf: "flex-end" }}
-        />
+        <View style={askInputStyles.buttons}>
+          <NativeActionButton
+            label={t("Continue")}
+            disabled={submitting}
+            fill={false}
+            onPress={() => {
+              sheetSession.current += 1;
+              setSheetOpen(true);
+            }}
+          />
+          <NativeActionButton
+            label={t("Dismiss")}
+            disabled={submitting}
+            fill={false}
+            prominence="secondary"
+            onPress={() => void dismiss()}
+          />
+        </View>
       ) : canAnswer ? (
         <>
           <TextInput
@@ -4308,15 +4319,6 @@ function AskBlock({
             style={[askInputStyles.field, { borderColor: tokens.border, color: tokens.foreground }]}
           />
           <View style={askInputStyles.buttons}>
-            {secretInput ? (
-              <NativeActionButton
-                label={t("Dismiss")}
-                disabled={submitting}
-                fill={false}
-                prominence="plain"
-                onPress={() => void dismiss()}
-              />
-            ) : null}
             <NativeActionButton
               label={submitLabel}
               disabled={incomplete}
@@ -4324,6 +4326,15 @@ function AskBlock({
               fill={false}
               onPress={() => void submit()}
             />
+            {secretInput ? (
+              <NativeActionButton
+                label={t("Dismiss")}
+                disabled={submitting}
+                fill={false}
+                prominence="secondary"
+                onPress={() => void dismiss()}
+              />
+            ) : null}
           </View>
         </>
       ) : (
@@ -4346,11 +4357,6 @@ function AskBlock({
             setSaved(true);
             if (session === sheetSession.current) setSheetOpen(false);
           }}
-          // The dismissed card is no longer pending, so the sheet clears and closes itself.
-          onDismiss={async () => {
-            await onDismiss();
-            setDismissed(true);
-          }}
         />
       ) : null}
     </View>
@@ -4369,9 +4375,8 @@ const askInputStyles = StyleSheet.create({
   buttons: {
     flexDirection: "row",
     flexWrap: "wrap",
-    justifyContent: "flex-end",
+    justifyContent: "flex-start",
     alignItems: "center",
-    columnGap: 20,
-    rowGap: 8,
+    gap: 6,
   },
 });

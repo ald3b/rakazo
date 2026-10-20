@@ -17,7 +17,6 @@ export function SecretAskSheet({
   pending,
   onClose,
   onSave,
-  onDismiss,
 }: {
   title: string;
   destination: string;
@@ -25,8 +24,6 @@ export function SecretAskSheet({
   pending: boolean;
   onClose: () => void;
   onSave: (password: string, username: string) => Promise<void>;
-  /** Turns the request down without a value; the card then stops pending and the sheet closes. */
-  onDismiss: () => Promise<void>;
 }) {
   const { t } = useI18n();
   const styles = useThemedStyles(createStyles);
@@ -88,20 +85,6 @@ export function SecretAskSheet({
     setError(null);
     try {
       await onSave(submitPassword, submitUsername);
-    } catch {
-      setError(t("Could not send answer"));
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function dismiss() {
-    if (submitting) return;
-    clear();
-    setSubmitting(true);
-    setError(null);
-    try {
-      await onDismiss();
     } catch {
       setError(t("Could not send answer"));
     } finally {
@@ -187,14 +170,6 @@ export function SecretAskSheet({
             style={styles.field}
           />
           {error ? <Text style={styles.error}>{error}</Text> : null}
-          <NativeActionButton
-            label={t("Dismiss")}
-            disabled={submitting || closing}
-            fill={false}
-            prominence="plain"
-            onPress={() => void dismiss()}
-            style={styles.dismiss}
-          />
         </ScrollView>
       </View>
     </Modal>
@@ -223,6 +198,5 @@ function createStyles() {
     },
     placeholder: { color: tokens.mutedForeground },
     error: { color: tokens.destructive, fontSize: 13 },
-    dismiss: { alignSelf: "center" },
   });
 }

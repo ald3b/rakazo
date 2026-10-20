@@ -298,7 +298,7 @@ export function AskCard({
             onChange={(event) => setAnswer(event.target.value)}
             placeholder={secretLabel}
           />
-          <div className="flex gap-2 self-start">
+          <div className="flex flex-wrap gap-2 self-start">
             <Button
               type="submit"
               disabled={answer.length === 0 || (loginInput && !username.trim()) || submitting}

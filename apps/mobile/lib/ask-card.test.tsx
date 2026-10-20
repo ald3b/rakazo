@@ -21,7 +21,6 @@ type SheetProps = {
   pending: boolean;
   onClose: () => void;
   onSave: (password: string, username: string) => Promise<void>;
-  onDismiss: () => Promise<void>;
 };
 let sheet: SheetProps;
 const scope = {
@@ -44,9 +43,14 @@ const scope = {
   }: {
     children?: ReactNode;
     numberOfLines?: number;
-    style?: { color?: string };
+    style?: { color?: string; fontWeight?: string; marginTop?: number };
   }) => (
-    <span data-lines={numberOfLines} data-color={style?.color}>
+    <span
+      data-lines={numberOfLines}
+      data-color={style?.color}
+      data-weight={style?.fontWeight}
+      data-spacing={style?.marginTop}
+    >
       {children}
     </span>
   ),
@@ -57,12 +61,14 @@ const scope = {
     label,
     onPress,
     disabled,
+    prominence = "primary",
   }: {
     label: string;
     onPress: () => void;
     disabled?: boolean;
+    prominence?: string;
   }) => (
-    <button type="button" onClick={onPress} disabled={disabled}>
+    <button type="button" onClick={onPress} disabled={disabled} data-prominence={prominence}>
       {label}
     </button>
   ),
@@ -228,7 +234,9 @@ it("dismisses an inline secret card without sending a value", async () => {
   const onAnswer = vi.fn(async () => undefined);
   const onDismiss = vi.fn(async () => undefined);
   await render({ input: "secret", purpose: "otp" }, onAnswer, onDismiss);
-  expect(buttons()).toEqual(["Dismiss", "Save"]);
+  expect(buttons()).toEqual(["Save", "Dismiss"]);
+  expect(button("Save").dataset.prominence).toBe("primary");
+  expect(button("Dismiss").dataset.prominence).toBe("secondary");
 
   await act(async () => button("Dismiss").click());
 
@@ -259,6 +267,8 @@ function state(text: string) {
 it("shows a dismissed secret card as a muted Dismissed and a saved one as Saved", async () => {
   await render({ input: "secret", status: "answered", answer: "", dismissed: true });
   expect(state("Dismissed")?.dataset.color).toBe("muted");
+  expect(state("Dismissed")?.dataset.weight).toBe("600");
+  expect(state("Dismissed")?.dataset.spacing).toBe("12");
   await render({ input: "secret", status: "answered", answer: "" });
   expect(state("Saved")?.dataset.color).toBe("success");
   expect(container.textContent).not.toContain("Dismissed");
@@ -269,18 +279,19 @@ it("offers Dismiss only on secret cards", async () => {
   expect(buttons()).toEqual(["Send answer"]);
 });
 
-it("dismisses a login card from its sheet, which then closes itself", async () => {
+it("dismisses a login card directly without opening the sheet", async () => {
+  const onAnswer = vi.fn(async () => undefined);
   const onDismiss = vi.fn(async () => undefined);
-  await render(loginAsk, undefined, onDismiss);
-  await openSheet();
-
-  await act(async () => sheet.onDismiss());
-
+  await render(loginAsk, onAnswer, onDismiss);
+  expect(buttons()).toEqual(["Continue", "Dismiss"]);
+  expect(button("Continue").dataset.prominence).toBe("primary");
+  expect(button("Dismiss").dataset.prominence).toBe("secondary");
+  await act(async () => button("Dismiss").click());
   expect(onDismiss).toHaveBeenCalledTimes(1);
-  expect(sheet.pending).toBe(false);
+  expect(onAnswer).not.toHaveBeenCalled();
   expect(container.textContent).toContain("Dismissed");
-  await act(async () => sheet.onClose());
   expect(container.querySelector("[data-sheet]")).toBeNull();
+  expect(buttons()).toEqual([]);
 });
 
 it("lets the card's buttons wrap instead of overflowing at large text sizes", () => {

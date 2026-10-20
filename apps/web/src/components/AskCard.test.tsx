@@ -107,3 +107,23 @@ it("offers Dismiss only on secret cards", async () => {
   await render({ kind: "ask", text: "Which city?", status: "pending" });
   expect(button("Dismiss")).toBeUndefined();
 });
+
+it("puts primary Save before secondary Dismiss in a wrapping row", async () => {
+  await render(secretCard);
+  expect(
+    [...button("Save")!.parentElement!.querySelectorAll("button")].map((item) => item.textContent),
+  ).toEqual(["Save", "Dismiss"]);
+  expect(button("Save")?.classList.contains("bg-primary")).toBe(true);
+  expect(button("Dismiss")?.classList.contains("border-border")).toBe(true);
+  expect(button("Save")?.parentElement?.classList.contains("flex-wrap")).toBe(true);
+});
+
+it("styles dismissed secrets like denied approvals, apart from the destination", async () => {
+  await render({ ...secretCard, status: "answered", dismissed: true });
+  const dismissed = [...container.querySelectorAll("div")].find(
+    (item) => item.textContent === "Dismissed",
+  )!;
+  expect(dismissed.classList.contains("font-medium")).toBe(true);
+  expect(dismissed.classList.contains("mt-3.5")).toBe(true);
+  expect(dismissed.classList.contains("text-muted-foreground")).toBe(true);
+});
