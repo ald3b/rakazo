@@ -17,6 +17,7 @@ import {
   runPromotesMidTurnNarration,
   runReplyGuidance,
   runSendsFinishNotification,
+  secretAskNotification,
   stripNoResponseReply,
   stripStrayNoResponse,
   subagentMarksUnread,
@@ -125,6 +126,25 @@ describe("completionNotificationPreview", () => {
     expect(preview).not.toContain("*");
     expect(preview.startsWith("word word")).toBe(true);
     expect(completionNotificationPreview("**  **")).toBe("");
+  });
+});
+
+describe("secretAskNotification", () => {
+  it("uses the generic answer title and a short, redacted label", () => {
+    const notification = secretAskNotification(
+      "Bot",
+      `Sign in for fake-token-123 ${"word ".repeat(100)}`,
+      ["fake-token-123"],
+    );
+    expect(notification.title).toBe("Bot needs an answer");
+    expect(notification.body).toHaveLength(180);
+    expect(notification.body.startsWith("Sign in for [redacted] word")).toBe(true);
+  });
+
+  it("does not let Markdown split a protected value past redaction", () => {
+    expect(secretAskNotification("Bot", "Code fake-**token**-123", ["fake-token-123"]).body).toBe(
+      "Code [redacted]",
+    );
   });
 });
 
