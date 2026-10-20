@@ -130,6 +130,9 @@ vi.mock("react-native", async () => {
       "textDecorationLine",
       "color",
       "fontWeight",
+      "fontFamily",
+      "fontSize",
+      "lineHeight",
       "textAlign",
       "writingDirection",
       "width",
@@ -442,6 +445,28 @@ describe("native markdown tables", () => {
 });
 
 describe("native markdown code blocks", () => {
+  it.each(["first\n\nthird", "first\n\nthird\n", "first\n\nthird\n```"])(
+    "preserves blank fence lines without adding a trailing row: %j",
+    (code) => {
+      const html = renderToStaticMarkup(
+        <ChatMarkdown colorScheme="light">{`\`\`\`\n${code}`}</ChatMarkdown>,
+      );
+      const document = new DOMParser().parseFromString(html, "text/html");
+      const rows = document.querySelectorAll("rn-scroll-view rn-view[data-flex-direction='row']");
+      expect(rows).toHaveLength(3);
+      expect([...rows].map((row) => row.textContent)).toEqual(["first", " ", "third"]);
+      const tokens = [...rows].map((row) => row.querySelector("rn-text"));
+      for (const token of tokens) {
+        expect(token).not.toBeNull();
+        expect(token?.getAttribute("data-color")).toBe(themes.oneLight.plain.color);
+        for (const attribute of ["data-font-family", "data-font-size", "data-line-height"]) {
+          expect(token?.getAttribute(attribute)).toBeTruthy();
+          expect(token?.getAttribute(attribute)).toBe(tokens[0]?.getAttribute(attribute));
+        }
+      }
+    },
+  );
+
   const LONG_LINE =
     '<settings><entry key="preview.enabled" value="true" note="a line wider than the bubble"/></settings>';
 

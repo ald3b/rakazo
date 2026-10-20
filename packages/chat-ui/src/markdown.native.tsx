@@ -755,6 +755,9 @@ function CodeFence({
             <View style={styleMap._VIEW_SAFE_fence_code}>
               {tokens.map((line, lineIndex) => (
                 <View key={lineIndex} style={layout.codeLine}>
+                  {line.every((token) => token.empty) ? (
+                    <Text style={[{ color: theme.plain.color }, styleMap.fence_token]}> </Text>
+                  ) : null}
                   {line
                     .filter((token) => !token.empty)
                     .map((token, tokenIndex) => {
