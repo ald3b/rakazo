@@ -9,6 +9,7 @@ import BotModelScreen from "../app/bot-model";
 import BotSettingsScreen from "../app/bot-settings";
 
 const mocks = vi.hoisted(() => ({
+  listProps: {} as Record<string, unknown>,
   params: {} as Record<string, string | undefined>,
   update: vi.fn(),
   push: vi.fn(),
@@ -27,12 +28,15 @@ const catalog = Array.from({ length: 11 }, (_, index) => ({
   billing: "",
 }));
 
+vi.mock("react-native-safe-area-context", () => ({ useSafeAreaInsets: () => ({ bottom: 34 }) }));
+
 vi.mock("./api", () => ({
   rpc: async (procedure: string, input?: unknown) => {
     if (procedure === "bots/update") return mocks.update(input);
     if (procedure === "bots/get")
       return { id: "bot-fixture", name: "Fixture", title: "", computerMode: "team" };
-    if (procedure === "me") return {};
+    if (procedure === "me")
+      return { defaultProvider: "openrouter", defaultModel: "vendor/model-1" };
     if (procedure === "models/list") return catalog;
     if (procedure === "models/credentials")
       return [{ provider: "openrouter", label: "OpenRouter" }];
@@ -111,26 +115,55 @@ vi.mock("react-native", () => {
         },
         children,
       ),
-    FlatList: ({
-      data,
+    SectionList: ({
+      sections,
       renderItem,
+      renderSectionHeader,
       keyExtractor,
       ListEmptyComponent,
+      automaticallyAdjustKeyboardInsets,
+      contentContainerStyle,
+      contentInsetAdjustmentBehavior,
     }: {
-      data: { key: string }[];
-      renderItem: (info: { item: { key: string }; index: number }) => ReactNode;
+      sections: { key: string; heading?: string; data: { key: string }[] }[];
+      renderItem: (info: {
+        item: { key: string };
+        index: number;
+        section: { data: { key: string }[] };
+      }) => ReactNode;
+      renderSectionHeader: (info: { section: { heading?: string } }) => ReactNode;
       keyExtractor: (item: { key: string }) => string;
       ListEmptyComponent: ReactNode;
-    }) =>
-      createElement(
+      automaticallyAdjustKeyboardInsets: boolean;
+      contentContainerStyle: unknown;
+      contentInsetAdjustmentBehavior: string;
+    }) => {
+      mocks.listProps = {
+        automaticallyAdjustKeyboardInsets,
+        contentContainerStyle,
+        contentInsetAdjustmentBehavior,
+      };
+      return createElement(
         "ul",
         {},
-        data.length
-          ? data.map((item, index) =>
-              createElement("li", { key: keyExtractor(item) }, renderItem({ item, index })),
+        sections.length
+          ? sections.map((section) =>
+              createElement(
+                "section",
+                { key: section.key },
+                renderSectionHeader({ section }),
+                section.data.map((item, index) =>
+                  createElement(
+                    "li",
+                    { key: keyExtractor(item) },
+                    renderItem({ item, index, section }),
+                  ),
+                ),
+              ),
             )
           : ListEmptyComponent,
-      ),
+      );
+    },
   };
 });
 vi.mock("./native", () => ({
@@ -144,14 +177,17 @@ vi.mock("./i18n", () => {
   return { t, useI18n: () => ({ t }) };
 });
 vi.mock("../components/settings-group", () => ({
+  SettingsLabel: ({ children }: { children: ReactNode }) => createElement("h2", {}, children),
   SettingsFooter: ({ children }: { children: ReactNode }) => createElement("span", {}, children),
   SettingsRow: ({
     title,
+    detail,
     accessibilityState,
     onPress,
     trailing,
   }: {
     title: string;
+    detail?: string;
     accessibilityState: { selected: boolean };
     onPress: () => void;
     trailing: ReactNode;
@@ -160,6 +196,7 @@ vi.mock("../components/settings-group", () => ({
       "button",
       { type: "button", "aria-selected": accessibilityState.selected, onClick: onPress },
       title,
+      detail ? createElement("small", {}, detail) : null,
       trailing,
     ),
 }));
@@ -211,7 +248,7 @@ describe("chat settings model row", () => {
     await render();
     expect(container.querySelector('[data-menu="Model"]')).toBeNull();
     const row = container.querySelector<HTMLButtonElement>('button[aria-label="Model"]');
-    expect(row?.getAttribute("aria-valuetext")).toBe("Space default");
+    expect(row?.getAttribute("aria-valuetext")).toBe("Space default (Model 1)");
     act(() => row!.click());
     expect(mocks.push).toHaveBeenCalledExactlyOnceWith({
       pathname: "/bot-model",
@@ -250,25 +287,60 @@ describe("chat model list", () => {
     mocks.params = { botId: "bot-fixture", value: "openrouter::vendor/model-2" };
     await act(async () => root.render(<BotModelScreen />));
     expect(rows()).toHaveLength(12);
-    expect(rows()[0]!.textContent).toBe("Space default");
+    expect(mocks.listProps).toMatchObject({
+      automaticallyAdjustKeyboardInsets: true,
+      contentInsetAdjustmentBehavior: "automatic",
+      contentContainerStyle: expect.arrayContaining([
+        expect.objectContaining({ paddingBottom: 106 }),
+      ]),
+    });
+    expect(container.querySelectorAll("h2")).toHaveLength(1);
+    expect(container.querySelector("h2")?.textContent).toBe("OpenRouter");
+    expect(rows()[0]?.querySelector("small")?.textContent).toBe("Model 1");
+    expect(rows()[0]!.textContent).toBe("Space defaultModel 1");
     const checked = rows().filter((row) => row.getAttribute("aria-selected") === "true");
-    expect(checked.map((row) => row.textContent)).toEqual(["OpenRouter · Model 2"]);
+    expect(checked.map((row) => row.textContent)).toEqual(["Model 2"]);
     expect(checked[0]!.querySelector("[data-checkmark]")).not.toBeNull();
 
     search("MODEL 1");
     expect(rows().map((row) => row.textContent)).toEqual([
-      "OpenRouter · Model 1",
-      "OpenRouter · Model 10",
-      "OpenRouter · Model 11",
+      "Space defaultModel 1",
+      "Model 1",
+      "Model 10",
+      "Model 11",
     ]);
     search("vendor/model-7");
-    expect(rows().map((row) => row.textContent)).toEqual(["OpenRouter · Model 7"]);
+    expect(rows().map((row) => row.textContent)).toEqual(["Model 7"]);
 
     act(() => (rows()[0] as HTMLButtonElement).click());
     expect(mocks.dismissTo).toHaveBeenCalledExactlyOnceWith({
       pathname: "/bot-settings",
       params: { botId: "bot-fixture", model: "openrouter::vendor/model-7" },
     });
+  });
+
+  it("remounts the list only when the search query changes", async () => {
+    mocks.params = { botId: "bot-fixture", value: "" };
+    await act(async () => root.render(<BotModelScreen />));
+    const initialList = container.querySelector("ul");
+    expect(initialList).not.toBeNull();
+
+    search("vendor/model-7");
+    const filteredList = container.querySelector("ul");
+    expect(filteredList).not.toBe(initialList);
+    search("vendor/model-7");
+    expect(container.querySelector("ul")).toBe(filteredList);
+    search("no such model");
+    const emptyList = container.querySelector("ul");
+    expect(emptyList).not.toBe(filteredList);
+    search("no such model");
+    expect(container.querySelector("ul")).toBe(emptyList);
+    search("vendor/model-2");
+    const nextList = container.querySelector("ul");
+    expect(nextList).not.toBe(emptyList);
+    act(() => mocks.setOptions.mock.lastCall![0].headerSearchBarOptions.onCancelButtonPress());
+    expect(container.querySelector("ul")).not.toBe(nextList);
+    expect(rows()).toHaveLength(12);
   });
 
   it("says when nothing matches", async () => {

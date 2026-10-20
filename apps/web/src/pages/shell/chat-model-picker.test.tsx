@@ -21,6 +21,8 @@ function choices(count: number): ChatModelChoice[] {
       key: `openrouter::vendor/model-${index + 1}`,
       label: `OpenRouter · Model ${index + 1}`,
       provider: "openrouter",
+      providerLabel: "OpenRouter",
+      modelLabel: `Model ${index + 1}`,
       modelId: `vendor/model-${index + 1}`,
     })),
   ];
@@ -78,17 +80,19 @@ describe("ChatModelPicker", () => {
 
     act(() => trigger.click());
     expect(options()).toHaveLength(12);
+    expect(document.querySelector("[cmdk-group-heading]")?.textContent).toBe("OpenRouter");
+    expect(options()[2]?.getAttribute("aria-label")).toBe("OpenRouter · Model 2");
     const checked = options().filter((option) => option.getAttribute("data-checked") === "true");
-    expect(checked.map((option) => option.textContent)).toEqual(["OpenRouter · Model 2"]);
+    expect(checked.map((option) => option.textContent)).toEqual(["Model 2"]);
 
     search("MODEL 1");
     expect(options().map((option) => option.textContent)).toEqual([
-      "OpenRouter · Model 1",
-      "OpenRouter · Model 10",
-      "OpenRouter · Model 11",
+      "Model 1",
+      "Model 10",
+      "Model 11",
     ]);
     search("vendor/model-7");
-    expect(options().map((option) => option.textContent)).toEqual(["OpenRouter · Model 7"]);
+    expect(options().map((option) => option.textContent)).toEqual(["Model 7"]);
 
     act(() => (options()[0] as HTMLElement).click());
     expect(onChange).toHaveBeenCalledExactlyOnceWith("openrouter::vendor/model-7");
@@ -100,6 +104,7 @@ describe("ChatModelPicker", () => {
     act(() => container.querySelector<HTMLButtonElement>("button#model")!.click());
     search("no such model");
     expect(options()).toHaveLength(0);
+    expect(document.querySelector("[cmdk-group-heading]")).toBeNull();
     expect(document.body.textContent).toContain("No matching models");
   });
 });

@@ -98,13 +98,15 @@ export function MenuPicker({
       </Pressable>
     );
   }
-  return (
+  const menu = (
     <MenuPickerMenu choices={choices} label={label} onChange={onChange} value={value}>
-      <View {...row} style={[styles.row, divider && styles.divider]}>
+      <View {...row} style={styles.row}>
         {content}
       </View>
     </MenuPickerMenu>
   );
+  // The native menu sizes to its content; keep the divider at the group width.
+  return divider ? <View style={styles.divider}>{menu}</View> : menu;
 }
 
 function createStyles() {

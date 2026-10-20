@@ -1,9 +1,10 @@
 import { Trans, useLingui } from "@lingui/react/macro";
 import type { ChatModelChoice } from "@rakazo/core";
-import { filterModelChoices, MODEL_SEARCH_THRESHOLD } from "@rakazo/core";
+import { groupModelChoices, MODEL_SEARCH_THRESHOLD } from "@rakazo/core";
 import {
   Command,
   CommandEmpty,
+  CommandGroup,
   CommandInput,
   CommandItem,
   CommandList,
@@ -31,7 +32,7 @@ export function ChatModelPicker({
   const { t } = useLingui();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const matched = useMemo(() => filterModelChoices(choices, query), [choices, query]);
+  const sections = useMemo(() => groupModelChoices(choices, query), [choices, query]);
 
   if (choices.length <= MODEL_SEARCH_THRESHOLD) {
     return (
@@ -67,31 +68,43 @@ export function ChatModelPicker({
         <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
       </PopoverTrigger>
       {open ? (
-        <PopoverContent align="start" className="w-(--anchor-width) gap-0 overflow-hidden p-0">
-          <Command shouldFilter={false} className="rounded-none bg-transparent">
+        <PopoverContent
+          align="start"
+          side="bottom"
+          className="w-(--anchor-width) max-h-(--available-height) gap-0 overflow-hidden bg-popover p-0 opacity-100 animate-none! backdrop-filter-none"
+        >
+          <Command
+            shouldFilter={false}
+            className="h-auto min-h-0 max-h-(--available-height) rounded-none bg-popover"
+          >
             <CommandInput
               value={query}
               onValueChange={setQuery}
               placeholder={t`Search`}
               aria-label={t`Search models`}
             />
-            <CommandList>
+            <CommandList className="min-h-0 max-h-80 flex-1 overflow-y-auto">
               <CommandEmpty>
                 <Trans>No matching models</Trans>
               </CommandEmpty>
-              {matched.map((choice) => (
-                <CommandItem
-                  key={choice.key}
-                  // cmdk falls back to the row's text for an empty value.
-                  value={choice.key || "space-default"}
-                  data-checked={choice.key === value}
-                  onSelect={() => {
-                    onChange(choice.key);
-                    openChange(false);
-                  }}
-                >
-                  <span className="min-w-0 truncate">{choice.label}</span>
-                </CommandItem>
+              {sections.map((section) => (
+                <CommandGroup key={section.key} heading={section.heading}>
+                  {section.data.map((choice) => (
+                    <CommandItem
+                      key={choice.key}
+                      aria-label={choice.label}
+                      // cmdk falls back to the row's text for an empty value.
+                      value={choice.key || "space-default"}
+                      data-checked={choice.key === value}
+                      onSelect={() => {
+                        onChange(choice.key);
+                        openChange(false);
+                      }}
+                    >
+                      <span className="min-w-0 truncate">{choice.title ?? choice.label}</span>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
               ))}
             </CommandList>
           </Command>

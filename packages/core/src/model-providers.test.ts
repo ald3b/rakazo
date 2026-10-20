@@ -10,6 +10,7 @@ import {
   featuredModelProviders,
   filterModelCatalog,
   filterModelChoices,
+  groupModelChoices,
   pickCatalogModelId,
   resolveSelectableModelId,
   savedCompatibleModelIds,
@@ -229,6 +230,8 @@ describe("connected model choices", () => {
         provider: "deepseek",
         modelId: "my-finetune",
         label: "DeepSeek · my-finetune",
+        providerLabel: "DeepSeek",
+        modelLabel: "my-finetune",
       },
     ]);
   });
@@ -251,6 +254,8 @@ describe("connected model choices", () => {
         provider: "openai-compatible",
         modelId: id,
         label: `Local server · ${id}`,
+        providerLabel: "Local server",
+        modelLabel: id,
       })),
     );
   });
@@ -479,4 +484,59 @@ it("offers Azure catalog models for a credential saved with the old provider id"
   );
   expect(choices).toMatchObject([{ key: "azure::gpt-4o", provider: "azure", modelId: "gpt-4o" }]);
   expect(pickCatalogModelId(catalog, "azure-openai-responses", "gpt-4o")).toBe("gpt-4o");
+});
+
+describe("groupModelChoices", () => {
+  const connected = connectedModelChoices(
+    [{ provider: "openrouter", label: "OpenRouter" }],
+    [
+      {
+        provider: "openrouter",
+        providerName: "OpenRouter",
+        id: "anthropic/opus",
+        label: "Anthropic: Claude Opus",
+      },
+      {
+        provider: "openrouter",
+        providerName: "OpenRouter",
+        id: "anthropic/sonnet",
+        label: "Anthropic: Claude Sonnet",
+      },
+      {
+        provider: "openrouter",
+        providerName: "OpenRouter",
+        id: "google/gemini",
+        label: "Google: Gemini",
+      },
+    ],
+  );
+  const choices = chatModelChoices(connected, "retired::saved", "Space default");
+
+  it("keeps default and disconnected choices first and groups catalog vendor names", () => {
+    const sections = groupModelChoices(choices, "");
+    expect(sections.map((section) => section.heading)).toEqual([
+      undefined,
+      "OpenRouter · Anthropic",
+      "OpenRouter · Google",
+    ]);
+    expect(sections[0]?.data.map((choice) => choice.key)).toEqual(["", "retired::saved"]);
+    expect(sections[1]?.data.map((choice) => choice.title)).toEqual([
+      "Claude Opus",
+      "Claude Sonnet",
+    ]);
+    expect(sections[1]?.data[0]?.label).toBe("OpenRouter · Anthropic: Claude Opus");
+  });
+
+  it("matches the original full labels and ids and removes empty sections", () => {
+    for (const query of ["OpenRouter", "Anthropic", "anthropic/opus", "Sonnet", "missing"]) {
+      expect(
+        groupModelChoices(choices, query).flatMap((section) =>
+          section.data.map((choice) => choice.key),
+        ),
+      ).toEqual(filterModelChoices(choices, query).map((choice) => choice.key));
+    }
+    expect(groupModelChoices(choices, "Sonnet").map((section) => section.heading)).toEqual([
+      "OpenRouter · Anthropic",
+    ]);
+  });
 });

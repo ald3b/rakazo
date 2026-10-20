@@ -1,17 +1,18 @@
 import type { ChatModelChoice } from "@rakazo/core";
-import { filterModelChoices } from "@rakazo/core";
+import { groupModelChoices } from "@rakazo/core";
 import { useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import {
   AccessibilityInfo,
   ActivityIndicator,
-  FlatList,
+  SectionList,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Checkmark } from "../components/row-accessories";
-import { SettingsRow } from "../components/settings-group";
+import { SettingsLabel, SettingsRow } from "../components/settings-group";
 import type { MobileMe, MobileModel, MobileModelCredential } from "../lib/api";
 import { rpc } from "../lib/api";
 import { chatModelPickerChoices } from "../lib/chat-model";
@@ -24,6 +25,7 @@ export default function BotModelScreen() {
   const { t } = useI18n();
   const router = useRouter();
   const navigation = useNavigation();
+  const insets = useSafeAreaInsets();
   const styles = useThemedStyles(createStyles);
   const { botId, value = "" } = useLocalSearchParams<{ botId: string; value?: string }>();
   const [choices, setChoices] = useState<ChatModelChoice[] | null>(null);
@@ -56,11 +58,11 @@ export default function BotModelScreen() {
     });
   }, [navigation, t]);
 
-  const matched = useMemo(
-    () => (choices ? filterModelChoices(choices, query) : []),
+  const sections = useMemo(
+    () => (choices ? groupModelChoices(choices, query) : []),
     [choices, query],
   );
-  const noMatches = choices !== null && matched.length === 0;
+  const noMatches = choices !== null && sections.length === 0;
 
   // The search field keeps focus, so tell screen readers once when the results run out.
   useEffect(() => {
@@ -68,13 +70,25 @@ export default function BotModelScreen() {
   }, [noMatches, t]);
 
   return (
-    <FlatList
+    <SectionList
+      key={query}
       style={styles.screen}
-      contentContainerStyle={styles.content}
+      contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 72 }]}
+      // Reserve the floating search field; UIKit adds the keyboard and header insets.
+      automaticallyAdjustKeyboardInsets
       contentInsetAdjustmentBehavior="automatic"
       keyboardDismissMode="on-drag"
       keyboardShouldPersistTaps="handled"
-      data={matched}
+      sections={sections}
+      stickySectionHeadersEnabled={false}
+      renderSectionHeader={({ section }) =>
+        section.heading ? (
+          <View style={styles.sectionHeading}>
+            <SettingsLabel>{section.heading}</SettingsLabel>
+          </View>
+        ) : null
+      }
+      renderSectionFooter={() => <View style={styles.sectionGap} />}
       keyExtractor={(choice) => choice.key || "space-default"}
       ItemSeparatorComponent={() => (
         <View style={styles.cell}>
@@ -88,14 +102,14 @@ export default function BotModelScreen() {
           <ActivityIndicator color={native.secondaryLabel} />
         )
       }
-      renderItem={({ item, index }) => {
+      renderItem={({ item, index, section }) => {
         const selected = item.key === value;
         return (
           <View
             style={[
               styles.cell,
               index === 0 && styles.first,
-              index === matched.length - 1 && styles.last,
+              index === section.data.length - 1 && styles.last,
             ]}
           >
             <SettingsRow
@@ -105,7 +119,8 @@ export default function BotModelScreen() {
               onPress={() =>
                 router.dismissTo({ pathname: "/bot-settings", params: { botId, model: item.key } })
               }
-              title={item.label}
+              title={item.title ?? item.label}
+              detail={item.detail}
               trailing={selected ? <Checkmark /> : null}
             />
           </View>
@@ -118,7 +133,9 @@ export default function BotModelScreen() {
 function createStyles() {
   return StyleSheet.create({
     screen: { flex: 1, backgroundColor: native.groupedPage },
-    content: { paddingHorizontal: 16, paddingTop: 16, paddingBottom: 32 },
+    content: { paddingHorizontal: 16, paddingTop: 16 },
+    sectionHeading: { paddingBottom: 7 },
+    sectionGap: { height: 20 },
     cell: { backgroundColor: native.groupedCell, overflow: "hidden" },
     first: { borderTopLeftRadius: 16, borderTopRightRadius: 16, borderCurve: "continuous" },
     last: { borderBottomLeftRadius: 16, borderBottomRightRadius: 16, borderCurve: "continuous" },

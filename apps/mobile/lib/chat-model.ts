@@ -13,11 +13,20 @@ export function chatModelPickerChoices(
   const spaceDefaultLabel = me?.defaultModel
     ? `${t("Space default")} (${catalogLabel(catalog, me.defaultProvider, me.defaultModel) ?? me.defaultModel})`
     : t("Space default");
-  return chatModelChoices(
+  const choices = chatModelChoices(
     connectedModelChoices(credentials, catalog),
     selectedKey,
     spaceDefaultLabel,
   );
+  choices[0] = {
+    key: "",
+    label: spaceDefaultLabel,
+    title: t("Space default"),
+    detail: me?.defaultModel
+      ? (catalogLabel(catalog, me.defaultProvider, me.defaultModel) ?? me.defaultModel)
+      : undefined,
+  };
+  return choices;
 }
 
 function catalogLabel(
