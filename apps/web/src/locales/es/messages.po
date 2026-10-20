@@ -140,6 +140,14 @@ msgstr "hace {hours} h"
 msgid "{minutes}m ago"
 msgstr "hace {minutes} min"
 
+#: src/lib/activity-list-filters.ts
+msgid "{name} asked"
+msgstr "{name} pregunta"
+
+#: src/lib/activity-list-filters.ts
+msgid "{name} asked: {text}"
+msgstr "{name} pregunta: {text}"
+
 #. js-lingui-explicit-id
 #: src/lib/browser-notifications.ts
 msgid "{name} failed"
@@ -354,7 +362,6 @@ msgstr "Activo"
 msgid "Active model"
 msgstr "Modelo activo"
 
-#: src/components/computer/TerminalApp.tsx
 #: src/pages/Shell.tsx
 msgid "Activity"
 msgstr "Actividad"
@@ -579,6 +586,10 @@ msgstr "Hay una clave de API guardada para este proveedor, no un inicio de sesi�
 msgid "An integration tool"
 msgstr "Una herramienta de integración"
 
+#: src/lib/activity-list-filters.ts
+msgid "Another agent"
+msgstr "Otro agente"
+
 #: src/components/AskCard.tsx
 msgid "Answer"
 msgstr "Responder"
@@ -717,10 +728,6 @@ msgstr "a las {timeSelect}"
 msgid "Attach file"
 msgstr "Adjuntar archivo"
 
-#: src/components/computer/TerminalApp.tsx
-msgid "Attached {path}"
-msgstr ""
-
 #: src/pages/Shell.tsx
 #: src/pages/shell/chat-context.tsx
 msgid "Attachment"
@@ -771,7 +778,6 @@ msgstr "Estudio de avatares"
 msgid "Avatars"
 msgstr "Avatares"
 
-#: src/components/computer/FilesApp.tsx
 #: src/pages/Board.tsx
 #: src/pages/PluginsOverlay.tsx
 #: src/pages/RoutineEditor.tsx
@@ -883,10 +889,6 @@ msgstr ""
 
 #: src/pages/PluginsOverlay.tsx
 msgid "Browse MCP servers"
-msgstr ""
-
-#: src/components/computer/ComputerWorkspace.tsx
-msgid "Browser"
 msgstr ""
 
 #: src/pages/KnowledgeSection.tsx
@@ -1100,10 +1102,6 @@ msgstr ""
 msgid "Close"
 msgstr "Cerrar"
 
-#: src/components/computer/ComputerWorkspace.tsx
-msgid "Close {title}"
-msgstr ""
-
 #: src/pages/shell/message-cards.tsx
 msgid "Close chart"
 msgstr "Cerrar gráfico"
@@ -1247,8 +1245,8 @@ msgid "Computers are available. Reload or open a bot to continue."
 msgstr ""
 
 #: src/components/ComputersUnavailableHint.tsx
-msgid "Computers are off. Set SANDBOX_PROVIDER=docker with SANDBOX_SUPERVISOR_TOKEN, or set SANDBOX_PROVIDER to e2b, daytona, or box with its API key. Recreate the stack after changing .env."
-msgstr "Las computadoras están apagadas. Configura SANDBOX_PROVIDER=docker con SANDBOX_SUPERVISOR_TOKEN, o establece SANDBOX_PROVIDER en e2b, daytona o box con su clave de API. Recrea el stack después de cambiar .env."
+msgid "Computers are off. Set SANDBOX_PROVIDER=docker with SANDBOX_SUPERVISOR_TOKEN, or set SANDBOX_PROVIDER to e2b, daytona, or boat with its API key. Recreate the stack after changing .env."
+msgstr "Las computadoras están apagadas. Configura SANDBOX_PROVIDER=docker con SANDBOX_SUPERVISOR_TOKEN, o establece SANDBOX_PROVIDER en e2b, daytona o boat con su clave de API. Recrea el stack después de cambiar .env."
 
 #: src/pages/PluginsOverlay.tsx
 msgid "Configure a plugin catalog on the server to connect apps."
@@ -1552,17 +1550,9 @@ msgstr "No se pudo descargar {0}. Inténtalo de nuevo."
 msgid "Could not download {name}. Try again."
 msgstr "No se pudo descargar {name}. Inténtalo de nuevo."
 
-#: src/components/computer/FilesApp.tsx
-msgid "Could not download file"
-msgstr ""
-
 #: src/pages/PluginsOverlay.tsx
 msgid "Could not install connector"
 msgstr "No se pudo instalar el conector"
-
-#: src/components/computer/FilesApp.tsx
-msgid "Could not list files"
-msgstr ""
 
 #: src/components/ErrorBoundary.tsx
 #: src/pages/KnowledgeSection.tsx
@@ -1591,10 +1581,6 @@ msgstr ""
 
 #: src/pages/IntegrationSetup.tsx
 msgid "Could not load bots. Reload to try again."
-msgstr ""
-
-#: src/components/computer/TerminalApp.tsx
-msgid "Could not load commands"
 msgstr ""
 
 #: src/pages/shell/bot-credentials.tsx
@@ -1656,17 +1642,9 @@ msgstr "No se pudo cerrar sesión. Inténtalo de nuevo."
 msgid "Could not open billing"
 msgstr ""
 
-#: src/components/computer/FilesApp.tsx
-msgid "Could not open file"
-msgstr ""
-
 #: src/pages/LocalSettings.tsx
 msgid "Could not open local settings. Start the local server and create its owner account, then try again."
 msgstr ""
-
-#: src/components/computer/TerminalApp.tsx
-msgid "Could not open terminal"
-msgstr "No se pudo abrir la terminal"
 
 #: src/pages/VoiceSettingsOverlay.tsx
 msgid "Could not play a test clip"
@@ -1831,10 +1809,6 @@ msgstr "No se pudo actualizar la reacción"
 #: src/pages/MemorySettingsOverlay.tsx
 msgid "Could not update the default memory scope"
 msgstr "No se pudo actualizar el alcance de memoria predeterminado"
-
-#: src/components/computer/FilesApp.tsx
-msgid "Could not upload file"
-msgstr ""
 
 #: src/components/ComputersUnavailableHint.tsx
 msgid "Could not verify computer setup ({failureMessage}). Fix the connection, then check again."
@@ -2091,6 +2065,7 @@ msgstr ""
 msgid "Desktop update"
 msgstr ""
 
+#: src/pages/RoutineRunHistory.tsx
 #: src/pages/Shell.tsx
 msgid "Details"
 msgstr "Detalles"
@@ -2174,15 +2149,12 @@ msgstr "¿No tienes una cuenta?"
 msgid "Done"
 msgstr "Listo"
 
-#: src/components/computer/FilesApp.tsx
 #: src/pages/Artifacts.tsx
 msgid "Download"
 msgstr ""
 
-#. placeholder {0}: basename(entry.path)
 #. placeholder {0}: props.name
 #: src/components/ArtifactFileCard.tsx
-#: src/components/computer/FilesApp.tsx
 msgid "Download {0}"
 msgstr "Descargar {0}"
 
@@ -2393,15 +2365,6 @@ msgstr "Campos que indican un cambio"
 msgid "Fields to compare, e.g. id, modifiedTime (optional)"
 msgstr "Campos para comparar, p. ej. id, modifiedTime (opcional)"
 
-#. placeholder {0}: attachmentSizeLabel(getMaxUploadSizeBytes())
-#: src/components/computer/FilesApp.tsx
-msgid "File exceeds the {0} upload limit."
-msgstr "El archivo supera el límite de subida de {0}."
-
-#: src/components/computer/ComputerWorkspace.tsx
-msgid "Files"
-msgstr ""
-
 #: src/pages/RoutineEditor.tsx
 msgid "Files or folders on the computer"
 msgstr "Archivos o carpetas del equipo"
@@ -2419,8 +2382,9 @@ msgid "Filter by date"
 msgstr ""
 
 #: src/pages/Artifacts.tsx
+#: src/pages/Shell.tsx
 msgid "Filters"
-msgstr ""
+msgstr "Filtros"
 
 #: src/pages/ModelSettingsOverlay.tsx
 #: src/pages/Onboarding.tsx
@@ -2766,10 +2730,6 @@ msgstr "Última comprobación {0}: sin cambios"
 msgid "Later"
 msgstr ""
 
-#: src/components/computer/TerminalApp.tsx
-msgid "Launched {app}"
-msgstr ""
-
 #: src/pages/MessagingSettingsOverlay.tsx
 msgid "Leave"
 msgstr "Salir"
@@ -3037,6 +2997,10 @@ msgstr ""
 msgid "Message from {peer}"
 msgstr "Mensaje de {peer}"
 
+#: src/lib/activity-list-filters.ts
+msgid "Message from another agent"
+msgstr "Mensaje de otro agente"
+
 #: src/pages/Shell.tsx
 msgid "Message…"
 msgstr "Mensaje…"
@@ -3269,10 +3233,6 @@ msgstr "sin autenticación"
 msgid "No authentication"
 msgstr "Sin autenticación"
 
-#: src/components/computer/TerminalApp.tsx
-msgid "No bot activity yet."
-msgstr "Aún no hay actividad del bot."
-
 #: src/pages/shell/command-palette.tsx
 msgid "No bots"
 msgstr ""
@@ -3493,10 +3453,6 @@ msgstr "Abrir en ventana completa"
 msgid "Open navigation"
 msgstr "Abrir navegación"
 
-#: src/components/computer/TerminalApp.tsx
-msgid "Open shell"
-msgstr "Abrir shell"
-
 #: src/pages/ScratchpadSection.tsx
 msgid "Open work"
 msgstr "Trabajo abierto"
@@ -3505,10 +3461,6 @@ msgstr "Trabajo abierto"
 #: src/pages/Onboarding.tsx
 msgid "OpenAI-compatible server URL"
 msgstr "URL de servidor compatible con OpenAI"
-
-#: src/components/computer/TerminalApp.tsx
-msgid "Opened {path}"
-msgstr ""
 
 #: src/pages/Shell.tsx
 msgid "Opened its thread."
@@ -3579,6 +3531,10 @@ msgstr "Contraseña"
 #: src/pages/Auth.tsx
 msgid "Password recovery is not configured for this server"
 msgstr "La recuperación de contraseña no está configurada para este servidor"
+
+#: src/lib/user-error.ts
+msgid "Password sign-in is turned off on this server"
+msgstr "El inicio de sesión con contraseña está desactivado en este servidor"
 
 #: src/pages/AccountSettingsOverlay.tsx
 #: src/pages/Auth.tsx
@@ -4194,10 +4150,6 @@ msgstr "Di sí o no, o responde en una frase."
 msgid "Search"
 msgstr "Buscar"
 
-#: src/pages/ActivityList.tsx
-msgid "Search activity"
-msgstr ""
-
 #: src/components/integrations/IntegrationSetup.tsx
 #: src/pages/PluginsOverlay.tsx
 msgid "Search apps"
@@ -4227,9 +4179,9 @@ msgstr "Buscar modelos"
 msgid "Search providers"
 msgstr "Buscar proveedores"
 
-#: src/pages/ActivityList.tsx
+#: src/pages/Shell.tsx
 msgid "Search runs"
-msgstr ""
+msgstr "Buscar ejecuciones"
 
 #. placeholder {0}: filters.query.trim()
 #: src/pages/ActivityList.tsx
@@ -4351,10 +4303,6 @@ msgstr "Documentos compartidos"
 #: src/pages/KnowledgeSection.tsx
 msgid "Shared skills"
 msgstr "Habilidades compartidas"
-
-#: src/components/computer/TerminalApp.tsx
-msgid "Shell"
-msgstr "Shell"
 
 #: src/pages/GroupPanel.tsx
 msgid "Show all"
@@ -4645,10 +4593,6 @@ msgstr "Mensaje de Teams"
 
 #: src/pages/RoutineEditor.tsx
 msgid "Teams not enabled"
-msgstr ""
-
-#: src/components/computer/ComputerWorkspace.tsx
-msgid "Terminal"
 msgstr ""
 
 #: src/components/teach/SkillDraftCard.tsx
@@ -4964,6 +4908,14 @@ msgstr "Falló la actualización"
 msgid "Update finished with errors"
 msgstr "La actualización terminó con errores"
 
+#: src/lib/activity-list-filters.ts
+msgid "Update from {name}"
+msgstr "Actualización de {name}"
+
+#: src/lib/activity-list-filters.ts
+msgid "Update from {name}: {text}"
+msgstr "Actualización de {name}: {text}"
+
 #: src/components/AskCard.tsx
 msgid "Update instructions?"
 msgstr "¿Actualizar instrucciones?"
@@ -4998,7 +4950,6 @@ msgstr ""
 msgid "Updating…"
 msgstr "Actualizando…"
 
-#: src/components/computer/FilesApp.tsx
 #: src/pages/shell/avatar-studio-popover.tsx
 msgid "Upload"
 msgstr "Subir"
@@ -5187,10 +5138,6 @@ msgstr "Trabajando…"
 
 #: src/pages/memory-providers/HonchoSettingsForm.tsx
 msgid "Workspace"
-msgstr ""
-
-#: src/components/computer/TerminalApp.tsx
-msgid "Wrote {path}"
 msgstr ""
 
 #: src/lib/billing.ts

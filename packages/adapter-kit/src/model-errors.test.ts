@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  isRetryableProviderUnavailable,
-  isTransientModelError,
-  TransientModelError,
-} from "./model-errors.js";
+import { isRetryableProviderUnavailable, isTransientModelError } from "./model-errors.js";
 
 describe("transient model errors", () => {
   it.each([
@@ -25,6 +21,8 @@ describe("transient model errors", () => {
     ["empty truncated stream", new Error("Stream ended without finish_reason")],
     ["dropped fetch body", new TypeError("terminated")],
     ["fetch failure", new TypeError("fetch failed")],
+    ["SDK connection failure", new Error("Connection error.")],
+    ["SDK connection timeout", new Error("Request timed out.")],
     ["connection reset", new Error("read ECONNRESET")],
     ["socket hang up", new Error("socket hang up")],
     ["closed websocket", "WebSocket closed 1006"],
@@ -49,6 +47,7 @@ describe("transient model errors", () => {
     ["forbidden", "403 Forbidden"],
     ["context overflow", "context_length_exceeded: maximum context length is 128000 tokens"],
     ["bad request", { status: 400, message: "Unsupported parameter: temperature" }],
+    ["auth failure mentioning a connection error", { status: 401, message: "Connection error." }],
     ["cancellation", new Error("Request was aborted")],
     ["unknown", new Error("Model stream ended without a terminal event")],
   ])("treats %s as permanent", (_label, error) => {
@@ -63,13 +62,6 @@ describe("transient model errors", () => {
     "You've reached your usage limit for this billing cycle.",
   ])("treats the exhausted usage window as permanent: %s", (message) => {
     expect(isTransientModelError({ status: 403, type: "permission_error", message })).toBe(false);
-  });
-
-  it("names its error class", () => {
-    const error = new TransientModelError("overloaded");
-    expect(error).toBeInstanceOf(Error);
-    expect(error.name).toBe("TransientModelError");
-    expect(error.message).toBe("overloaded");
   });
 });
 

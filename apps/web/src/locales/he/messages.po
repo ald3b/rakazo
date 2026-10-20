@@ -140,6 +140,14 @@ msgstr "לפני {hours} שע׳"
 msgid "{minutes}m ago"
 msgstr "לפני {minutes} דק׳"
 
+#: src/lib/activity-list-filters.ts
+msgid "{name} asked"
+msgstr "בקשה מאת {name}"
+
+#: src/lib/activity-list-filters.ts
+msgid "{name} asked: {text}"
+msgstr "בקשה מאת {name}: {text}"
+
 #. js-lingui-explicit-id
 #: src/lib/browser-notifications.ts
 msgid "{name} failed"
@@ -354,7 +362,6 @@ msgstr "פעיל"
 msgid "Active model"
 msgstr "מודל פעיל"
 
-#: src/components/computer/TerminalApp.tsx
 #: src/pages/Shell.tsx
 msgid "Activity"
 msgstr "פעילות"
@@ -579,6 +586,10 @@ msgstr "לספק הזה שמור מפתח API, לא התחברות עם מנוי
 msgid "An integration tool"
 msgstr ""
 
+#: src/lib/activity-list-filters.ts
+msgid "Another agent"
+msgstr "סוכן אחר"
+
 #: src/components/AskCard.tsx
 msgid "Answer"
 msgstr "תשובה"
@@ -717,10 +728,6 @@ msgstr "בשעה {timeSelect}"
 msgid "Attach file"
 msgstr "צירוף קובץ"
 
-#: src/components/computer/TerminalApp.tsx
-msgid "Attached {path}"
-msgstr "צורף {path}"
-
 #: src/pages/Shell.tsx
 #: src/pages/shell/chat-context.tsx
 msgid "Attachment"
@@ -771,7 +778,6 @@ msgstr "Avatar Studio"
 msgid "Avatars"
 msgstr "אווטארים"
 
-#: src/components/computer/FilesApp.tsx
 #: src/pages/Board.tsx
 #: src/pages/PluginsOverlay.tsx
 #: src/pages/RoutineEditor.tsx
@@ -884,10 +890,6 @@ msgstr "תווית Brain"
 #: src/pages/PluginsOverlay.tsx
 msgid "Browse MCP servers"
 msgstr "עיון בשרתי MCP"
-
-#: src/components/computer/ComputerWorkspace.tsx
-msgid "Browser"
-msgstr "דפדפן"
 
 #: src/pages/KnowledgeSection.tsx
 msgid "Built-in"
@@ -1100,10 +1102,6 @@ msgstr "Client secret"
 msgid "Close"
 msgstr "סגירה"
 
-#: src/components/computer/ComputerWorkspace.tsx
-msgid "Close {title}"
-msgstr "סגירת {title}"
-
 #: src/pages/shell/message-cards.tsx
 msgid "Close chart"
 msgstr "סגירת התרשים"
@@ -1247,8 +1245,8 @@ msgid "Computers are available. Reload or open a bot to continue."
 msgstr "המחשבים זמינים. אפשר לטעון מחדש או לפתוח בוט כדי להמשיך."
 
 #: src/components/ComputersUnavailableHint.tsx
-msgid "Computers are off. Set SANDBOX_PROVIDER=docker with SANDBOX_SUPERVISOR_TOKEN, or set SANDBOX_PROVIDER to e2b, daytona, or box with its API key. Recreate the stack after changing .env."
-msgstr "המחשבים כבויים. יש להגדיר SANDBOX_PROVIDER=docker עם SANDBOX_SUPERVISOR_TOKEN, או להגדיר את SANDBOX_PROVIDER ל-e2b, daytona או box עם מפתח ה-API שלו. אחרי שינוי .env יש ליצור מחדש את ה-stack."
+msgid "Computers are off. Set SANDBOX_PROVIDER=docker with SANDBOX_SUPERVISOR_TOKEN, or set SANDBOX_PROVIDER to e2b, daytona, or boat with its API key. Recreate the stack after changing .env."
+msgstr "המחשבים כבויים. יש להגדיר SANDBOX_PROVIDER=docker עם SANDBOX_SUPERVISOR_TOKEN, או להגדיר את SANDBOX_PROVIDER ל-e2b, daytona או boat עם מפתח ה-API שלו. אחרי שינוי .env יש ליצור מחדש את ה-stack."
 
 #: src/pages/PluginsOverlay.tsx
 msgid "Configure a plugin catalog on the server to connect apps."
@@ -1552,17 +1550,9 @@ msgstr "לא ניתן להוריד את {0}. אפשר לנסות שוב."
 msgid "Could not download {name}. Try again."
 msgstr "לא ניתן להוריד את {name}. אפשר לנסות שוב."
 
-#: src/components/computer/FilesApp.tsx
-msgid "Could not download file"
-msgstr "לא ניתן להוריד את הקובץ"
-
 #: src/pages/PluginsOverlay.tsx
 msgid "Could not install connector"
 msgstr "לא ניתן להתקין את החיבור"
-
-#: src/components/computer/FilesApp.tsx
-msgid "Could not list files"
-msgstr "לא ניתן להציג את רשימת הקבצים"
 
 #: src/components/ErrorBoundary.tsx
 #: src/pages/KnowledgeSection.tsx
@@ -1592,10 +1582,6 @@ msgstr "לא ניתן לטעון את החיוב"
 #: src/pages/IntegrationSetup.tsx
 msgid "Could not load bots. Reload to try again."
 msgstr "לא ניתן לטעון את הבוטים. יש לטעון מחדש כדי לנסות שוב."
-
-#: src/components/computer/TerminalApp.tsx
-msgid "Could not load commands"
-msgstr "לא ניתן לטעון את הפקודות"
 
 #: src/pages/shell/bot-credentials.tsx
 msgid "Could not load credentials."
@@ -1656,17 +1642,9 @@ msgstr "לא ניתן להתנתק. יש לנסות שוב."
 msgid "Could not open billing"
 msgstr "לא ניתן לפתוח את החיוב"
 
-#: src/components/computer/FilesApp.tsx
-msgid "Could not open file"
-msgstr "לא ניתן לפתוח את הקובץ"
-
 #: src/pages/LocalSettings.tsx
 msgid "Could not open local settings. Start the local server and create its owner account, then try again."
 msgstr "לא ניתן לפתוח את ההגדרות המקומיות. יש להפעיל את השרת המקומי וליצור את חשבון הבעלים שלו, ואז לנסות שוב."
-
-#: src/components/computer/TerminalApp.tsx
-msgid "Could not open terminal"
-msgstr "לא ניתן לפתוח את הטרמינל"
 
 #: src/pages/VoiceSettingsOverlay.tsx
 msgid "Could not play a test clip"
@@ -1831,10 +1809,6 @@ msgstr "לא ניתן לעדכן את האמוג׳י"
 #: src/pages/MemorySettingsOverlay.tsx
 msgid "Could not update the default memory scope"
 msgstr "לא ניתן לעדכן את היקף הזיכרון המוגדר כברירת מחדל"
-
-#: src/components/computer/FilesApp.tsx
-msgid "Could not upload file"
-msgstr "לא ניתן להעלות את הקובץ"
 
 #: src/components/ComputersUnavailableHint.tsx
 msgid "Could not verify computer setup ({failureMessage}). Fix the connection, then check again."
@@ -2091,6 +2065,7 @@ msgstr "אפליקציית הדסקטופ"
 msgid "Desktop update"
 msgstr "עדכון לאפליקציית הדסקטופ"
 
+#: src/pages/RoutineRunHistory.tsx
 #: src/pages/Shell.tsx
 msgid "Details"
 msgstr "פרטים"
@@ -2174,15 +2149,12 @@ msgstr "אין חשבון?"
 msgid "Done"
 msgstr "הושלם"
 
-#: src/components/computer/FilesApp.tsx
 #: src/pages/Artifacts.tsx
 msgid "Download"
 msgstr "הורדה"
 
-#. placeholder {0}: basename(entry.path)
 #. placeholder {0}: props.name
 #: src/components/ArtifactFileCard.tsx
-#: src/components/computer/FilesApp.tsx
 msgid "Download {0}"
 msgstr "הורדת {0}"
 
@@ -2393,15 +2365,6 @@ msgstr ""
 msgid "Fields to compare, e.g. id, modifiedTime (optional)"
 msgstr ""
 
-#. placeholder {0}: attachmentSizeLabel(getMaxUploadSizeBytes())
-#: src/components/computer/FilesApp.tsx
-msgid "File exceeds the {0} upload limit."
-msgstr "הקובץ חורג ממגבלת ההעלאה של {0}."
-
-#: src/components/computer/ComputerWorkspace.tsx
-msgid "Files"
-msgstr "קבצים"
-
 #: src/pages/RoutineEditor.tsx
 msgid "Files or folders on the computer"
 msgstr ""
@@ -2419,6 +2382,7 @@ msgid "Filter by date"
 msgstr "סינון לפי תאריך"
 
 #: src/pages/Artifacts.tsx
+#: src/pages/Shell.tsx
 msgid "Filters"
 msgstr "מסננים"
 
@@ -2766,10 +2730,6 @@ msgstr ""
 msgid "Later"
 msgstr "מאוחר יותר"
 
-#: src/components/computer/TerminalApp.tsx
-msgid "Launched {app}"
-msgstr "{app} הופעלה"
-
 #: src/pages/MessagingSettingsOverlay.tsx
 msgid "Leave"
 msgstr "יציאה"
@@ -3037,6 +2997,10 @@ msgstr "אירוע הודעה"
 msgid "Message from {peer}"
 msgstr "הודעה מ-{peer}"
 
+#: src/lib/activity-list-filters.ts
+msgid "Message from another agent"
+msgstr "הודעה מסוכן אחר"
+
 #: src/pages/Shell.tsx
 msgid "Message…"
 msgstr "הודעה…"
@@ -3269,10 +3233,6 @@ msgstr "ללא אימות"
 msgid "No authentication"
 msgstr "ללא אימות"
 
-#: src/components/computer/TerminalApp.tsx
-msgid "No bot activity yet."
-msgstr "עדיין אין פעילות של בוטים."
-
 #: src/pages/shell/command-palette.tsx
 msgid "No bots"
 msgstr "אין בוטים"
@@ -3493,10 +3453,6 @@ msgstr "פתיחה בחלון מלא"
 msgid "Open navigation"
 msgstr "פתיחת הניווט"
 
-#: src/components/computer/TerminalApp.tsx
-msgid "Open shell"
-msgstr "פתיחת shell"
-
 #: src/pages/ScratchpadSection.tsx
 msgid "Open work"
 msgstr "עבודה פתוחה"
@@ -3505,10 +3461,6 @@ msgstr "עבודה פתוחה"
 #: src/pages/Onboarding.tsx
 msgid "OpenAI-compatible server URL"
 msgstr "כתובת URL של שרת תואם OpenAI"
-
-#: src/components/computer/TerminalApp.tsx
-msgid "Opened {path}"
-msgstr "נפתח {path}"
 
 #: src/pages/Shell.tsx
 msgid "Opened its thread."
@@ -3579,6 +3531,10 @@ msgstr "סיסמה"
 #: src/pages/Auth.tsx
 msgid "Password recovery is not configured for this server"
 msgstr "שחזור סיסמה לא הוגדר בשרת הזה"
+
+#: src/lib/user-error.ts
+msgid "Password sign-in is turned off on this server"
+msgstr "התחברות באמצעות סיסמה מושבתת בשרת הזה"
 
 #: src/pages/AccountSettingsOverlay.tsx
 #: src/pages/Auth.tsx
@@ -4194,10 +4150,6 @@ msgstr "אפשר לענות כן או לא, או במשפט."
 msgid "Search"
 msgstr "חיפוש"
 
-#: src/pages/ActivityList.tsx
-msgid "Search activity"
-msgstr "חיפוש בפעילות"
-
 #: src/components/integrations/IntegrationSetup.tsx
 #: src/pages/PluginsOverlay.tsx
 msgid "Search apps"
@@ -4227,7 +4179,7 @@ msgstr "חיפוש מודלים"
 msgid "Search providers"
 msgstr "חיפוש ספקים"
 
-#: src/pages/ActivityList.tsx
+#: src/pages/Shell.tsx
 msgid "Search runs"
 msgstr "חיפוש הרצות"
 
@@ -4351,10 +4303,6 @@ msgstr "מסמכים משותפים"
 #: src/pages/KnowledgeSection.tsx
 msgid "Shared skills"
 msgstr "מיומנויות משותפות"
-
-#: src/components/computer/TerminalApp.tsx
-msgid "Shell"
-msgstr "Shell"
 
 #: src/pages/GroupPanel.tsx
 msgid "Show all"
@@ -4646,10 +4594,6 @@ msgstr "הודעת Teams"
 #: src/pages/RoutineEditor.tsx
 msgid "Teams not enabled"
 msgstr "Teams לא מופעל"
-
-#: src/components/computer/ComputerWorkspace.tsx
-msgid "Terminal"
-msgstr "טרמינל"
 
 #: src/components/teach/SkillDraftCard.tsx
 msgid "Test"
@@ -4964,6 +4908,14 @@ msgstr "העדכון נכשל"
 msgid "Update finished with errors"
 msgstr "העדכון הסתיים עם שגיאות"
 
+#: src/lib/activity-list-filters.ts
+msgid "Update from {name}"
+msgstr "עדכון מאת {name}"
+
+#: src/lib/activity-list-filters.ts
+msgid "Update from {name}: {text}"
+msgstr "עדכון מאת {name}: {text}"
+
 #: src/components/AskCard.tsx
 msgid "Update instructions?"
 msgstr "לעדכן את ההוראות?"
@@ -4998,7 +4950,6 @@ msgstr "מעדכן את מחשב הצוות"
 msgid "Updating…"
 msgstr "מעדכן…"
 
-#: src/components/computer/FilesApp.tsx
 #: src/pages/shell/avatar-studio-popover.tsx
 msgid "Upload"
 msgstr "העלאה"
@@ -5188,10 +5139,6 @@ msgstr "עובד…"
 #: src/pages/memory-providers/HonchoSettingsForm.tsx
 msgid "Workspace"
 msgstr ""
-
-#: src/components/computer/TerminalApp.tsx
-msgid "Wrote {path}"
-msgstr "נכתב {path}"
 
 #: src/lib/billing.ts
 msgid "year"

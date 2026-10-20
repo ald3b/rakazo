@@ -140,6 +140,14 @@ msgstr "{hours} ч назад"
 msgid "{minutes}m ago"
 msgstr "{minutes} мин назад"
 
+#: src/lib/activity-list-filters.ts
+msgid "{name} asked"
+msgstr "{name} спрашивает"
+
+#: src/lib/activity-list-filters.ts
+msgid "{name} asked: {text}"
+msgstr "{name} спрашивает: {text}"
+
 #. js-lingui-explicit-id
 #: src/lib/browser-notifications.ts
 msgid "{name} failed"
@@ -354,7 +362,6 @@ msgstr "Активный"
 msgid "Active model"
 msgstr "Активная модель"
 
-#: src/components/computer/TerminalApp.tsx
 #: src/pages/Shell.tsx
 msgid "Activity"
 msgstr "Активность"
@@ -579,6 +586,10 @@ msgstr "Для этого поставщика сохранен API-ключ, а
 msgid "An integration tool"
 msgstr "Инструмент интеграции"
 
+#: src/lib/activity-list-filters.ts
+msgid "Another agent"
+msgstr "Другой агент"
+
 #: src/components/AskCard.tsx
 msgid "Answer"
 msgstr "Ответ"
@@ -717,10 +728,6 @@ msgstr "в {timeSelect}"
 msgid "Attach file"
 msgstr "Прикрепить файл"
 
-#: src/components/computer/TerminalApp.tsx
-msgid "Attached {path}"
-msgstr ""
-
 #: src/pages/Shell.tsx
 #: src/pages/shell/chat-context.tsx
 msgid "Attachment"
@@ -771,7 +778,6 @@ msgstr "Студия аватаров"
 msgid "Avatars"
 msgstr "Аватары"
 
-#: src/components/computer/FilesApp.tsx
 #: src/pages/Board.tsx
 #: src/pages/PluginsOverlay.tsx
 #: src/pages/RoutineEditor.tsx
@@ -884,10 +890,6 @@ msgstr ""
 #: src/pages/PluginsOverlay.tsx
 msgid "Browse MCP servers"
 msgstr "Просмотреть MCP-серверы"
-
-#: src/components/computer/ComputerWorkspace.tsx
-msgid "Browser"
-msgstr ""
 
 #: src/pages/KnowledgeSection.tsx
 msgid "Built-in"
@@ -1100,10 +1102,6 @@ msgstr "Секрет клиента"
 msgid "Close"
 msgstr "Закрыть"
 
-#: src/components/computer/ComputerWorkspace.tsx
-msgid "Close {title}"
-msgstr ""
-
 #: src/pages/shell/message-cards.tsx
 msgid "Close chart"
 msgstr "Закрыть график"
@@ -1247,8 +1245,8 @@ msgid "Computers are available. Reload or open a bot to continue."
 msgstr ""
 
 #: src/components/ComputersUnavailableHint.tsx
-msgid "Computers are off. Set SANDBOX_PROVIDER=docker with SANDBOX_SUPERVISOR_TOKEN, or set SANDBOX_PROVIDER to e2b, daytona, or box with its API key. Recreate the stack after changing .env."
-msgstr "Компьютеры выключены. Установите SANDBOX_PROVIDER=docker с помощью SANDBOX_SUPERVISOR_TOKEN или установите для SANDBOX_PROVIDER значение e2b, Daytona или Box с его ключом API. Воссоздайте стек после изменения .env."
+msgid "Computers are off. Set SANDBOX_PROVIDER=docker with SANDBOX_SUPERVISOR_TOKEN, or set SANDBOX_PROVIDER to e2b, daytona, or boat with its API key. Recreate the stack after changing .env."
+msgstr "Компьютеры выключены. Установите SANDBOX_PROVIDER=docker с помощью SANDBOX_SUPERVISOR_TOKEN или установите для SANDBOX_PROVIDER значение e2b, Daytona или boat с его ключом API. Воссоздайте стек после изменения .env."
 
 #: src/pages/PluginsOverlay.tsx
 msgid "Configure a plugin catalog on the server to connect apps."
@@ -1552,17 +1550,9 @@ msgstr "Не удалось загрузить {0}. Попробуйте еще 
 msgid "Could not download {name}. Try again."
 msgstr "Не удалось загрузить {name}. Попробуйте еще раз."
 
-#: src/components/computer/FilesApp.tsx
-msgid "Could not download file"
-msgstr ""
-
 #: src/pages/PluginsOverlay.tsx
 msgid "Could not install connector"
 msgstr "Не удалось установить коннектор"
-
-#: src/components/computer/FilesApp.tsx
-msgid "Could not list files"
-msgstr ""
 
 #: src/components/ErrorBoundary.tsx
 #: src/pages/KnowledgeSection.tsx
@@ -1592,10 +1582,6 @@ msgstr ""
 #: src/pages/IntegrationSetup.tsx
 msgid "Could not load bots. Reload to try again."
 msgstr "Не удалось загрузить ботов. Обновите страницу и попробуйте снова."
-
-#: src/components/computer/TerminalApp.tsx
-msgid "Could not load commands"
-msgstr ""
 
 #: src/pages/shell/bot-credentials.tsx
 msgid "Could not load credentials."
@@ -1656,17 +1642,9 @@ msgstr "Не удалось выйти. Попробуйте ещё раз."
 msgid "Could not open billing"
 msgstr ""
 
-#: src/components/computer/FilesApp.tsx
-msgid "Could not open file"
-msgstr ""
-
 #: src/pages/LocalSettings.tsx
 msgid "Could not open local settings. Start the local server and create its owner account, then try again."
 msgstr "Не удалось открыть локальные настройки. Запустите локальный сервер и создайте учетную запись владельца, затем повторите попытку."
-
-#: src/components/computer/TerminalApp.tsx
-msgid "Could not open terminal"
-msgstr "Не удалось открыть терминал"
 
 #: src/pages/VoiceSettingsOverlay.tsx
 msgid "Could not play a test clip"
@@ -1831,10 +1809,6 @@ msgstr "Не удалось обновить реакцию"
 #: src/pages/MemorySettingsOverlay.tsx
 msgid "Could not update the default memory scope"
 msgstr "Не удалось обновить область памяти по умолчанию."
-
-#: src/components/computer/FilesApp.tsx
-msgid "Could not upload file"
-msgstr ""
 
 #: src/components/ComputersUnavailableHint.tsx
 msgid "Could not verify computer setup ({failureMessage}). Fix the connection, then check again."
@@ -2091,6 +2065,7 @@ msgstr "Настольное приложение"
 msgid "Desktop update"
 msgstr "Обновление настольного приложения"
 
+#: src/pages/RoutineRunHistory.tsx
 #: src/pages/Shell.tsx
 msgid "Details"
 msgstr "Подробности"
@@ -2174,15 +2149,12 @@ msgstr "У вас нет учетной записи?"
 msgid "Done"
 msgstr "Готово"
 
-#: src/components/computer/FilesApp.tsx
 #: src/pages/Artifacts.tsx
 msgid "Download"
 msgstr ""
 
-#. placeholder {0}: basename(entry.path)
 #. placeholder {0}: props.name
 #: src/components/ArtifactFileCard.tsx
-#: src/components/computer/FilesApp.tsx
 msgid "Download {0}"
 msgstr "Скачать {0}"
 
@@ -2393,15 +2365,6 @@ msgstr "Поля, указывающие на изменение"
 msgid "Fields to compare, e.g. id, modifiedTime (optional)"
 msgstr "Поля для сравнения, например id, modifiedTime (необязательно)"
 
-#. placeholder {0}: attachmentSizeLabel(getMaxUploadSizeBytes())
-#: src/components/computer/FilesApp.tsx
-msgid "File exceeds the {0} upload limit."
-msgstr "Файл превышает ограничение загрузки в {0}."
-
-#: src/components/computer/ComputerWorkspace.tsx
-msgid "Files"
-msgstr ""
-
 #: src/pages/RoutineEditor.tsx
 msgid "Files or folders on the computer"
 msgstr "Файлы или папки на компьютере"
@@ -2419,8 +2382,9 @@ msgid "Filter by date"
 msgstr ""
 
 #: src/pages/Artifacts.tsx
+#: src/pages/Shell.tsx
 msgid "Filters"
-msgstr ""
+msgstr "Фильтры"
 
 #: src/pages/ModelSettingsOverlay.tsx
 #: src/pages/Onboarding.tsx
@@ -2766,10 +2730,6 @@ msgstr "Последняя проверка {0}: без изменений"
 msgid "Later"
 msgstr "Позже"
 
-#: src/components/computer/TerminalApp.tsx
-msgid "Launched {app}"
-msgstr ""
-
 #: src/pages/MessagingSettingsOverlay.tsx
 msgid "Leave"
 msgstr "Выйти"
@@ -3037,6 +2997,10 @@ msgstr "Событие сообщения"
 msgid "Message from {peer}"
 msgstr "Сообщение от {peer}"
 
+#: src/lib/activity-list-filters.ts
+msgid "Message from another agent"
+msgstr "Сообщение от другого агента"
+
 #: src/pages/Shell.tsx
 msgid "Message…"
 msgstr "Сообщение…"
@@ -3269,10 +3233,6 @@ msgstr "нет авторизации"
 msgid "No authentication"
 msgstr "Нет аутентификации"
 
-#: src/components/computer/TerminalApp.tsx
-msgid "No bot activity yet."
-msgstr "Активности бота пока нет."
-
 #: src/pages/shell/command-palette.tsx
 msgid "No bots"
 msgstr "Нет ботов"
@@ -3493,10 +3453,6 @@ msgstr "Открыть в полном окне"
 msgid "Open navigation"
 msgstr "Открыть навигацию"
 
-#: src/components/computer/TerminalApp.tsx
-msgid "Open shell"
-msgstr "Открыть оболочку"
-
 #: src/pages/ScratchpadSection.tsx
 msgid "Open work"
 msgstr "Открытые задачи"
@@ -3505,10 +3461,6 @@ msgstr "Открытые задачи"
 #: src/pages/Onboarding.tsx
 msgid "OpenAI-compatible server URL"
 msgstr "URL-адрес сервера, совместимого с OpenAI"
-
-#: src/components/computer/TerminalApp.tsx
-msgid "Opened {path}"
-msgstr ""
 
 #: src/pages/Shell.tsx
 msgid "Opened its thread."
@@ -3579,6 +3531,10 @@ msgstr "Пароль"
 #: src/pages/Auth.tsx
 msgid "Password recovery is not configured for this server"
 msgstr "Восстановление пароля не настроено для этого сервера"
+
+#: src/lib/user-error.ts
+msgid "Password sign-in is turned off on this server"
+msgstr "Вход по паролю на этом сервере отключён"
 
 #: src/pages/AccountSettingsOverlay.tsx
 #: src/pages/Auth.tsx
@@ -4194,10 +4150,6 @@ msgstr "Скажите «да» или «нет» или ответьте пре
 msgid "Search"
 msgstr "Поиск"
 
-#: src/pages/ActivityList.tsx
-msgid "Search activity"
-msgstr ""
-
 #: src/components/integrations/IntegrationSetup.tsx
 #: src/pages/PluginsOverlay.tsx
 msgid "Search apps"
@@ -4227,9 +4179,9 @@ msgstr "Поиск моделей"
 msgid "Search providers"
 msgstr "Поиск поставщиков"
 
-#: src/pages/ActivityList.tsx
+#: src/pages/Shell.tsx
 msgid "Search runs"
-msgstr ""
+msgstr "Поиск запусков"
 
 #. placeholder {0}: filters.query.trim()
 #: src/pages/ActivityList.tsx
@@ -4351,10 +4303,6 @@ msgstr "Общие документы"
 #: src/pages/KnowledgeSection.tsx
 msgid "Shared skills"
 msgstr "Общие навыки"
-
-#: src/components/computer/TerminalApp.tsx
-msgid "Shell"
-msgstr "Оболочка"
 
 #: src/pages/GroupPanel.tsx
 msgid "Show all"
@@ -4646,10 +4594,6 @@ msgstr "Сообщение Teams"
 #: src/pages/RoutineEditor.tsx
 msgid "Teams not enabled"
 msgstr "Teams не настроен"
-
-#: src/components/computer/ComputerWorkspace.tsx
-msgid "Terminal"
-msgstr ""
 
 #: src/components/teach/SkillDraftCard.tsx
 msgid "Test"
@@ -4964,6 +4908,14 @@ msgstr "Обновление не выполнено"
 msgid "Update finished with errors"
 msgstr "Обновление завершено с ошибками"
 
+#: src/lib/activity-list-filters.ts
+msgid "Update from {name}"
+msgstr "Обновление от {name}"
+
+#: src/lib/activity-list-filters.ts
+msgid "Update from {name}: {text}"
+msgstr "Обновление от {name}: {text}"
+
 #: src/components/AskCard.tsx
 msgid "Update instructions?"
 msgstr "Обновить инструкции?"
@@ -4998,7 +4950,6 @@ msgstr "Обновление компьютера команды"
 msgid "Updating…"
 msgstr "Обновление…"
 
-#: src/components/computer/FilesApp.tsx
 #: src/pages/shell/avatar-studio-popover.tsx
 msgid "Upload"
 msgstr "Загрузить"
@@ -5187,10 +5138,6 @@ msgstr "Выполняется…"
 
 #: src/pages/memory-providers/HonchoSettingsForm.tsx
 msgid "Workspace"
-msgstr ""
-
-#: src/components/computer/TerminalApp.tsx
-msgid "Wrote {path}"
 msgstr ""
 
 #: src/lib/billing.ts

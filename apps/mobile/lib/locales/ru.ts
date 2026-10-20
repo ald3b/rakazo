@@ -1,4 +1,12 @@
 export const RU_MESSAGES: Record<string, string> = {
+  "Message from another agent": "Сообщение от другого агента",
+  "Another agent": "Другой агент",
+  "Update from {name}: {text}": "Обновление от {name}: {text}",
+  "Update from {name}": "Обновление от {name}",
+  "{name} asked: {text}": "{name} спрашивает: {text}",
+  "{name} asked": "{name} спрашивает",
+  Close: "Закрыть",
+  Link: "Ссылка",
   "Lets this bot organize, retune and schedule the bots it creates. You approve each change.":
     "Позволяет этому боту организовывать, настраивать и планировать работу созданных им ботов. Вы одобряете каждое изменение.",
   "Too many attempts. Try again in a few minutes.":
@@ -280,6 +288,8 @@ export const RU_MESSAGES: Record<string, string> = {
   "Could not load model settings": "Не удалось загрузить настройки модели.",
   "Could not load routine": "Не удалось загрузить программу",
   "Could not load routines": "Не удалось загрузить задачи",
+  "Get notified when this Bot finishes or needs input":
+    "Получать уведомления, когда этот бот завершает работу или ждёт ввода",
   "Could not load the desktop. This device cannot reach the screen URL.":
     "Не удалось загрузить рабочий стол. Это устройство не может получить доступ к URL-адресу экрана.",
   "Could not load this file.": "Не удалось загрузить этот файл.",

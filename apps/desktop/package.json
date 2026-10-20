@@ -1,7 +1,7 @@
 {
   "name": "@rakazo/desktop",
   "productName": "Rakazo",
-  "version": "0.2.0",
+  "version": "0.3.1",
   "author": {
     "name": "Rakazo"
   },
@@ -64,6 +64,12 @@
     "mac": {
       "icon": "../../packages/ui-tokens/assets/Rakazo.icon",
       "category": "public.app-category.productivity",
+      "x64ArchFiles": "**/node_modules/@koromix/koffi-darwin-*/darwin_*/koffi.node",
+      "entitlements": "assets/entitlements.mac.plist",
+      "entitlementsInherit": "assets/entitlements.mac.plist",
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "Rakazo uses the microphone for dictation and voice calls with your bots."
+      },
       "target": [
         "dmg",
         "zip"

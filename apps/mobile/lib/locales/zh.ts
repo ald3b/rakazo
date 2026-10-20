@@ -1,4 +1,12 @@
 export const ZH_MESSAGES: Record<string, string> = {
+  "Message from another agent": "来自其他智能体的消息",
+  "Another agent": "其他智能体",
+  "Update from {name}: {text}": "来自 {name} 的更新：{text}",
+  "Update from {name}": "来自 {name} 的更新",
+  "{name} asked: {text}": "{name} 问：{text}",
+  "{name} asked": "{name} 问",
+  Close: "关闭",
+  Link: "链接",
   "Lets this bot organize, retune and schedule the bots it creates. You approve each change.":
     "允许此机器人整理、调整和安排它创建的机器人。每项更改都由你批准。",
   "Too many attempts. Try again in a few minutes.": "尝试次数过多。请过几分钟再试。",
@@ -258,6 +266,7 @@ export const ZH_MESSAGES: Record<string, string> = {
   "Could not load model settings": "无法加载模型设置",
   "Could not load routine": "无法加载例行任务",
   "Could not load routines": "无法加载例行任务",
+  "Get notified when this Bot finishes or needs input": "在此机器人完成或需要输入时收到通知",
   "Could not load the desktop. This device cannot reach the screen URL.":
     "无法加载桌面。此设备无法访问屏幕地址。",
   "Could not load this file.": "无法加载此文件。",

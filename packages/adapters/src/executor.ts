@@ -290,7 +290,7 @@ import { createMediaGenerationProvider } from "./media-generation-factory.js";
 import { generateMediaFromTool } from "./media-generation-tools.js";
 import { loadAgentMemoryContext } from "./memory-context.js";
 import type { MemoryProviderResolver } from "./memory-provider-factory.js";
-import { selectMemoryTools } from "./memory-tools.js";
+import { appendMemoryFact, selectMemoryTools } from "./memory-tools.js";
 import {
   enabledOpenAiCompatibleModelIds,
   findConnectedModelCredential,
@@ -2670,7 +2670,11 @@ export function isProtectedComputerLifecycleCommand(command: string): boolean {
 }
 
 export function desktopProtectionGuardMessage(reason: string): string {
-  return `This command was not run: desktop-protection guard: ${reason}. Shell access is still available. Do not stop or restart browser or desktop processes.`;
+  const recovery =
+    reason === "heredoc"
+      ? " For ordinary file edits, use the file tools or python3 -c with a quoted script instead of an interpreter heredoc. This refusal does not indicate a filesystem permission error."
+      : "";
+  return `This command was not run: desktop-protection guard: ${reason}. Shell access is still available.${recovery} Do not stop or restart browser or desktop processes.`;
 }
 
 /** Cap the roster so a large Space cannot flood the prompt. */
@@ -3575,7 +3579,6 @@ export function createRunExecutor(deps: ExecutorDeps) {
         );
       }
       let computerLease: ComputerExecutionLease | null = null;
-      let computerScreenLease: ComputerExecutionLease | null = null;
       try {
         computerLease = await acquireComputerExecutionLease(deps.prisma, {
           computerId: leaseTarget.computerId,
@@ -3583,9 +3586,8 @@ export function createRunExecutor(deps: ExecutorDeps) {
           botId: run.botId,
           resumeHeldLease,
         });
-        computerScreenLease = computerLease;
-        if (!computerScreenLease && leaseTarget.computer?.scope === "dedicated") {
-          computerScreenLease = await acquireDedicatedScreenLeaseFence(deps.prisma, {
+        if (!computerLease && leaseTarget.computer?.scope === "dedicated") {
+          computerLease = await acquireDedicatedScreenLeaseFence(deps.prisma, {
             computerId: leaseTarget.computerId,
             runId,
             botId: run.botId,
@@ -3774,7 +3776,7 @@ export function createRunExecutor(deps: ExecutorDeps) {
           userId: run.userId,
           botId: bot.id,
           runId,
-          screenLeaseId: screenLeaseIdForRun(computerScreenLease, runId, fence),
+          screenLeaseId: screenLeaseIdForRun(computerLease, runId, fence),
           signal: runAbortController.signal,
           ...connectedContext(connectedPlugins),
           connectedProviders: connectedComposio.map((row) => row.provider),
@@ -4327,7 +4329,15 @@ export function createRunExecutor(deps: ExecutorDeps) {
         const scripted = deps.runtime.describe().capabilities.scripted;
         const script = scripted ? inferScript(task.prompt, takeoverResume?.checkpoint) : undefined;
         const flushProgress = async () => {
-          if (scripted || !pendingProgress || isBackgroundRunTrigger(run.trigger)) return;
+          // Routines may finish silently. Do not leak narration or a partial silence
+          // sentinel before the final outcome is known.
+          if (
+            scripted ||
+            !pendingProgress ||
+            run.trigger === "routine" ||
+            isBackgroundRunTrigger(run.trigger)
+          )
+            return;
           await deps.events.append({
             spaceId: run.spaceId,
             threadId: thread.id,
@@ -5099,6 +5109,11 @@ export function createRunExecutor(deps: ExecutorDeps) {
             if (!paused) {
               throw new Error("Could not pause this run for approval; try sending again.");
             }
+            if (paused.continuationRunId) {
+              await deps.jobs
+                .enqueue(runContinueJob(paused.continuationRunId))
+                .catch((error) => getLogger().error("steering continuation enqueue", error));
+            }
             await notifyRun(deps, run, {
               kind: "help",
               title: `${bot.name} needs approval`,
@@ -5718,18 +5733,36 @@ export function createRunExecutor(deps: ExecutorDeps) {
             }, finish);
           }
           if (name === "remember") {
-            await deps.memory.commit(
-              {
-                scope: "bot",
-                botId: bot.id,
-                path: String(args.path ?? "MEMORY.md"),
-                content: String(args.content ?? ""),
-                sourceRunId: runId,
-                sourceThreadId: thread.id,
-              },
-              context,
-            );
-            return finish({ ok: true });
+            const path = String(args.path ?? "").trim() || "MEMORY.md";
+            // A fact is added to the document, never replaces it. A concurrent save
+            // changes the revision, so re-read and append again.
+            for (let attempt = 1; ; attempt += 1) {
+              const snapshot = await deps.memory.read(
+                { scope: "bot", botId: bot.id, path },
+                context,
+              );
+              const existing = snapshot.documents[0];
+              const content = appendMemoryFact(existing?.content ?? "", String(args.content ?? ""));
+              if (content === (existing?.content ?? "")) return finish({ ok: true });
+              try {
+                await deps.memory.commit(
+                  {
+                    scope: "bot",
+                    botId: bot.id,
+                    path,
+                    content,
+                    expectedRevision: existing?.revision ?? 0,
+                    sourceRunId: runId,
+                    sourceThreadId: thread.id,
+                  },
+                  context,
+                );
+                return finish({ ok: true });
+              } catch (error) {
+                const message = error instanceof Error ? error.message : "";
+                if (message !== MEMORY_REVISION_CONFLICT_ERROR || attempt >= 3) throw error;
+              }
+            }
           }
           if (name === "save_shared_memory") {
             const invalid = sharedMemorySaveError(args);
@@ -6585,6 +6618,11 @@ export function createRunExecutor(deps: ExecutorDeps) {
             if (!paused) {
               throw new Error("Could not pause this run for protected input; try sending again.");
             }
+            if (paused.continuationRunId) {
+              await deps.jobs
+                .enqueue(runContinueJob(paused.continuationRunId))
+                .catch((error) => getLogger().error("steering continuation enqueue", error));
+            }
             await notifyRun(deps, run, {
               kind: "help",
               title: `${bot.name} needs a code`,
@@ -7221,7 +7259,9 @@ export function createRunExecutor(deps: ExecutorDeps) {
                 });
               },
               prompt,
-              contextStrategy,
+              // Keep an explicit executor override, but let the runtime select
+              // cache-aware context for connections declaring a cache window.
+              contextStrategy: deps.contextStrategy,
               instructions: userTurnInstructions({
                 botInstructions: runIdentityInstruction(bot, run.trigger),
                 groupContext,
@@ -7449,7 +7489,7 @@ export function createRunExecutor(deps: ExecutorDeps) {
               }
             } else if (event.type === "progress") {
               toolCallStreak = { key: undefined, count: 0 };
-              if (isBackgroundRunTrigger(run.trigger)) continue;
+              if (run.trigger === "routine" || isBackgroundRunTrigger(run.trigger)) continue;
               // Flush batched text deltas first so an activity line cannot land
               // ahead of text the model streamed before the tool call.
               if (pendingProgress) {
@@ -7507,6 +7547,11 @@ export function createRunExecutor(deps: ExecutorDeps) {
                 offeredActions: event.actions,
               });
               if (!paused) return;
+              if (paused.continuationRunId) {
+                await deps.jobs
+                  .enqueue(runContinueJob(paused.continuationRunId))
+                  .catch((error) => getLogger().error("steering continuation enqueue", error));
+              }
               await notifyRun(deps, run, {
                 kind: "help",
                 title: `${bot.name} needs an answer`,
@@ -8486,6 +8531,11 @@ export function dockerComputerToolInstruction(
   const parts = [
     "For Python CLI tools, use `uv tool install <package>`; it installs without sudo and keeps tools under this computer's persistent home. GitHub's `gh` CLI is installed. `pdftotext`, `pandoc`, and `openpyxl` are available to extract text from PDFs, documents, and spreadsheets.",
   ];
+  if (builtinOffered(disabled, "shell")) {
+    parts.push(
+      "Python 3 is installed as `python3`. For ordinary file processing, use `python3 -c` with a quoted script; interpreter heredocs are blocked by the desktop guard. If `python` is not found, retry with `python3`. A command-syntax refusal is not a filesystem permission error; continue ordinary file work with supported tools.",
+    );
+  }
   if (navigate && act) {
     parts.push(
       'To authenticate `gh`, run `LOG=$(mktemp /tmp/gh-login.XXXXXX); nohup script -qec \'gh auth login --hostname github.com --web --git-protocol https\' "$LOG" >/dev/null 2>&1 & echo "$LOG"` — keep that printed path, read the one-time code from it, browser_navigate to https://github.com/login/device, and browser_act the code. Completing that page authorizes the CLI OAuth app and stores the credential under the persistent home; it does not by itself create a Chromium github.com session.',
