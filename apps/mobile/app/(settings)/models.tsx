@@ -27,6 +27,7 @@ import {
   featuredModelProviders,
   filterModelCatalog,
   initialModelProbeState,
+  MODEL_SEARCH_THRESHOLD,
   pickCatalogModelId,
   savedCompatibleModelIds,
   toggleEnabledModelId,
@@ -95,9 +96,6 @@ function thinkingLevelLabel(level: ThinkingLevel, t: (message: string) => string
   if (level === "max") return t("Max");
   return level;
 }
-
-/** Providers with more models than this get a search field. */
-const MODEL_SEARCH_THRESHOLD = 10;
 
 type ModelSelection = {
   provider?: string;

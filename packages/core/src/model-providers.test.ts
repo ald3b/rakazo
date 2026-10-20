@@ -2,12 +2,14 @@ import type { ModelCatalogEntry } from "@rakazo/contracts";
 import { describe, expect, it } from "vitest";
 import {
   canUseCompatibleModelAsDefault,
+  chatModelChoices,
   clampCatalogThinkingLevel,
   compatibleModelRows,
   connectedModelChoices,
   credentialForModel,
   featuredModelProviders,
   filterModelCatalog,
+  filterModelChoices,
   pickCatalogModelId,
   resolveSelectableModelId,
   savedCompatibleModelIds,
@@ -374,6 +376,56 @@ describe("filterModelCatalog", () => {
 
   it("returns nothing when no model matches", () => {
     expect(filterModelCatalog(models, "gemini")).toEqual([]);
+  });
+});
+
+describe("chat model choices", () => {
+  const connected = [
+    {
+      key: "openrouter::anthropic/claude-sonnet",
+      provider: "openrouter",
+      modelId: "anthropic/claude-sonnet",
+      label: "OpenRouter · Claude Sonnet",
+    },
+    {
+      key: "openrouter::openai/gpt-mini",
+      provider: "openrouter",
+      modelId: "openai/gpt-mini",
+      label: "OpenRouter · GPT Mini",
+    },
+  ];
+
+  it("puts the space default first, then a saved model no connection offers, then the rest", () => {
+    expect(chatModelChoices(connected, "openai::retired-model", "Space default")).toEqual([
+      { key: "", label: "Space default" },
+      {
+        key: "openai::retired-model",
+        label: "retired-model",
+        provider: "openai",
+        modelId: "retired-model",
+      },
+      ...connected,
+    ]);
+    expect(chatModelChoices(connected, connected[1]!.key, "Space default")).toEqual([
+      { key: "", label: "Space default" },
+      ...connected,
+    ]);
+  });
+
+  it("matches the label, model id, or provider, ignoring case", () => {
+    const choices = chatModelChoices(connected, "", "Space default (Claude Sonnet)");
+    expect(filterModelChoices(choices, "  SONNET ").map((choice) => choice.key)).toEqual([
+      "",
+      "openrouter::anthropic/claude-sonnet",
+    ]);
+    expect(filterModelChoices(choices, "openai/").map((choice) => choice.key)).toEqual([
+      "openrouter::openai/gpt-mini",
+    ]);
+    expect(
+      filterModelChoices([{ key: "openrouter::x", label: "X", provider: "openrouter" }], "router"),
+    ).toHaveLength(1);
+    expect(filterModelChoices(choices, "gemini")).toEqual([]);
+    expect(filterModelChoices(choices, " ")).toBe(choices);
   });
 });
 

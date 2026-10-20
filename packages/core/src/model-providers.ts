@@ -325,6 +325,44 @@ export function filterModelCatalog(
   );
 }
 
+/** Model lists longer than this get a search field. */
+export const MODEL_SEARCH_THRESHOLD = 10;
+
+export type ChatModelChoice = { key: string; label: string; provider?: string; modelId?: string };
+
+/**
+ * A chat's model picker: the space default (key ""), then a saved model no
+ * connection offers any more, then every connected model.
+ */
+export function chatModelChoices(
+  connected: readonly ConnectedModelChoice[],
+  selectedKey: string,
+  spaceDefaultLabel: string,
+): ChatModelChoice[] {
+  const choices: ChatModelChoice[] = [{ key: "", label: spaceDefaultLabel }];
+  if (selectedKey && !connected.some((option) => option.key === selectedKey)) {
+    const saved = parseModelOptionKey(selectedKey);
+    choices.push({
+      key: selectedKey,
+      label: saved?.modelId ?? selectedKey,
+      provider: saved?.provider,
+      modelId: saved?.modelId,
+    });
+  }
+  return choices.concat(connected);
+}
+
+/** Match a choice by label, model id, or provider; a blank query keeps every choice. */
+export function filterModelChoices<C extends ChatModelChoice>(
+  choices: readonly C[],
+  query: string,
+): readonly C[] {
+  if (!query.trim()) return choices;
+  return choices.filter((choice) =>
+    matchesSearchQuery(query, choice.label, choice.modelId, choice.provider),
+  );
+}
+
 type SavedCompatibleModels = { baseUrl?: string; enabledModelIds?: readonly string[] };
 
 /** The server's endpoint form; half-typed text that is not a URL yet compares as trimmed text. */
