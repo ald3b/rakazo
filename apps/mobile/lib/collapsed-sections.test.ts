@@ -35,6 +35,24 @@ describe("collapsed sections", () => {
     expect(await loadCollapsedSections()).toBeNull();
   });
 
+  it("waits for a pending save before loading", async () => {
+    store.set(COLLAPSED_SECTIONS_KEY, JSON.stringify({ userId: "user-1", keys: [] }));
+    let finishWrite!: () => void;
+    const writeReady = new Promise<void>((resolve) => {
+      finishWrite = resolve;
+    });
+    vi.mocked(SecureStore.setItemAsync).mockImplementationOnce(async (key, value) => {
+      await writeReady;
+      store.set(key, value);
+    });
+
+    saveCollapsedSections("user-1", new Set(["bot-1"]));
+    const loaded = loadCollapsedSections();
+    finishWrite();
+
+    expect(await loaded).toEqual({ userId: "user-1", keys: new Set(["bot-1"]) });
+  });
+
   it("starts expanded when the stored value is unreadable", async () => {
     store.set(COLLAPSED_SECTIONS_KEY, "{not json");
     expect(await loadCollapsedSections()).toBeNull();

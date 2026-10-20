@@ -7,6 +7,7 @@ export type CollapsedSections = { userId?: string; keys: ReadonlySet<string> };
 
 /** Null when nothing usable is stored: every section starts expanded. */
 export async function loadCollapsedSections(): Promise<CollapsedSections | null> {
+  await saving;
   try {
     const stored = JSON.parse(
       (await SecureStore.getItemAsync(COLLAPSED_SECTIONS_KEY)) ?? "null",
