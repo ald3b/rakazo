@@ -4145,7 +4145,10 @@ function AskBlock({
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const answered = ask.status === "answered";
+  const sheetSession = useRef(0);
+  const session = sheetSession.current;
+  const [saved, setSaved] = useState(false);
+  const answered = saved || ask.status === "answered";
   const secretInput = isSecretAskBlock(ask);
   const loginInput = secretInput && ask.credential?.auth.type === "login";
   const incomplete = secretInput ? answer.length === 0 : !answer.trim();
@@ -4166,6 +4169,7 @@ function AskBlock({
     if (secretInput) setAnswer("");
     try {
       await onAnswer(submitValue);
+      if (secretInput) setSaved(true);
     } catch (cause) {
       setError(
         secretInput ? t("Could not send answer") : errorText(cause, t("Could not send answer")),
@@ -4211,7 +4215,10 @@ function AskBlock({
         <NativeActionButton
           label={t("Continue")}
           fill={false}
-          onPress={() => setSheetOpen(true)}
+          onPress={() => {
+            sheetSession.current += 1;
+            setSheetOpen(true);
+          }}
           style={{ alignSelf: "flex-end" }}
         />
       ) : canAnswer ? (
@@ -4250,11 +4257,15 @@ function AskBlock({
         <SecretAskSheet
           title={plainAskTitle(ask.text)}
           destination={secretDestinationLabel(ask.credential)}
+          // Once any save is accepted the open sheet clears its own fields, then closes itself.
           pending={canAnswer && !answered}
-          onClose={() => setSheetOpen(false)}
+          onClose={() => {
+            if (session === sheetSession.current) setSheetOpen(false);
+          }}
           onSave={async (password, username) => {
             await onAnswer(password, username);
-            setSheetOpen(false);
+            setSaved(true);
+            if (session === sheetSession.current) setSheetOpen(false);
           }}
         />
       ) : null}
