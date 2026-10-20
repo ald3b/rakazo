@@ -1,5 +1,5 @@
 import type { MenuAction } from "@expo/ui/community/menu";
-import { ChatMarkdown } from "@rakazo/chat-ui/native";
+import { ChatMarkdown, markdownCodeBlocks } from "@rakazo/chat-ui/native";
 import type {
   AgentSkillCatalogEntry,
   Connection,
@@ -3099,6 +3099,11 @@ const MessageRow = memo(function MessageRow({
       if (text) void Clipboard.setStringAsync(text).catch(() => undefined);
     };
     const react = (reaction: MessageReaction) => actions.react(message, reaction);
+    // VoiceOver reads the bubble as one element and can't reach a code block's copy button.
+    const codeBlocks = message.role === "user" ? [] : markdownCodeBlocks(blockText(message));
+    const copyCode = () => {
+      if (codeBlocks[0]) void Clipboard.setStringAsync(codeBlocks[0]).catch(() => undefined);
+    };
     const menuActions = [
       ...(!readOnly ? [{ name: "reply", text: t("Reply"), onPress: reply }] : []),
       ...(includeQuote ? [{ name: "quote", text: t("Quote"), onPress: quote }] : []),
@@ -3123,6 +3128,9 @@ const MessageRow = memo(function MessageRow({
       ...(includeSpeak ? [{ name: "speak", text: t("Speak message"), onPress: speakMessage }] : []),
       ...(includeSelect ? [{ name: "select", text: t("Select text"), onPress: select }] : []),
       { name: "copy", text: t("Copy"), onPress: copy },
+      ...(codeBlocks.length === 1
+        ? [{ name: "copyCode", text: t("Copy code"), onPress: copyCode }]
+        : []),
     ];
     const menu = buildMessageContextMenu({
       labels: {
