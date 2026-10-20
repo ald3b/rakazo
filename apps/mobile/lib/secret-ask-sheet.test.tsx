@@ -115,6 +115,7 @@ import { SecretAskSheet } from "../components/secret-ask-sheet";
 
 const onClose = vi.fn();
 const onSave = vi.fn<(password: string, username: string) => Promise<void>>();
+const onDismiss = vi.fn<() => Promise<void>>();
 let root: Root;
 let container: HTMLDivElement;
 
@@ -144,6 +145,7 @@ async function render(pending = true) {
         pending={pending}
         onClose={onClose}
         onSave={onSave}
+        onDismiss={onDismiss}
       />,
     ),
   );
@@ -350,4 +352,43 @@ it("closes after a delay when no field reports, as when the card is no longer pe
   await nextFrame();
   expect(seen).toEqual([["", "", true, true]]);
   expect(onSave).not.toHaveBeenCalled();
+});
+
+it("dismisses without sending the typed values, clearing and locking both fields first", async () => {
+  let finish!: () => void;
+  onDismiss.mockReturnValue(
+    new Promise<void>((resolve) => {
+      finish = resolve;
+    }),
+  );
+  await render();
+  await type("Username", "ada");
+  await type("Password", "example-password");
+
+  await act(async () => button("Dismiss").click());
+
+  expect(onDismiss).toHaveBeenCalledTimes(1);
+  expect(onDismiss).toHaveBeenCalledWith();
+  expect(onSave).not.toHaveBeenCalled();
+  expect(field("Username").value).toBe("");
+  expect(field("Password").value).toBe("");
+  expect(field("Username").readOnly).toBe(true);
+  expect(button("Dismiss").disabled).toBe(true);
+  await act(async () => finish());
+});
+
+it("stays open with a generic error and empty fields when dismissing fails", async () => {
+  onDismiss.mockRejectedValue(new Error("server detail"));
+  await render();
+  await type("Username", "ada");
+  await type("Password", "example-password");
+
+  await act(async () => button("Dismiss").click());
+
+  expect(container.textContent).toContain("Could not send answer");
+  expect(container.textContent).not.toContain("server detail");
+  expect(field("Username").value).toBe("");
+  expect(field("Password").value).toBe("");
+  expect(button("Dismiss").disabled).toBe(false);
+  expect(onClose).not.toHaveBeenCalled();
 });

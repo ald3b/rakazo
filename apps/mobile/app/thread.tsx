@@ -1823,7 +1823,7 @@ function Thread({ sessionEpoch }: { sessionEpoch: number }) {
   }
 
   const answerMessage = useCallback(
-    async (message: MobileMessage, answer: string, username?: string) => {
+    async (message: MobileMessage, answer: string, username?: string, dismiss?: boolean) => {
       const targetBotId = botId;
       const targetGroupId = groupId;
       if (readOnly || (!targetBotId && !targetGroupId) || !message.runId) return;
@@ -1833,6 +1833,7 @@ function Thread({ sessionEpoch }: { sessionEpoch: number }) {
         messageId: message.id,
         answer,
         ...(username ? { username } : {}),
+        ...(dismiss ? { dismiss: true as const } : {}),
       });
       // The answer is saved once the server accepts it; a failed refresh only delays the card.
       if (isCurrentTarget(targetBotId, targetGroupId)) await refresh().catch(() => undefined);
@@ -2205,8 +2206,8 @@ function Thread({ sessionEpoch }: { sessionEpoch: number }) {
       select: (text) => rowActionsRef.current.select(text),
       speak: (message) => rowActionsRef.current.speak(message),
       react: (message, reaction) => rowActionsRef.current.react(message, reaction),
-      answer: (message, answer, username) =>
-        rowActionsRef.current.answer(message, answer, username),
+      answer: (message, answer, username, dismiss) =>
+        rowActionsRef.current.answer(message, answer, username, dismiss),
       openBot: (id, name) => rowActionsRef.current.openBot(id, name),
       openComputer: (id, name) => rowActionsRef.current.openComputer(id, name),
       previewMarkdown: (target) => rowActionsRef.current.previewMarkdown(target),
@@ -2965,7 +2966,12 @@ type MessageRowActions = {
   select: (text: string) => void;
   speak: (message: MobileMessage) => void;
   react: (message: MobileMessage, reaction: MessageReaction) => void;
-  answer: (message: MobileMessage, answer: string, username?: string) => Promise<void>;
+  answer: (
+    message: MobileMessage,
+    answer: string,
+    username?: string,
+    dismiss?: boolean,
+  ) => Promise<void>;
   openBot: (id: string, name: string) => void;
   openComputer: (id: string, name: string) => void;
   previewMarkdown: (target: MarkdownArtifactPreviewTarget) => void;
@@ -3346,7 +3352,12 @@ const MessageBubble = memo(function MessageBubble({
   message: MobileMessage;
   members?: MobileSnapshot["members"];
   canAnswer: boolean;
-  onAnswer: (message: MobileMessage, answer: string, username?: string) => Promise<void>;
+  onAnswer: (
+    message: MobileMessage,
+    answer: string,
+    username?: string,
+    dismiss?: boolean,
+  ) => Promise<void>;
   onOpenBot: (botId: string, name: string) => void;
   onOpenComputer: (botId: string, name: string) => void;
   onChoiceDismissed?: (question: string) => void;
@@ -3396,6 +3407,7 @@ const MessageBubble = memo(function MessageBubble({
           actionProps={actionProps}
           canAnswer={canAnswer}
           onAnswer={(answer, username) => onAnswer(message, answer, username)}
+          onDismiss={() => onAnswer(message, "", undefined, true)}
         />
         {appConnectBlocks.map((block, index) => (
           <AppConnectCard
@@ -4162,11 +4174,14 @@ function AskBlock({
   ask,
   canAnswer,
   onAnswer,
+  onDismiss,
   actionProps,
 }: {
   ask: Extract<MobileMessage["blocks"][number], { kind: "ask" }>;
   canAnswer: boolean;
   onAnswer: (answer: string, username?: string) => Promise<void>;
+  /** Turns down a secret request without a value. */
+  onDismiss: () => Promise<void>;
   actionProps: MessageActionProps;
 }) {
   const tokens = useMobileTokens();
@@ -4178,7 +4193,8 @@ function AskBlock({
   const sheetSession = useRef(0);
   const session = sheetSession.current;
   const [saved, setSaved] = useState(false);
-  const answered = saved || ask.status === "answered";
+  const [dismissed, setDismissed] = useState(false);
+  const answered = saved || dismissed || ask.status === "answered";
   const secretInput = isSecretAskBlock(ask);
   const loginInput = secretInput && ask.credential?.auth.type === "login";
   const incomplete = secretInput ? answer.length === 0 : !answer.trim();
@@ -4189,6 +4205,21 @@ function AskBlock({
         ? t("API key")
         : t("Code");
   const submitLabel = secretInput ? t("Save") : t("Send answer");
+
+  async function dismiss() {
+    if (submitting) return;
+    setSubmitting(true);
+    setError(null);
+    setAnswer("");
+    try {
+      await onDismiss();
+      setDismissed(true);
+    } catch {
+      setError(t("Could not send answer"));
+    } finally {
+      setSubmitting(false);
+    }
+  }
 
   async function submit() {
     if (submitting) return;
@@ -4238,8 +4269,16 @@ function AskBlock({
         <Text style={{ color: tokens.mutedForeground, fontSize: 13.5 }}>{ask.detail}</Text>
       ) : null}
       {answered ? (
-        <Text style={{ color: tokens.success, fontSize: 14 }}>
-          {secretInput ? t("Saved") : t("Answered: {answer}", { answer: ask.answer ?? t("Done") })}
+        <Text
+          style={{
+            // Dismissed reads like a declined approval, not a success.
+            color: dismissed || ask.dismissed ? tokens.mutedForeground : tokens.success,
+            fontSize: 14,
+          }}
+        >
+          {secretInput
+            ? t(dismissed || ask.dismissed ? "Dismissed" : "Saved")
+            : t("Answered: {answer}", { answer: ask.answer ?? t("Done") })}
         </Text>
       ) : canAnswer && loginInput ? (
         <NativeActionButton
@@ -4268,14 +4307,24 @@ function AskBlock({
             onSubmitEditing={() => void submit()}
             style={[askInputStyles.field, { borderColor: tokens.border, color: tokens.foreground }]}
           />
-          <NativeActionButton
-            label={submitLabel}
-            disabled={incomplete}
-            busy={submitting}
-            fill={false}
-            onPress={() => void submit()}
-            style={{ alignSelf: "flex-end" }}
-          />
+          <View style={askInputStyles.buttons}>
+            {secretInput ? (
+              <NativeActionButton
+                label={t("Dismiss")}
+                disabled={submitting}
+                fill={false}
+                prominence="plain"
+                onPress={() => void dismiss()}
+              />
+            ) : null}
+            <NativeActionButton
+              label={submitLabel}
+              disabled={incomplete}
+              busy={submitting}
+              fill={false}
+              onPress={() => void submit()}
+            />
+          </View>
         </>
       ) : (
         <Text style={{ color: tokens.mutedForeground, fontSize: 13.5 }}>
@@ -4297,6 +4346,11 @@ function AskBlock({
             setSaved(true);
             if (session === sheetSession.current) setSheetOpen(false);
           }}
+          // The dismissed card is no longer pending, so the sheet clears and closes itself.
+          onDismiss={async () => {
+            await onDismiss();
+            setDismissed(true);
+          }}
         />
       ) : null}
     </View>
@@ -4310,5 +4364,14 @@ const askInputStyles = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: 12,
     paddingVertical: 9,
+  },
+  // Wraps at large text sizes so neither button is pushed off the card.
+  buttons: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "flex-end",
+    alignItems: "center",
+    columnGap: 20,
+    rowGap: 8,
   },
 });

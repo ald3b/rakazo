@@ -2264,7 +2264,7 @@ function SpaceShell() {
     if (botId) void jumpToMessageRef.current({ botId, messageId }).catch(() => undefined);
   }, []);
   const answerMessage = useCallback(
-    async (message: ThreadMessage, text: string, username?: string) => {
+    async (message: ThreadMessage, text: string, username?: string, dismiss?: boolean) => {
       const botId = activeBotId.current;
       const groupId = activeGroupId.current;
       if (!botId && !groupId) return;
@@ -2274,6 +2274,7 @@ function SpaceShell() {
         messageId: message.id,
         answer: text,
         ...(username ? { username } : {}),
+        ...(dismiss ? { dismiss: true as const } : {}),
       });
       if (groupId && activeGroupId.current === groupId) {
         await refreshGroupThreadRef.current(groupId);
@@ -5304,7 +5305,12 @@ const Transcript = memo(function Transcript({
   onCallBack?: () => void;
   onLoadOlder: () => void | Promise<void>;
   onOpenBot: (botId: string) => void;
-  onAnswer: (message: ThreadMessage, text: string, username?: string) => Promise<void>;
+  onAnswer: (
+    message: ThreadMessage,
+    text: string,
+    username?: string,
+    dismiss?: boolean,
+  ) => Promise<void>;
   onReply: (message: ThreadMessage) => void;
   onQuote: (message: ThreadMessage, quote: string) => void;
   onReact: (message: ThreadMessage, reaction: MessageReaction) => Promise<void>;
@@ -7106,7 +7112,12 @@ const MessageView = memo(function MessageView({
   artifactTarget: ArtifactTarget;
   canAnswer: boolean;
   message: ThreadMessage;
-  onAnswer: (message: ThreadMessage, text: string, username?: string) => Promise<void>;
+  onAnswer: (
+    message: ThreadMessage,
+    text: string,
+    username?: string,
+    dismiss?: boolean,
+  ) => Promise<void>;
   onOpenBot: (botId: string) => void;
   onOpenPeerMessages: (peer: { peerBotId: string; peerBotName: string }) => void;
   /** Set on a received marker whose peer run has folded replies. */
@@ -7537,6 +7548,7 @@ const MessageView = memo(function MessageView({
               block={block}
               canAnswer={canAnswer}
               onAnswer={(text, username) => onAnswer(message, text, username)}
+              onDismiss={() => onAnswer(message, "", undefined, true)}
             />
           );
         }

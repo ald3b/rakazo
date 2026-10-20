@@ -21,29 +21,48 @@ type SheetProps = {
   pending: boolean;
   onClose: () => void;
   onSave: (password: string, username: string) => Promise<void>;
+  onDismiss: () => Promise<void>;
 };
 let sheet: SheetProps;
 const scope = {
   React,
   useState,
   useRef,
-  useMobileTokens: () => ({}),
+  useMobileTokens: () => ({ success: "success", mutedForeground: "muted" }),
   useI18n: () => ({ t: (text: string) => text }),
   isSecretAskBlock: (block: { input?: string }) => block.input === "secret",
   plainAskTitle: (text: string) => text,
   secretDestinationLabel,
   secretFieldTraits: () => ({}),
   errorText: (_error: unknown, fallback: string) => fallback,
-  askInputStyles: { field: {} },
+  askInputStyles: { field: {}, buttons: {} },
   View: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
-  Text: ({ children, numberOfLines }: { children?: ReactNode; numberOfLines?: number }) => (
-    <span data-lines={numberOfLines}>{children}</span>
+  Text: ({
+    children,
+    numberOfLines,
+    style,
+  }: {
+    children?: ReactNode;
+    numberOfLines?: number;
+    style?: { color?: string };
+  }) => (
+    <span data-lines={numberOfLines} data-color={style?.color}>
+      {children}
+    </span>
   ),
   TextInput: ({ accessibilityLabel }: { accessibilityLabel?: string }) => (
     <input aria-label={accessibilityLabel} />
   ),
-  NativeActionButton: ({ label, onPress }: { label: string; onPress: () => void }) => (
-    <button type="button" onClick={onPress}>
+  NativeActionButton: ({
+    label,
+    onPress,
+    disabled,
+  }: {
+    label: string;
+    onPress: () => void;
+    disabled?: boolean;
+  }) => (
+    <button type="button" onClick={onPress} disabled={disabled}>
       {label}
     </button>
   ),
@@ -77,6 +96,7 @@ afterEach(async () => {
 async function render(
   ask: Record<string, unknown>,
   onAnswer: () => Promise<void> = async () => undefined,
+  onDismiss: () => Promise<void> = async () => undefined,
 ) {
   await act(async () =>
     root.render(
@@ -84,6 +104,7 @@ async function render(
         ask={{ kind: "ask", text: longTitle, status: "pending", ...ask }}
         canAnswer
         onAnswer={onAnswer}
+        onDismiss={onDismiss}
         actionProps={{}}
       />,
     ),
@@ -193,4 +214,87 @@ it("closes the current sheet and keeps the card saved when refresh fails", async
   expect(container.textContent).toContain("Saved");
   expect(container.textContent).not.toContain("Could not send answer");
   expect(container.querySelector("button")).toBeNull();
+});
+
+function buttons() {
+  return [...container.querySelectorAll("button")].map((item) => item.textContent);
+}
+
+function button(label: string) {
+  return [...container.querySelectorAll("button")].find((item) => item.textContent === label)!;
+}
+
+it("dismisses an inline secret card without sending a value", async () => {
+  const onAnswer = vi.fn(async () => undefined);
+  const onDismiss = vi.fn(async () => undefined);
+  await render({ input: "secret", purpose: "otp" }, onAnswer, onDismiss);
+  expect(buttons()).toEqual(["Dismiss", "Save"]);
+
+  await act(async () => button("Dismiss").click());
+
+  expect(onDismiss).toHaveBeenCalledTimes(1);
+  expect(onAnswer).not.toHaveBeenCalled();
+  expect(container.textContent).toContain("Dismissed");
+  expect(container.querySelector("input")).toBeNull();
+  expect(buttons()).toEqual([]);
+});
+
+it("keeps the card open with a generic error when a dismissal fails", async () => {
+  await render({ input: "secret", purpose: "otp" }, undefined, async () => {
+    throw new Error("server detail");
+  });
+
+  await act(async () => button("Dismiss").click());
+
+  expect(container.textContent).toContain("Could not send answer");
+  expect(container.textContent).not.toContain("server detail");
+  expect(container.textContent).not.toContain("Dismissed");
+  expect(container.querySelector("input")).not.toBeNull();
+});
+
+function state(text: string) {
+  return [...container.querySelectorAll("span")].find((item) => item.textContent === text);
+}
+
+it("shows a dismissed secret card as a muted Dismissed and a saved one as Saved", async () => {
+  await render({ input: "secret", status: "answered", answer: "", dismissed: true });
+  expect(state("Dismissed")?.dataset.color).toBe("muted");
+  await render({ input: "secret", status: "answered", answer: "" });
+  expect(state("Saved")?.dataset.color).toBe("success");
+  expect(container.textContent).not.toContain("Dismissed");
+});
+
+it("offers Dismiss only on secret cards", async () => {
+  await render({});
+  expect(buttons()).toEqual(["Send answer"]);
+});
+
+it("dismisses a login card from its sheet, which then closes itself", async () => {
+  const onDismiss = vi.fn(async () => undefined);
+  await render(loginAsk, undefined, onDismiss);
+  await openSheet();
+
+  await act(async () => sheet.onDismiss());
+
+  expect(onDismiss).toHaveBeenCalledTimes(1);
+  expect(sheet.pending).toBe(false);
+  expect(container.textContent).toContain("Dismissed");
+  await act(async () => sheet.onClose());
+  expect(container.querySelector("[data-sheet]")).toBeNull();
+});
+
+it("lets the card's buttons wrap instead of overflowing at large text sizes", () => {
+  const stylesSource = source.slice(
+    source.indexOf("const askInputStyles = StyleSheet.create("),
+    source.indexOf("});", source.indexOf("const askInputStyles = StyleSheet.create(")) + 3,
+  );
+  const styles = new Function(
+    "StyleSheet",
+    `${
+      ts.transpileModule(stylesSource, {
+        compilerOptions: { target: ts.ScriptTarget.ES2022 },
+      }).outputText
+    }\nreturn askInputStyles;`,
+  )({ create: <T,>(value: T) => value });
+  expect(styles.buttons).toMatchObject({ flexDirection: "row", flexWrap: "wrap" });
 });
