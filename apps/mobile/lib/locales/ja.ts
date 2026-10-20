@@ -43,6 +43,7 @@ export const JA_MESSAGES: Record<string, string> = {
   "About {label}": "{label}について",
   "Manage the bots it creates": "作成したボットを管理",
   "Allow cross-space bot communication": "スペースをまたいだボット間の通信を許可",
+  "Clear revealed passwords": "表示されたパスワードを消去",
   "Organize the sidebar and edit bots. Instruction, model, routine and group edits need approval.":
     "サイドバーの整理とボットの編集ができます。指示、モデル、ルーティン、グループの編集には承認が必要です。",
   Headers: "ヘッダー",

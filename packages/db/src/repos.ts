@@ -93,6 +93,7 @@ function mapBot(
     teamChatRules?: string;
     crossSpaceCommunication?: boolean;
     fleetManagement?: boolean;
+    clearRevealedPasswords?: boolean;
     disabledBuiltinTools?: string[];
     webhookSecretId?: string | null;
     spawnKey?: string | null;
@@ -139,6 +140,7 @@ function mapBot(
     teamChatRules: bot.teamChatRules ?? "",
     crossSpaceCommunication: bot.crossSpaceCommunication ?? false,
     fleetManagement: bot.fleetManagement ?? false,
+    clearRevealedPasswords: bot.clearRevealedPasswords ?? false,
     disabledBuiltinTools: bot.disabledBuiltinTools ?? [],
     webhookConfigured: Boolean(bot.webhookSecretId),
     spawnKey: bot.spawnKey ?? null,

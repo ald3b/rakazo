@@ -1203,6 +1203,10 @@ msgstr "बातचीत साफ़ करें"
 msgid "Clear filter {label}"
 msgstr ""
 
+#: src/pages/shell/bot-panel.tsx
+msgid "Clear revealed passwords"
+msgstr "दिखाए गए पासवर्ड मिटाएँ"
+
 #: src/pages/shell/dialogs.tsx
 msgid "Clearing…"
 msgstr "साफ़ किया जा रहा है…"

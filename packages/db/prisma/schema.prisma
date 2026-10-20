@@ -522,6 +522,8 @@ model Bot {
   teamChatRules          String  @default("")
   crossSpaceCommunication Boolean @default(false)
   fleetManagement        Boolean @default(true)
+  /// Empty a saved password this bot filled if the page turns its field into plain text.
+  clearRevealedPasswords Boolean @default(false)
   routines          Routine[]
   scratchpadItems   ScratchpadItem[]
   taughtSkills      TaughtSkill[]

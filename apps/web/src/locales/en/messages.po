@@ -1203,6 +1203,10 @@ msgstr "Clear conversation"
 msgid "Clear filter {label}"
 msgstr "Clear filter {label}"
 
+#: src/pages/shell/bot-panel.tsx
+msgid "Clear revealed passwords"
+msgstr "Clear revealed passwords"
+
 #: src/pages/shell/dialogs.tsx
 msgid "Clearing…"
 msgstr "Clearing…"

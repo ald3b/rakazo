@@ -1203,6 +1203,10 @@ msgstr "대화 내용 비우기"
 msgid "Clear filter {label}"
 msgstr ""
 
+#: src/pages/shell/bot-panel.tsx
+msgid "Clear revealed passwords"
+msgstr "표시된 비밀번호 지우기"
+
 #: src/pages/shell/dialogs.tsx
 msgid "Clearing…"
 msgstr "비우는 중…"

@@ -1203,6 +1203,10 @@ msgstr "会話をクリア"
 msgid "Clear filter {label}"
 msgstr "フィルター{label}を解除"
 
+#: src/pages/shell/bot-panel.tsx
+msgid "Clear revealed passwords"
+msgstr "表示されたパスワードを消去"
+
 #: src/pages/shell/dialogs.tsx
 msgid "Clearing…"
 msgstr "クリア中…"

@@ -907,6 +907,7 @@ export const ZH_MESSAGES: Record<string, string> = {
   "Remove photo": "移除照片",
   Shape: "形状",
   "Shape {number}": "形状 {number}",
+  "Clear revealed passwords": "清除已显示的密码",
   "Try again": "重试",
   "Your session expired": "会话已过期",
   "The server had a problem": "服务器出现问题",

@@ -52,7 +52,13 @@ function installPageHelper(url: string, html: string) {
         snapshot: () => {
           elements: Array<{ ref: string; name: string; role: string; value?: string }>;
         };
-        fill: (ref: string, value: string, origin?: string) => { url: string };
+        fill: (
+          ref: string,
+          value: string,
+          origin?: string,
+          field?: string,
+          clearOnReveal?: boolean,
+        ) => { url: string };
         focusForKeys: (ref: string, whole?: boolean) => { focused: boolean };
         focusHolds: () => boolean;
         typed: (ref: string, text: string) => boolean;
@@ -86,21 +92,199 @@ describe("live page helper saved-login fill", () => {
     <input aria-label="Pin" type="number" />
   `;
 
-  it("types a login only into text, email, password, and tel inputs on the saved HTTPS origin", () => {
-    const { domWindow, browser } = installPageHelper("https://login.example.test/signin", html);
+  const origin = "https://login.example.test";
+
+  it("types a username only into text, email, and tel inputs on the saved HTTPS origin", () => {
+    const { domWindow, browser } = installPageHelper(`${origin}/signin`, html);
     const snap = browser.snapshot();
-    const origin = "https://login.example.test";
-    browser.fill(refFor("Email", snap.elements), "fake-user", origin);
-    browser.fill(refFor("Password", snap.elements), "fake-password", origin);
-    browser.fill(refFor("Phone", snap.elements), "555", origin);
+    browser.fill(refFor("Email", snap.elements), "fake-user", origin, "username");
+    browser.fill(refFor("Phone", snap.elements), "555", origin, "username");
     expect(fieldValue(domWindow, "Email")).toBe("fake-user");
     expect(fieldValue(domWindow, "Phone")).toBe("555");
-    for (const name of ["Username", "Query", "Website", "Pin"]) {
-      expect(() => browser.fill(refFor(name, snap.elements), "leaked", origin)).toThrow(
-        /text, email, password, or telephone/,
-      );
+    for (const name of ["Password", "Username", "Query", "Website", "Pin"]) {
+      expect(() =>
+        browser.fill(refFor(name, snap.elements), "fake-name", origin, "username"),
+      ).toThrow(/text, email, or telephone/);
     }
-    expect(domWindow.document.body.textContent).not.toContain("leaked");
+    expect(fieldValue(domWindow, "Password")).toBe("");
+  });
+
+  it("types a password only into a password field, also when the field is not named", () => {
+    const { domWindow, browser } = installPageHelper(`${origin}/signin`, html);
+    const snap = browser.snapshot();
+    for (const name of ["Email", "Phone", "Username", "Query", "Website", "Pin"]) {
+      for (const field of ["password", undefined]) {
+        expect(() =>
+          browser.fill(refFor(name, snap.elements), "fake-password", origin, field),
+        ).toThrow(/password field/);
+      }
+    }
+    expect(domWindow.document.body.innerHTML).not.toContain("fake-password");
+    expect(JSON.stringify(browser.snapshot())).not.toContain("fake-password");
+    browser.fill(
+      refFor("Password", browser.snapshot().elements),
+      "fake-password",
+      origin,
+      "password",
+    );
+    expect(fieldValue(domWindow, "Password")).toBe("fake-password");
+    expect(JSON.stringify(browser.snapshot())).not.toContain("fake-password");
+  });
+
+  function passwordField(domWindow: JSDOM["window"]) {
+    return domWindow.document.querySelector('[aria-label="Password"]') as HTMLInputElement;
+  }
+
+  it.each([
+    ["property", (field: HTMLInputElement) => (field.type = "text")],
+    ["attribute", (field: HTMLInputElement) => field.setAttribute("type", "text")],
+  ])("clears a filled password when the page sets its type %s to text", async (_, reveal) => {
+    const { domWindow, browser } = installPageHelper(`${origin}/signin`, html);
+    const field = passwordField(domWindow);
+    const events: string[] = [];
+    field.addEventListener("input", () => events.push(field.value));
+    browser.fill(
+      refFor("Password", browser.snapshot().elements),
+      "fake-password",
+      origin,
+      "password",
+      true,
+    );
+    // Other attribute changes leave the login in place, and the field stays watched.
+    field.setAttribute("aria-invalid", "true");
+    field.setAttribute("type", "password");
+    await Promise.resolve();
+    expect(field.value).toBe("fake-password");
+    // A "show password" toggle: the page changes the type of the same field.
+    reveal(field);
+    await Promise.resolve();
+    expect(field.value).toBe("");
+    expect(events).toEqual(["fake-password", ""]);
+    expect(JSON.stringify(browser.snapshot())).not.toContain("fake-password");
+  });
+
+  it("keeps a revealed field empty when the page puts the password back", async () => {
+    const { domWindow, browser } = installPageHelper(`${origin}/signin`, html);
+    const field = passwordField(domWindow);
+    // A form library that keeps the value in its own state and writes it back.
+    let saved = "";
+    field.addEventListener("input", () => {
+      if (field.value) saved = field.value;
+      else field.value = saved;
+    });
+    browser.fill(
+      refFor("Password", browser.snapshot().elements),
+      "fake-password",
+      origin,
+      "password",
+      true,
+    );
+    field.type = "text";
+    await Promise.resolve();
+    expect(field.value).toBe("");
+    // Written back later, outside any event: emptied again before the next frame.
+    field.value = "fake-password";
+    await new Promise((resolve) => domWindow.requestAnimationFrame(resolve));
+    await new Promise((resolve) => domWindow.requestAnimationFrame(resolve));
+    expect(field.value).toBe("");
+    expect(JSON.stringify(browser.snapshot())).not.toContain("fake-password");
+    // What a person types into the shown field is theirs and stays.
+    field.value = "typed-by-hand";
+    await new Promise((resolve) => domWindow.requestAnimationFrame(resolve));
+    expect(field.value).toBe("typed-by-hand");
+  });
+
+  it("keeps a replacement a person typed when the field is shown again", async () => {
+    const { domWindow, browser } = installPageHelper(`${origin}/signin`, html);
+    const field = passwordField(domWindow);
+    const events: string[] = [];
+    field.addEventListener("input", () => events.push(field.value));
+    const toggle = async (type: string) => {
+      field.type = type;
+      await Promise.resolve();
+    };
+    browser.fill(
+      refFor("Password", browser.snapshot().elements),
+      "fake-password",
+      origin,
+      "password",
+      true,
+    );
+    await toggle("text");
+    expect(field.value).toBe("");
+    // The page puts the saved password back while hidden: showing it again clears it, and says so.
+    await toggle("password");
+    field.value = "fake-password";
+    await toggle("text");
+    expect(field.value).toBe("");
+    expect(events).toEqual(["fake-password", "", ""]);
+    // A person types a replacement, hides it and shows it again: it stays.
+    await toggle("password");
+    field.value = "typed-by-hand";
+    await toggle("text");
+    await new Promise((resolve) => domWindow.requestAnimationFrame(resolve));
+    expect(field.value).toBe("typed-by-hand");
+    expect(events).toEqual(["fake-password", "", ""]);
+  });
+
+  it("drops an earlier fill's reveal watcher when the field is filled again", async () => {
+    const { domWindow, browser } = installPageHelper(`${origin}/signin`, html);
+    const field = passwordField(domWindow);
+    const ref = refFor("Password", browser.snapshot().elements);
+    browser.fill(ref, "fake-password-1", origin, "password", true);
+    // The next run fills it with the setting off: showing it must not clear it.
+    browser.fill(ref, "fake-password-2", origin, "password");
+    field.type = "text";
+    await Promise.resolve();
+    await new Promise((resolve) => domWindow.requestAnimationFrame(resolve));
+    expect(field.value).toBe("fake-password-2");
+  });
+
+  it("leaves a revealed password in place unless the bot opted in", async () => {
+    const { domWindow, browser } = installPageHelper(`${origin}/signin`, html);
+    const field = passwordField(domWindow);
+    field.addEventListener("input", () => (field.type = "text"), { once: true });
+    const ref = refFor("Password", browser.snapshot().elements);
+    browser.fill(ref, "fake-password", origin, "password");
+    await Promise.resolve();
+    expect(field.type).toBe("text");
+    expect(field.value).toBe("fake-password");
+    // Snapshots still never report it.
+    expect(JSON.stringify(browser.snapshot())).not.toContain("fake-password");
+  });
+
+  it("refuses a password field that the page turns into text when it is focused", () => {
+    const { domWindow, browser } = installPageHelper(`${origin}/signin`, html);
+    const field = passwordField(domWindow);
+    field.addEventListener("focus", () => (field.type = "text"));
+    const ref = refFor("Password", browser.snapshot().elements);
+    expect(() => browser.fill(ref, "fake-password", origin, "password")).toThrow(/password field/);
+    expect(field.value).toBe("");
+  });
+
+  it("clears a password that the page's input handler turns into text", () => {
+    const { domWindow, browser } = installPageHelper(`${origin}/signin`, html);
+    const field = passwordField(domWindow);
+    field.addEventListener("input", () => (field.type = "text"), { once: true });
+    const ref = refFor("Password", browser.snapshot().elements);
+    expect(() => browser.fill(ref, "fake-password", origin, "password", true)).toThrow(/cleared/);
+    expect(field.type).toBe("text");
+    expect(field.value).toBe("");
+    expect(JSON.stringify(browser.snapshot())).not.toContain("fake-password");
+  });
+
+  it("leaves nothing of a login that the field only partly accepts", () => {
+    const { domWindow, browser } = installPageHelper(
+      `${origin}/signin`,
+      '<input aria-label="Email" type="email" />',
+    );
+    const ref = refFor("Email", browser.snapshot().elements);
+    // Email fields trim surrounding spaces, so the value read back differs from the one set.
+    // Settled like the other refusals: no desktop fallback, which can't type a saved login.
+    expect(() => browser.fill(ref, " fake-user ", origin, "username")).toThrow(
+      /^Refused: This field didn't accept the saved login, so it was cleared\.$/,
+    );
+    expect(fieldValue(domWindow, "Email")).toBe("");
   });
 
   it("fills a login saved from a page URL only on that page's exact site", () => {
@@ -115,12 +299,17 @@ describe("live page helper saved-login fill", () => {
     }).destination?.origin;
     expect(origin).toBe("https://www.example.test");
     const other = installPageHelper("https://www.example.test/other", html);
-    other.browser.fill(refFor("Email", other.browser.snapshot().elements), "fake-user", origin);
+    other.browser.fill(
+      refFor("Email", other.browser.snapshot().elements),
+      "fake-user",
+      origin,
+      "username",
+    );
     expect(fieldValue(other.domWindow, "Email")).toBe("fake-user");
     for (const url of ["https://example.test/login", "https://www.example.test.evil.test/login"]) {
       const { domWindow, browser } = installPageHelper(url, html);
       const email = refFor("Email", browser.snapshot().elements);
-      expect(() => browser.fill(email, "fake-user", origin)).toThrow(/not on the site/);
+      expect(() => browser.fill(email, "fake-user", origin, "username")).toThrow(/not on the site/);
       expect(fieldValue(domWindow, "Email")).toBe("");
     }
   });

@@ -90,6 +90,7 @@ export default function BotSettingsScreen() {
   const [autoSpeak, setAutoSpeak] = useState(false);
   const [crossSpaceCommunication, setCrossSpaceCommunication] = useState(false);
   const [fleetManagement, setFleetManagement] = useState(false);
+  const [clearRevealedPasswords, setClearRevealedPasswords] = useState(false);
   const [credentials, setCredentials] = useState<MobileModelCredential[]>([]);
   const [catalog, setCatalog] = useState<MobileModel[]>([]);
   const [me, setMe] = useState<MobileMe | null>(null);
@@ -123,6 +124,18 @@ export default function BotSettingsScreen() {
           await rpc("bots/update", { botId, fleetManagement: value });
         },
         onChange: setFleetManagement,
+        onError: (err) => setError(errorText(err, t("Could not save bot"))),
+      }),
+    [botId, t],
+  );
+
+  const clearRevealedSave = useMemo(
+    () =>
+      createQueuedSave<boolean>(false, {
+        save: async (value) => {
+          await rpc("bots/update", { botId, clearRevealedPasswords: value });
+        },
+        onChange: setClearRevealedPasswords,
         onError: (err) => setError(errorText(err, t("Could not save bot"))),
       }),
     [botId, t],
@@ -180,9 +193,11 @@ export default function BotSettingsScreen() {
         crossSpaceSave.reset(next.crossSpaceCommunication ?? false);
         setFleetManagement(next.fleetManagement);
         fleetSave.reset(next.fleetManagement);
+        setClearRevealedPasswords(next.clearRevealedPasswords);
+        clearRevealedSave.reset(next.clearRevealedPasswords);
       })
       .catch((err) => setError(errorText(err, t("Could not load bot"))));
-  }, [botId, crossSpaceSave, fleetSave, notifySave, profileSaves]);
+  }, [botId, crossSpaceSave, fleetSave, clearRevealedSave, notifySave, profileSaves]);
 
   useEffect(() => {
     void Promise.all([
@@ -414,6 +429,7 @@ export default function BotSettingsScreen() {
       await Promise.all([
         crossSpaceSave.flush(),
         fleetSave.flush(),
+        clearRevealedSave.flush(),
         notifySave.flush(),
         profileSaves.name.flush(),
         profileSaves.title.flush(),
@@ -759,6 +775,20 @@ export default function BotSettingsScreen() {
                     fleetSave.update(value);
                   }}
                   value={fleetManagement}
+                />
+              </View>
+              <View style={styles.row}>
+                <Text style={[styles.rowLabel, { color: tokens.foreground }]}>
+                  {t("Clear revealed passwords")}
+                </Text>
+                <NativeSwitch
+                  accessibilityLabel={t("Clear revealed passwords")}
+                  onValueChange={(value) => {
+                    if (!botId) return;
+                    setError(null);
+                    clearRevealedSave.update(value);
+                  }}
+                  value={clearRevealedPasswords}
                 />
               </View>
             </SettingsGroup>

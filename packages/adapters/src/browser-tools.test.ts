@@ -270,6 +270,52 @@ describe("browser tools", () => {
       expect(JSON.stringify(acted)).not.toContain(values.password);
     });
 
+    it("types the password only into a password field and the username never into one", async () => {
+      const browser = loginPage("https://login.example.test/signin");
+      for (const [target, field, error] of [
+        ["email", "password", /password field/],
+        ["password", "username", /text, email, or telephone/],
+      ] as const) {
+        const ref = (await refs(browser, "https://login.example.test/signin"))[target];
+        const acted = await browserActFromTool(
+          browser,
+          computer,
+          context,
+          { actions: [{ kind: "fill_secret", ref, secret: "site_login", field }] },
+          { resolveSecretFill },
+        );
+        expect(acted, field).toMatchObject({ ok: false, completed: 0, uncertain: false });
+        expect(acted, field).not.toHaveProperty("fallback");
+        expect(JSON.stringify(acted), field).toMatch(error);
+        expect(JSON.stringify(acted), field).not.toContain(values[field]);
+      }
+    });
+
+    it.each([
+      [true, [undefined, true]],
+      [false, [undefined, undefined]],
+      [undefined, [undefined, undefined]],
+    ])("asks to clear revealed passwords only when the bot opted in (%s)", async (optIn, flags) => {
+      const browser = new FakeBrowserProvider();
+      const act = vi
+        .spyOn(browser, "act")
+        .mockResolvedValue({ ok: true, completed: 2, url: "", title: "" });
+      await browserActFromTool(
+        browser,
+        computer,
+        context,
+        {
+          actions: [
+            { kind: "fill_secret", ref: "e1", secret: "site_login", field: "username" },
+            { kind: "fill_secret", ref: "e2", secret: "site_login", field: "password" },
+          ],
+        },
+        { resolveSecretFill, clearRevealedPasswords: optIn },
+      );
+      const sent = act.mock.calls[0]?.[1].actions as Array<{ clearOnReveal?: boolean }>;
+      expect(sent.map((step) => step.clearOnReveal)).toEqual(flags);
+    });
+
     it("never reports a login-filled field's value, even when too short to redact", async () => {
       const browser = loginPage("https://login.example.test/signin");
       const { email } = await refs(browser, "https://login.example.test/signin");
@@ -340,7 +386,7 @@ describe("browser tools", () => {
         { resolveSecretFill },
       );
       expect(acted).toMatchObject({ ok: false, completed: 0 });
-      expect(JSON.stringify(acted)).toMatch(/text, email, password, or telephone/);
+      expect(JSON.stringify(acted)).toMatch(/text, email, or telephone/);
     });
 
     it("refuses to type a saved login into a textarea or a non-login input type", async () => {
@@ -385,7 +431,7 @@ describe("browser tools", () => {
           { resolveSecretFill },
         );
         expect(acted, name).toMatchObject({ ok: false, completed: 0 });
-        expect(JSON.stringify(acted), name).toMatch(/text, email, password, or telephone/);
+        expect(JSON.stringify(acted), name).toMatch(/text, email, or telephone/);
       }
       const phone = await browserActFromTool(
         browser,
@@ -445,8 +491,11 @@ describe("browser tools", () => {
         { actions: [{ kind: "fill_secret", ref: email, secret: "site_login", field: "username" }] },
         { resolveSecretFill },
       );
-      expect(acted).toMatchObject({ ok: false, completed: 0 });
-      expect(JSON.stringify(acted)).toMatch(/not on the site/);
+      expect(acted).toMatchObject({ ok: false, completed: 0, uncertain: false });
+      expect(JSON.stringify(acted)).toMatch(/not on the site.*browser_navigate/);
+      // A refusal is settled: nothing points the bot at desktop tools or takeover.
+      expect(acted).not.toHaveProperty("fallback");
+      expect(acted).not.toHaveProperty("note");
     });
 
     it("acts on nothing when a saved login cannot be resolved", async () => {

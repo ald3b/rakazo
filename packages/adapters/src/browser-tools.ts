@@ -83,6 +83,8 @@ export async function browserActFromTool(
   options: PageToolOptions & {
     resolveSecretFill?: ResolveSecretFill;
     redactions?: () => string[];
+    /** The bot's opt-in: empty a filled password if the page turns its field into plain text. */
+    clearRevealedPasswords?: boolean;
     /** Maps a bot-facing workspace path to its path in the computer's home. */
     resolveUploadPath?: (path: string) => string;
     /** Trusted upload roots relative to the computer home, set by the executor. */
@@ -110,7 +112,16 @@ export async function browserActFromTool(
         ? await options.resolveSecretFill(step)
         : { error: "Saved logins are unavailable here." };
       if ("error" in resolved) return { ok: false, completed: 0, error: resolved.error };
-      actions.push({ kind: "fill", ref: step.ref, text: resolved.text, origin: resolved.origin });
+      actions.push({
+        kind: "fill",
+        ref: step.ref,
+        text: resolved.text,
+        origin: resolved.origin,
+        field: step.field,
+        ...(options.clearRevealedPasswords && step.field === "password"
+          ? { clearOnReveal: true }
+          : {}),
+      });
     }
     const result = await browser.act(computer, { actions, signal: context.signal }, context);
     return redactConnectorPayload(

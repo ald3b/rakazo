@@ -6358,6 +6358,7 @@ export function createRunExecutor(deps: ExecutorDeps) {
                     {
                       desktopTools,
                       redactions,
+                      clearRevealedPasswords: bot.clearRevealedPasswords,
                       // Team bots may send only their own folder or shared/ off the computer; a
                       // private computer's helper already confines uploads to its home folder.
                       uploadRoots:

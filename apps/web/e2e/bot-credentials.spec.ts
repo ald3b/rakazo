@@ -165,6 +165,20 @@ test("bot and command credentials add, replace and remove without leaking values
   await expect(credentials.getByTestId("credential-add")).toBeVisible();
   expect(await rpc<unknown[]>(page, "botSecrets/list", { botId })).toHaveLength(0);
   await captureScreenshot(page, testInfo, "command-credentials-removed");
+
+  // Clearing revealed passwords is an opt-in under the bot's permissions, off by default.
+  const clearRevealed = settings.getByRole("switch", { name: "Clear revealed passwords" });
+  await expect(clearRevealed).toHaveAttribute("aria-checked", "false");
+  const updated = page.waitForResponse(
+    (response) => response.url().includes("/rpc/bots/update") && response.ok(),
+  );
+  await clearRevealed.click();
+  await updated;
+  await expect(clearRevealed).toHaveAttribute("aria-checked", "true");
+  expect(await rpc<{ clearRevealedPasswords: boolean }>(page, "bots/get", { botId })).toMatchObject(
+    { clearRevealedPasswords: true },
+  );
+  await captureScreenshot(page, testInfo, "bot-credentials-clear-revealed-passwords");
 });
 
 /** Fail if any live input value still carries a protected value. */

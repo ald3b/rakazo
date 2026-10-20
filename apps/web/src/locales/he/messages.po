@@ -1203,6 +1203,10 @@ msgstr "ניקוי השיחה"
 msgid "Clear filter {label}"
 msgstr "ניקוי המסנן {label}"
 
+#: src/pages/shell/bot-panel.tsx
+msgid "Clear revealed passwords"
+msgstr "ניקוי סיסמאות שנחשפו"
+
 #: src/pages/shell/dialogs.tsx
 msgid "Clearing…"
 msgstr "מנקה…"

@@ -86,6 +86,7 @@ vi.mock("./api", () => ({
         computerMode: "team",
         fleetManagement: false,
         crossSpaceCommunication: mocks.crossSpaceCommunication,
+        clearRevealedPasswords: false,
       };
     if (procedure === "scratchpad/list") return mocks.work;
     if (procedure === "memory/list") return mocks.docs;
@@ -1006,6 +1007,37 @@ describe("bot settings device voice menu", () => {
     expect(toggle.getAttribute("aria-checked")).toBe("false");
     expect(toggle.disabled).toBe(false);
     expect(container.textContent).toContain("offline");
+  });
+
+  it("saves the clear revealed passwords opt-in immediately, off by default", async () => {
+    mocks.rpc.mockResolvedValue(undefined);
+    await render();
+    const toggle = container.querySelector<HTMLButtonElement>(
+      '[aria-label="Clear revealed passwords"]',
+    );
+    if (!toggle) throw new Error("Missing clear revealed passwords switch");
+    expect(toggle.getAttribute("aria-checked")).toBe("false");
+    await act(async () => {
+      toggle.click();
+    });
+    expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith("bots/update", {
+      botId: "bot-fixture",
+      clearRevealedPasswords: true,
+    });
+    expect(toggle.getAttribute("aria-checked")).toBe("true");
+  });
+
+  it("restores the clear revealed passwords switch when saving fails", async () => {
+    mocks.rpc.mockRejectedValueOnce(new Error("offline"));
+    await render();
+    const toggle = container.querySelector<HTMLButtonElement>(
+      '[aria-label="Clear revealed passwords"]',
+    );
+    if (!toggle) throw new Error("Missing clear revealed passwords switch");
+    await act(async () => {
+      toggle.click();
+    });
+    expect(toggle.getAttribute("aria-checked")).toBe("false");
   });
 
   it("marks the current voice, keeps the plain row, and saves before playing a sample", async () => {

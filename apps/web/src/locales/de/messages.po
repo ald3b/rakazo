@@ -1203,6 +1203,10 @@ msgstr "Unterhaltung leeren"
 msgid "Clear filter {label}"
 msgstr ""
 
+#: src/pages/shell/bot-panel.tsx
+msgid "Clear revealed passwords"
+msgstr "Angezeigte Passwörter löschen"
+
 #: src/pages/shell/dialogs.tsx
 msgid "Clearing…"
 msgstr "Wird geleert…"
