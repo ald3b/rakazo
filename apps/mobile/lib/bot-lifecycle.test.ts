@@ -6,7 +6,7 @@ vi.mock("react-native", () => ({ Alert: { alert } }));
 vi.mock("./i18n", () => ({ t: (message: string) => message }));
 vi.mock("./user-error", () => ({ errorText: () => "Try again." }));
 
-import { confirmDeleteBot, restoreArchivedBot } from "./bot-lifecycle";
+import { confirmDeleteBot, confirmDeleteGroup, restoreArchivedBot } from "./bot-lifecycle";
 
 beforeEach(() => vi.clearAllMocks());
 describe("archived bot lifecycle", () => {
@@ -37,6 +37,42 @@ describe("archived bot lifecycle", () => {
       botId: "bot-fixture",
       deleteMemories: false,
     });
+    expect(deleted).toHaveBeenCalledOnce();
+  });
+});
+
+describe("group deletion", () => {
+  it("asks with the group settings wording and removes nothing on cancel", () => {
+    const deleted = vi.fn();
+    confirmDeleteGroup({ id: "group-fixture", name: "Team" }, deleted);
+    const [title, message, buttons] = alert.mock.calls[0]!;
+    expect([title, message]).toEqual([
+      "Team",
+      "Delete this group? Bots and their solo threads are kept.",
+    ]);
+    expect(
+      buttons.map(({ text, style }: { text: string; style: string }) => [text, style]),
+    ).toEqual([
+      ["Cancel", "cancel"],
+      ["Delete", "destructive"],
+    ]);
+    expect(rpc).not.toHaveBeenCalled();
+    expect(deleted).not.toHaveBeenCalled();
+  });
+
+  it("removes the group only after Delete succeeds, and alerts on failure", async () => {
+    const deleted = vi.fn();
+    rpc.mockResolvedValueOnce({ ok: true });
+    confirmDeleteGroup({ id: "group-fixture", name: "Team" }, deleted);
+    alert.mock.calls[0]![2][1].onPress();
+    await vi.waitFor(() => expect(deleted).toHaveBeenCalledOnce());
+    expect(rpc).toHaveBeenCalledWith("groups/remove", { groupId: "group-fixture" });
+
+    rpc.mockRejectedValueOnce(new Error("offline"));
+    confirmDeleteGroup({ id: "group-fixture", name: "Team" }, deleted);
+    alert.mock.calls[1]![2][1].onPress();
+    await vi.waitFor(() => expect(alert).toHaveBeenCalledTimes(3));
+    expect(alert.mock.calls[2]!.slice(0, 2)).toEqual(["Could not delete group", "Try again."]);
     expect(deleted).toHaveBeenCalledOnce();
   });
 });
