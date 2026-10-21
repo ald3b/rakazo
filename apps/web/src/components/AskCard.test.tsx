@@ -176,6 +176,8 @@ for (const input of ["secret", "login"]) {
     );
     const labels = [...container.querySelectorAll("button")].map((button) => button.textContent);
     expect(labels.includes("Dismiss")).toBe(canDismiss);
+    // A login is filled in only by the run's user; see the credential card test below.
+    if (input === "login" && !canDismiss) return;
     expect(labels.includes("Save")).toBe(true);
     expect(button("Save")?.classList.contains("flex-1")).toBe(true);
   });
@@ -255,4 +257,55 @@ it("gives onboarding choices a fill and border", async () => {
   expect(option.disabled).toBe(false);
   expect(option.classList.contains("bg-secondary")).toBe(true);
   expect(option.classList.contains("border-input")).toBe(true);
+});
+
+it.each([
+  [
+    "login",
+    { name: "example_login", origin: "https://login.example.test", auth: { type: "login" } },
+  ],
+  ["API", { name: "example_api", origin: "https://api.example.test", auth: { type: "bearer" } }],
+] as const)(
+  "shows a %s credential card read-only to anyone but the run's user",
+  async (_name, credential) => {
+    const render = (canDismiss: boolean) =>
+      act(async () =>
+        root.render(
+          <AskCard
+            block={{ kind: "ask", text: "Secret", input: "secret", status: "pending", credential }}
+            canAnswer
+            canDismiss={canDismiss}
+            onAnswer={async () => {}}
+            onDismiss={async () => {}}
+          />,
+        ),
+      );
+
+    await render(false);
+    expect(container.querySelector("input")).toBeNull();
+    expect(container.querySelectorAll("button")).toHaveLength(0);
+    expect(container.textContent).toContain(credential.origin);
+    expect(container.textContent).not.toContain("No longer active");
+
+    await render(true);
+    expect(container.querySelectorAll("input").length).toBeGreaterThan(0);
+    expect(button("Save")).toBeDefined();
+  },
+);
+
+it("keeps a connector code card open to others in the chat, without Dismiss", async () => {
+  await act(async () =>
+    root.render(
+      <AskCard
+        block={{ kind: "ask", text: "Code", input: "secret", purpose: "otp", status: "pending" }}
+        canAnswer
+        canDismiss={false}
+        onAnswer={async () => {}}
+        onDismiss={async () => {}}
+      />,
+    ),
+  );
+  expect(container.querySelector("input")).not.toBeNull();
+  expect(button("Save")).toBeDefined();
+  expect(button("Dismiss")).toBeUndefined();
 });
