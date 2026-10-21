@@ -514,6 +514,25 @@ describe("browser tools", () => {
     });
   });
 
+  it.each(["ftp://example.test", "https://example:fake-password@example.test"])(
+    "omits the desktop fallback for a rejected page-only URL: %s",
+    async (url) => {
+      const browser = new FakeBrowserProvider();
+      const navigate = vi.spyOn(browser, "navigate");
+      const result = await browserNavigateFromTool(
+        browser,
+        computer,
+        context,
+        { url },
+        { desktopTools: false },
+      );
+      expect(result).toMatchObject({ error: expect.stringContaining("HTTP(S)") });
+      expect(result).not.toHaveProperty("fallback");
+      expect(JSON.stringify(result)).not.toContain("computer_act");
+      expect(navigate).not.toHaveBeenCalled();
+    },
+  );
+
   it("asks a run without desktop tools to look again instead of pointing at computer_act", async () => {
     const browser = new FakeBrowserProvider();
     browser.forceFallback = "CDP not ready on port 9222";

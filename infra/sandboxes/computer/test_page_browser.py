@@ -100,6 +100,47 @@ class PageBrowserTest(unittest.TestCase):
         self.assertTrue(timeouts)
         self.assertTrue(all(timeout <= helper.SETTLE_SECONDS for timeout in timeouts), timeouts)
 
+    def test_slow_lifecycle_enable_exhausts_the_settle_budget(self):
+        # Advance a fake clock by the timeout an unresponsive CDP call receives.
+        now = [0.0]
+        calls = []
+
+        def call(method, params=None, *, session_id=None, timeout_s=30.0):
+            calls.append((method, timeout_s))
+            now[0] += timeout_s
+            raise TimeoutError("CDP enable timed out")
+
+        client = helper.CdpClient("ws://127.0.0.1:9222/test")
+        client.call = call
+        with patch.object(helper.time, "monotonic", side_effect=lambda: now[0]), \
+                patch.object(helper, "ensure_helpers"), patch.object(helper, "eval_json") as evaluate:
+            evaluate.return_value = {"tree": "Loading"}
+            result = helper.snapshot(client, "session")
+        self.assertEqual(result, {"ok": True, "tree": "Loading", "loading": True})
+        self.assertEqual(calls, [("Page.setLifecycleEventsEnabled", helper.SETTLE_SECONDS)])
+        self.assertLessEqual(now[0], helper.SETTLE_SECONDS)
+
+    def test_frame_wait_uses_only_the_budget_left_after_enabling_events(self):
+        now = [0.0]
+        calls = []
+
+        def call(method, params=None, *, session_id=None, timeout_s=30.0):
+            calls.append((method, timeout_s))
+            if method == "Page.setLifecycleEventsEnabled":
+                now[0] += helper.SETTLE_SECONDS - 0.01
+                return {}
+            now[0] += timeout_s
+            raise TimeoutError("CDP frame timed out")
+
+        client = helper.CdpClient("ws://127.0.0.1:9222/test")
+        client.call = call
+        with patch.object(helper.time, "monotonic", side_effect=lambda: now[0]):
+            self.assertFalse(helper.wait_for_settle(client, "session"))
+        self.assertEqual([method for method, _ in calls],
+                         ["Page.setLifecycleEventsEnabled", "Page.getFrameTree"])
+        self.assertAlmostEqual(calls[1][1], 0.01)
+        self.assertLessEqual(now[0], helper.SETTLE_SECONDS)
+
     def test_a_new_document_does_not_inherit_the_old_one_being_idle(self):
         client, _, event = self.settling_client(idle_after_calls=0)
         event("networkIdle")

@@ -708,7 +708,10 @@ def wait_for_settle(client: CdpClient, session_id: str) -> bool:
     deadline = time.monotonic() + SETTLE_SECONDS
 
     def remaining() -> float:
-        return max(0.1, deadline - time.monotonic())
+        budget = deadline - time.monotonic()
+        if budget <= 0:
+            raise TimeoutError("Page settle budget exhausted")
+        return budget
 
     try:
         # Enabling lifecycle events replays the ones the current document has already reached.
@@ -721,7 +724,7 @@ def wait_for_settle(client: CdpClient, session_id: str) -> bool:
                 return True
             if time.monotonic() >= deadline:
                 return False
-            time.sleep(0.1)
+            time.sleep(min(0.1, remaining()))
     except TimeoutError:
         # A browser too slow to answer within the wait is not settled either.
         return False
