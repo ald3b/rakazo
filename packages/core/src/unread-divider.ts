@@ -29,6 +29,20 @@ export function voiceChatHoldsMessage(
   return messageId !== null && group.messages.some((message) => message.id === messageId);
 }
 
+/**
+ * Runs tasks one at a time, in the order they were queued, whether or not earlier ones fail.
+ * markRead calls go through one so their answers arrive in the order they were sent, which
+ * lets the first answer of a visit stand for the request that opened it.
+ */
+export function createSerialQueue(): <T>(task: () => Promise<T>) => Promise<T> {
+  let tail: Promise<unknown> = Promise.resolve();
+  return (task) => {
+    const run = tail.then(task, task);
+    tail = run.catch(() => undefined);
+    return run;
+  };
+}
+
 /** What the open chat's "New" divider follows: the first markRead answer of the visit. */
 export type ReadBoundary = { visit: number; seq: number | null };
 

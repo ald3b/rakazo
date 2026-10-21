@@ -39,6 +39,7 @@ import {
   attachmentsForThread,
   buildComposerMentionOptions,
   clampMentionHighlightIndex,
+  createSerialQueue,
   cronFromPreset,
   dismissableAskMessageIds,
   expandPeerReplies,
@@ -920,6 +921,8 @@ function SpaceShell() {
   // follows it for the rest of the visit. Each open of a chat is a new visit.
   const readVisit = useRef<{ chat: string | null; visit: number }>({ chat: null, visit: 0 });
   const [readBoundary, setReadBoundary] = useState<ReadBoundary | null>(null);
+  // markRead calls run one at a time so the request that opened a chat answers first.
+  const [readInOrder] = useState(createSerialQueue);
   const captureReadBoundary = useCallback((visit: number, seq: number | null) => {
     setReadBoundary((current) =>
       settleReadBoundary(current, readVisit.current.visit, { visit, seq }),
@@ -982,12 +985,12 @@ function SpaceShell() {
   }, []);
   const markBotRead = useCallback(
     async (id: string) => {
-      const { unreadAfterSeq } = await rpc.threads.markRead({ botId: id });
+      const { unreadAfterSeq } = await readInOrder(() => rpc.threads.markRead({ botId: id }));
       manuallyUnread.current.delete(id);
       updateBotUnread(id, false);
       return unreadAfterSeq;
     },
-    [updateBotUnread],
+    [readInOrder, updateBotUnread],
   );
   const markBotUnread = useCallback(
     async (id: string) => {
@@ -1614,8 +1617,7 @@ function SpaceShell() {
         return;
       readVisibleGroups.current.add(groupId);
       const visit = readVisit.current.visit;
-      void rpc.threads
-        .markRead({ groupId })
+      void readInOrder(() => rpc.threads.markRead({ groupId }))
         .then(({ unreadAfterSeq }) => {
           captureReadBoundary(visit, unreadAfterSeq);
           setGroups((current) => {

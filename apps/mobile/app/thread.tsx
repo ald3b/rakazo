@@ -22,6 +22,7 @@ import {
   attachmentsForThread,
   buildComposerMentionOptions,
   cloudAgentHttpsUrl,
+  createSerialQueue,
   dismissableAskMessageIds,
   expandPeerReplies,
   foldPeerReplies,
@@ -536,6 +537,8 @@ function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId: string
     visit: 0,
   });
   const [readBoundary, setReadBoundary] = useState<ReadBoundary | null>(null);
+  // markRead calls run one at a time so the request that opened the chat answers first.
+  const [readInOrder] = useState(createSerialQueue);
   const autoSpoken = useRef<string | null>(null);
   const autoSpokenBotId = useRef<string | null>(null);
   const threadKey = groupId ?? botId;
@@ -1412,9 +1415,11 @@ function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId: string
     if (activeThreadId.current) {
       void dismissThreadNotifications({ threadId: activeThreadId.current }).catch(() => undefined);
     }
-    void rpc<{ unreadAfterSeq?: number | null }>(
-      "threads/markRead",
-      groupId ? { groupId } : { botId: botId! },
+    void readInOrder(() =>
+      rpc<{ unreadAfterSeq?: number | null }>(
+        "threads/markRead",
+        groupId ? { groupId } : { botId: botId! },
+      ),
     )
       .then(({ unreadAfterSeq }) =>
         setReadBoundary((current) =>
@@ -1427,7 +1432,7 @@ function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId: string
       .catch(() => {
         if (readVisibleTarget.current === target) readVisibleTarget.current = null;
       });
-  }, [botId, groupId, navigation, readOnly]);
+  }, [botId, groupId, navigation, readInOrder, readOnly]);
 
   useEffect(() => {
     if (!notificationThreadId || AppState.currentState !== "active" || !navigation.isFocused())

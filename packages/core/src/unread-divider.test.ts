@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  createSerialQueue,
   settleReadBoundary,
   unreadDividerMessageId,
   voiceChatHoldsMessage,
@@ -76,5 +77,31 @@ describe("settleReadBoundary", () => {
     const b = settleReadBoundary(null, 2, { visit: 2, seq: 7 });
     expect(settleReadBoundary(b, 2, { visit: 1, seq: 3 })).toEqual({ visit: 2, seq: 7 });
     expect(settleReadBoundary(null, 2, { visit: 1, seq: 3 })).toBeNull();
+  });
+});
+
+describe("createSerialQueue", () => {
+  it("answers in the order tasks were queued, even when a later one is faster", async () => {
+    const inOrder = createSerialQueue();
+    const answered: string[] = [];
+    let releaseOpening!: () => void;
+    const opening = inOrder(
+      () => new Promise<string>((resolve) => (releaseOpening = () => resolve("opening"))),
+    ).then((value) => answered.push(value));
+    const live = inOrder(async () => "live").then((value) => answered.push(value));
+    await Promise.resolve();
+    expect(answered).toEqual([]);
+    releaseOpening();
+    await Promise.all([opening, live]);
+    expect(answered).toEqual(["opening", "live"]);
+  });
+
+  it("keeps going after a task fails", async () => {
+    const inOrder = createSerialQueue();
+    const failed = inOrder(async () => {
+      throw new Error("offline");
+    });
+    await expect(failed).rejects.toThrow("offline");
+    await expect(inOrder(async () => 4)).resolves.toBe(4);
   });
 });
