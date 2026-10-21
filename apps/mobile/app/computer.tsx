@@ -356,8 +356,10 @@ export default function Computer() {
             <Text style={{ color: tokens.mutedForeground, fontSize: 13 }}>{error}</Text>
           ) : null}
         </View>
-      ) : error ? (
-        <Text style={{ color: tokens.mutedForeground, marginBottom: 12 }}>{error}</Text>
+      ) : error || canRetry ? (
+        <Text style={{ color: tokens.mutedForeground, marginBottom: 12 }}>
+          {error ?? t("Something went wrong while it was starting. Try again in a moment.")}
+        </Text>
       ) : null}
       {canRetry ? (
         <NativeActionButton

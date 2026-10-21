@@ -568,6 +568,23 @@ describe("computer screen", () => {
       expect(tryAgain(view)?.disabled).toBe(false);
     });
 
+    it.each([
+      new Error("Network request failed"),
+      Object.assign(new Error("Service failed"), { status: 500 }),
+    ])("explains retry after a running computer's reconnect fails: %s", async (error) => {
+      status = idle;
+      const view = await render();
+      expect(calls("computer/boot")).toHaveLength(1);
+      await act(async () => boots[0]?.reject(error));
+      await settle();
+
+      expect(view.textContent).not.toContain("Couldn't start the computer");
+      expect(view.textContent).toContain(
+        "Something went wrong while it was starting. Try again in a moment.",
+      );
+      expect(tryAgain(view)?.disabled).toBe(false);
+    });
+
     it("offers Try again after a failed boot", async () => {
       const view = await render();
       expect(tryAgain(view)).toBeUndefined();

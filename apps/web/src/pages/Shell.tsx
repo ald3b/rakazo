@@ -219,6 +219,7 @@ import {
   subscribeComposerEnterToSend,
 } from "../lib/composer-enter-to-send-pref";
 import {
+  bootComputerOnce,
   embeddableScreenUrl,
   loadComputerScreen,
   screenIframeSandbox,
@@ -756,7 +757,7 @@ function SpaceShell() {
   // The bot whose boot shows progress, and every bot whose boot request is still out.
   const [bootingBotId, setBootingBotId] = useState<string | null>(null);
   const booting = bootingBotId !== null && bootingBotId === computer?.botId;
-  const bootsInFlight = useRef(new Set<string>());
+  const bootsInFlight = useRef(new Map<string, symbol>());
   const [loadingOlder, setLoadingOlder] = useState(false);
   const [initialBotsLoaded, setInitialBotsLoaded] = useState(false);
   const [bootstrapMe, setBootstrapMe] = useState<Me | null>();
@@ -2730,15 +2731,18 @@ function SpaceShell() {
     const targetScreen = computer?.botId === targetBotId ? screenUrl : (cached?.screenUrl ?? null);
     const needsBoot = force || targetComputer?.state !== "running" || !targetScreen;
     if (showProgress && needsBoot) setBootingBotId(targetBotId);
-    if (needsBoot) bootsInFlight.current.add(targetBotId);
     setComputerError(null);
     setComputerErrorFromScreen(false);
     try {
       if (needsBoot) {
-        const status = await rpc.computer.boot({ botId: targetBotId });
+        const status = await bootComputerOnce(bootsInFlight.current, targetBotId, () =>
+          rpc.computer.boot({ botId: targetBotId }),
+        );
         if (!stillThisBoot() || !stillThisBot()) return;
-        commitComputer(status);
-        cacheComputerFor(targetBotId, { computer: status });
+        if (status) {
+          commitComputer(status);
+          cacheComputerFor(targetBotId, { computer: status });
+        }
       }
       if (takeControl) {
         await rpc.computer.takeover({ botId: targetBotId });
@@ -2751,7 +2755,6 @@ function SpaceShell() {
       setComputerErrorFromScreen(false);
       throw error;
     } finally {
-      if (needsBoot) bootsInFlight.current.delete(targetBotId);
       if (stillThisBoot()) setBootingBotId(null);
     }
   }
@@ -2948,7 +2951,7 @@ function SpaceShell() {
     const bootInFlight = bootsInFlight.current.has(id) || targetComputer?.state === "booting";
     setComputerOpen(true);
     computerVisible.current = true;
-    if (bootInFlight) return true;
+    if (bootInFlight && !takeControl) return true;
     const needsTakeover = takeControl && !userHoldsComputerControl(targetComputer, id);
     const blocked = computerTakeoverBlocked(targetComputer, snapshot?.run?.status);
     try {
