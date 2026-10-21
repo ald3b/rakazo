@@ -685,9 +685,16 @@ it("waits for a saved or live inbox before publishing a remounted session's sear
 
 it("sets inbox rows and section headings in the shared type scale", () => {
   const stylesSource = source.slice(source.indexOf("function createHomeStyles()"));
-  const compiled = ts.transpileModule(`${stylesSource}\nreturn createHomeStyles;`, {
-    compilerOptions: { target: ts.ScriptTarget.ES2022 },
-  }).outputText;
+  const rowDimensions = source.slice(
+    source.indexOf("const INBOX_ROW ="),
+    source.indexOf("\n", source.indexOf("const COMPACT_INBOX_ROW =")),
+  );
+  const compiled = ts.transpileModule(
+    `${rowDimensions}\n${stylesSource}\nreturn createHomeStyles;`,
+    {
+      compilerOptions: { target: ts.ScriptTarget.ES2022 },
+    },
+  ).outputText;
   const scope = {
     StyleSheet: { create: <T,>(styles: T) => styles, hairlineWidth: 0.5 },
     native: new Proxy({}, { get: (_target, name) => String(name) }),
