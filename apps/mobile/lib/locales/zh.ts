@@ -304,6 +304,7 @@ export const ZH_MESSAGES: Record<string, string> = {
   "Could not play a sample": "无法播放示例",
   "Could not play that clip.": "无法播放该音频。",
   "Could not reach the server": "无法连接服务器",
+  "Request timed out": "请求超时",
   "Enter a password": "请输入密码",
   "Enter a valid email": "请输入有效的邮箱地址",
   "Something went wrong. Try again.": "出了点问题，请重试。",

@@ -728,6 +728,7 @@ export const NL_MESSAGES: Record<string, string> = {
   "Use an http or https URL": "Gebruik een http- of https-URL",
   "Android blocked notifications.": "Android heeft meldingen geblokkeerd.",
   "Could not reach the server": "De server is niet bereikbaar",
+  "Request timed out": "Time-out bij verzoek",
   "Enter a password": "Voer een wachtwoord in",
   "Enter a valid email": "Voer een geldig e-mailadres in",
   "Something went wrong. Try again.": "Er is iets misgegaan. Probeer het opnieuw.",

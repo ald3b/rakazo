@@ -660,6 +660,8 @@ describe("computer screen", () => {
       expect(calls("computer/takeover")).toHaveLength(1);
       expect(calls("computer/boot")).toHaveLength(bootsBefore);
       expect(view.textContent).toContain("Request timed out");
+      expect(view.textContent).not.toContain("Couldn't start the computer");
+      expect(tryAgain(view)).toBeUndefined();
       expect(view.querySelector("section")).toBeNull();
     });
 

@@ -327,6 +327,7 @@ export const RU_MESSAGES: Record<string, string> = {
   "Could not play a sample": "Не удалось воспроизвести сэмпл",
   "Could not play that clip.": "Не удалось воспроизвести этот клип.",
   "Could not reach the server": "Не удалось связаться с сервером",
+  "Request timed out": "Время ожидания запроса истекло",
   "Enter a password": "Введите пароль",
   "Enter a valid email": "Введите корректный адрес электронной почты",
   "Something went wrong. Try again.": "Что-то пошло не так. Попробуйте ещё раз.",

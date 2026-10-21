@@ -767,6 +767,7 @@ export const DE_MESSAGES: Record<string, string> = {
   "Android blocked notifications.": "Android hat Benachrichtigungen blockiert.",
   // lib/user-error.ts
   "Could not reach the server": "Server konnte nicht erreicht werden",
+  "Request timed out": "Zeitüberschreitung der Anfrage",
   "Enter a password": "Gib ein Passwort ein",
   "Enter a valid email": "Gib eine gültige E-Mail-Adresse ein",
   "Something went wrong. Try again.": "Etwas ist schiefgelaufen. Versuche es erneut.",

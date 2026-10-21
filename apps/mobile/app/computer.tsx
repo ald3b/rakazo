@@ -181,6 +181,7 @@ export default function Computer() {
     if (!botId || !refreshController.isActive()) return false;
     const action = refreshController.beginAction();
     const needsBoot = force || computer?.state !== "running" || !screenUrl;
+    let starting = needsBoot;
     const showBooting = showProgress && needsBoot;
     if (showBooting) {
       setBootingCount((count) => count + 1);
@@ -203,6 +204,7 @@ export default function Computer() {
         );
         if (!answered) return false;
       }
+      starting = false;
       if (!action.isActive()) return false;
       if (takeControl) await rpc("computer/takeover", { botId });
       if (!action.isActive()) return false;
@@ -213,9 +215,13 @@ export default function Computer() {
     } catch (err) {
       if (!action.isActive()) return false;
       setError(
-        needsBoot ? computerBootErrorDetail(err) : errorText(err, t("Could not open computer")),
+        starting
+          ? computerBootErrorDetail(err)
+          : err instanceof Error && err.name === "TimeoutError"
+            ? t("Request timed out")
+            : errorText(err, t("Could not open computer")),
       );
-      setBootFailed(true);
+      setBootFailed(starting);
       throw err;
     } finally {
       if (action.isActive() && showBooting) setBootingCount((count) => count - 1);
