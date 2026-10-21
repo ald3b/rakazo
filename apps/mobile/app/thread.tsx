@@ -3905,6 +3905,8 @@ const MessageBubble = memo(function MessageBubble({
   if (attachments.length > 0) {
     const speaker =
       message.role === "bot" ? (memberName(members, message.botId) ?? botName) : undefined;
+    const speakerColor =
+      message.role === "bot" ? speakerColorFor(bots, members, message.botId) : undefined;
     return (
       <View
         style={{
@@ -3919,7 +3921,7 @@ const MessageBubble = memo(function MessageBubble({
         {speaker ? (
           <Text
             style={{
-              color: tokens.mutedForeground,
+              color: speakerColor ?? tokens.mutedForeground,
               fontSize: 12.5,
               fontWeight: "600",
             }}
@@ -4062,6 +4064,8 @@ const MessageBubble = memo(function MessageBubble({
   const segments = messagePresentationSegments(message.blocks);
   const speaker =
     message.role === "bot" ? (memberName(members, message.botId) ?? botName) : undefined;
+  const speakerColor =
+    message.role === "bot" ? speakerColorFor(bots, members, message.botId) : undefined;
   const firstContent = segments.findIndex((segment) => segment.kind === "content");
   const choiceBlocks = message.blocks.filter(
     (block): block is Extract<MessageBlock, { kind: "choice" }> => block.kind === "choice",
@@ -4076,6 +4080,7 @@ const MessageBubble = memo(function MessageBubble({
           key={`${message.id}-content-${index}`}
           message={{ ...message, blocks: segment.blocks }}
           speaker={index === firstContent ? speaker : undefined}
+          speakerColor={index === firstContent ? speakerColor : undefined}
           actionProps={actionProps}
         />
       ))}
@@ -4116,10 +4121,12 @@ const MessageBubble = memo(function MessageBubble({
 function MessageTextCard({
   message,
   speaker,
+  speakerColor,
   actionProps,
 }: {
   message: MobileMessage;
   speaker?: string;
+  speakerColor?: string;
   actionProps: MessageActionProps;
 }) {
   const colorScheme = useResolvedAppearance();
@@ -4141,7 +4148,7 @@ function MessageTextCard({
       {speaker ? (
         <Text
           style={{
-            color: tokens.mutedForeground,
+            color: speakerColor ?? tokens.mutedForeground,
             fontSize: 12.5,
             fontWeight: "600",
             marginBottom: 4,

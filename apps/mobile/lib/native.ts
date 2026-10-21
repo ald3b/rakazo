@@ -44,6 +44,7 @@ export const native = {
     return systemColor("secondaryLabel", mobileTokens().mutedForeground);
   },
   get tertiaryLabel() {
+    if (resolveMobileAppearance() === "dark") return mobileTokens().faintForeground;
     return systemColor("tertiaryLabel", mobileTokens().faintForeground);
   },
   // Dark grouped colours always come from the tokens: iOS lifts the system ones inside sheets

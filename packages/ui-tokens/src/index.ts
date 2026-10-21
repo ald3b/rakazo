@@ -79,7 +79,7 @@ export const darkTokens = {
   chatUserForeground: "#FFFFFF",
   muted: "#202020",
   mutedForeground: "#EBEBF599",
-  faintForeground: "#EBEBF54D",
+  faintForeground: "#EBEBF573",
   accent: "#78788052",
   accentForeground: "#FFFFFF",
   destructive: "#FF9592",
