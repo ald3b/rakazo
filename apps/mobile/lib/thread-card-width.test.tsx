@@ -2,6 +2,7 @@
 
 import { readFileSync } from "node:fs";
 import type { MessageBlock } from "@rakazo/contracts";
+import { fontWeight, typeScale } from "@rakazo/ui-tokens";
 import type { ReactNode } from "react";
 import React, { act, useState } from "react";
 import type { Root } from "react-dom/client";
@@ -51,6 +52,8 @@ const bubbleSource = source.slice(
   source.indexOf("function MessageTextCard({"),
 );
 const scope = {
+  typeScale,
+  fontWeight,
   React,
   memo: <T,>(component: T) => component,
   useState,
@@ -154,6 +157,23 @@ describe("thread cards", () => {
     expect(card?.textContent).toContain(longQuestion);
     expect(styleOf(card)).toMatchObject({ maxWidth: 576 });
     expect(styleOf(card).width).toBeUndefined();
+  });
+
+  it.each([
+    ["an unmarked", undefined, undefined, 15],
+    ["a text", "text" as const, undefined, 15],
+    ["a code", "code" as const, "Menlo", 14],
+  ])("sets %s question detail in its font", (_, detailFormat, fontFamily, fontSize) => {
+    const detail = "Tap one option, or reply in your own words.";
+    renderAsk({ detail, detailFormat }, true);
+    const line = [...container.querySelectorAll("span")].find(
+      (span) => span.textContent === detail,
+    );
+    const style: { fontFamily?: string; fontSize?: number } = JSON.parse(
+      line?.getAttribute("data-style") ?? "{}",
+    );
+    expect(style.fontFamily).toBe(fontFamily);
+    expect(style.fontSize).toBe(fontSize);
   });
 
   it("bounds the MCP approval card the same way", () => {

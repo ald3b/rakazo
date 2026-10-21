@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { readFileSync } from "node:fs";
+import { fontWeight, typeScale } from "@rakazo/ui-tokens";
 import type { ComponentType, ReactElement, ReactNode } from "react";
 import * as React from "react";
 import { act, memo, useCallback, useEffect, useMemo, useState } from "react";
@@ -611,4 +612,48 @@ it("waits for a saved or live inbox before publishing a remounted session's sear
     act(() => root.unmount());
     vi.unstubAllGlobals();
   }
+});
+
+it("sets inbox rows and section headings in the shared type scale", () => {
+  const stylesSource = source.slice(source.indexOf("function createHomeStyles()"));
+  const compiled = ts.transpileModule(`${stylesSource}\nreturn createHomeStyles;`, {
+    compilerOptions: { target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  const scope = {
+    StyleSheet: { create: <T,>(styles: T) => styles, hairlineWidth: 0.5 },
+    native: new Proxy({}, { get: (_target, name) => String(name) }),
+    mobileTokens: () => new Proxy({}, { get: (_target, name) => String(name) }),
+    typeScale,
+    fontWeight,
+  };
+  const styles = new Function(...Object.keys(scope), compiled)(...Object.values(scope))();
+
+  expect(styles.name).toMatchObject({ fontSize: 17, lineHeight: 22, fontWeight: "500" });
+  expect(styles.preview).toMatchObject({ fontSize: 15, lineHeight: 19 });
+  expect(styles.time).toMatchObject({ fontSize: 14, lineHeight: 18 });
+  expect(styles.tagLabel).toMatchObject({ fontSize: 14, fontWeight: "500" });
+  // At the largest text sizes the tag moves under the name instead of squeezing it.
+  expect(styles.titleRowWrapped).toEqual({ flexWrap: "wrap" });
+  for (const heading of [styles.sectionTitle, styles.sectionHeading]) {
+    expect(heading).toMatchObject({ fontSize: 15, lineHeight: 19 });
+    expect(heading.fontWeight).toBeUndefined();
+  }
+  expect(styles.sectionCount).toMatchObject({ fontSize: 14, lineHeight: 18 });
+
+  // Search results are drawn like inbox rows.
+  const searchSource = readFileSync(new URL("../app/search.tsx", testFileUrl), "utf8");
+  const searchStyles = new Function(
+    ...Object.keys(scope),
+    ts.transpileModule(
+      `${searchSource.slice(searchSource.indexOf("function createStyles()"))}\nreturn createStyles;`,
+      { compilerOptions: { target: ts.ScriptTarget.ES2022 } },
+    ).outputText,
+  )(...Object.values(scope))();
+  for (const key of ["name", "time", "preview"] as const) {
+    expect(searchStyles[key]).toMatchObject({
+      fontSize: styles[key].fontSize,
+      lineHeight: styles[key].lineHeight,
+    });
+  }
+  expect(searchStyles.name.fontWeight).toBe(styles.name.fontWeight);
 });

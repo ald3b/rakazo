@@ -2,7 +2,7 @@ import { MenuView } from "@expo/ui/community/menu";
 import type { RunActivityRow, SpaceBot, SpaceGroup } from "@rakazo/contracts";
 import { normalizeCreateBotProfile } from "@rakazo/contracts";
 import { ACTIVE_RUN_STATUSES, accountDisplay } from "@rakazo/core";
-import { botColors } from "@rakazo/ui-tokens";
+import { botColors, fontWeight, typeScale } from "@rakazo/ui-tokens";
 import type { Href } from "expo-router";
 import {
   Redirect,
@@ -124,6 +124,7 @@ import {
   subscribeSessionGeneration,
 } from "../lib/session";
 import { useSplitView } from "../lib/split-view";
+import { stacksAtTextScale } from "../lib/text-scale";
 import type { LoadFailureKind } from "../lib/user-error";
 import { errorText, loadFailureKind } from "../lib/user-error";
 
@@ -1513,6 +1514,7 @@ function ConversationRow({
   const styles = useThemedStyles(createHomeStyles);
   const { t } = useI18n();
   const compact = useContext(CompactRowsContext);
+  const tagBelow = stacksAtTextScale(useWindowDimensions().fontScale);
   const openChatId = useContext(SelectedChatContext);
   const selected = chatId !== undefined && openChatId === chatId;
   const toggleLabel = collapsed
@@ -1565,7 +1567,7 @@ function ConversationRow({
       {avatar}
       <View style={styles.rowBody}>
         <View style={styles.rowTop}>
-          <View style={styles.titleRow}>
+          <View style={[styles.titleRow, tagBelow && styles.titleRowWrapped]}>
             <Text style={styles.name} numberOfLines={1} ellipsizeMode="tail">
               {title}
             </Text>
@@ -2049,6 +2051,10 @@ function createHomeStyles() {
       alignItems: "center",
       gap: 6,
     },
+    // At the largest text sizes a tag that doesn't fit beside the name moves under it.
+    titleRowWrapped: {
+      flexWrap: "wrap",
+    },
     rowMeta: {
       flexDirection: "row",
       alignItems: "center",
@@ -2057,8 +2063,7 @@ function createHomeStyles() {
     name: {
       flexShrink: 1,
       color: native.label,
-      fontSize: 17,
-      fontWeight: "600",
+      ...typeScale.cardTitle,
       writingDirection: "auto",
     },
     tag: {
@@ -2070,18 +2075,17 @@ function createHomeStyles() {
     },
     tagLabel: {
       color: native.secondaryLabel,
-      fontSize: 11,
-      fontWeight: "500",
+      fontSize: typeScale.caption.fontSize,
+      fontWeight: fontWeight.medium,
       writingDirection: "auto",
     },
     time: {
       color: native.secondaryLabel,
-      fontSize: 15,
+      ...typeScale.caption,
     },
     preview: {
       color: native.secondaryLabel,
-      fontSize: 15,
-      lineHeight: 20,
+      ...typeScale.secondary,
       writingDirection: "auto",
     },
     unreadPreview: {
@@ -2137,18 +2141,16 @@ function createHomeStyles() {
     sectionTitle: {
       flexShrink: 1,
       color: native.secondaryLabel,
-      fontSize: 14,
-      fontWeight: "600",
+      ...typeScale.secondary,
     },
     sectionCount: {
       color: native.tertiaryLabel,
-      fontSize: 13,
+      ...typeScale.caption,
       fontVariant: ["tabular-nums"],
     },
     sectionHeading: {
       color: native.secondaryLabel,
-      fontSize: 14,
-      fontWeight: "600",
+      ...typeScale.secondary,
       paddingHorizontal: 16,
       paddingTop: 12,
       paddingBottom: 4,
