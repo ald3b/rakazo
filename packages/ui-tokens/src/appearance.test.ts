@@ -47,9 +47,9 @@ describe("appearance preference", () => {
     expect(tokensForAppearance("light")).toBe(lightTokens);
     for (const key of Object.keys(darkTokens) as (keyof ColorTokens)[]) {
       if (
+        key === "chatUserForeground" ||
         key === "destructiveForeground" ||
         key === "destructiveFill" ||
-        key === "faviconPlate" ||
         key === "unread"
       )
         continue;
@@ -115,7 +115,10 @@ function contrastRatio(a: string, b: string): number {
   return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
 }
 
-describe("dark palette contrast", () => {
+describe.each([
+  ["dark", darkTokens],
+  ["light", lightTokens],
+] as const)("%s palette contrast", (_name, palette: ColorTokens) => {
   // Opaque text tokens on the surfaces they are drawn on. Secondary and faint text are
   // translucent system label colours and white on the solid red fill is 3.9:1, so the
   // palette matches the iOS design there instead of 4.5:1; they are not listed.
@@ -138,7 +141,7 @@ describe("dark palette contrast", () => {
   ];
 
   it.each(pairs)("%s on %s meets WCAG AA (4.5:1)", (text, surface) => {
-    expect(contrastRatio(darkTokens[text], darkTokens[surface])).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio(palette[text], palette[surface])).toBeGreaterThanOrEqual(4.5);
   });
 });
 

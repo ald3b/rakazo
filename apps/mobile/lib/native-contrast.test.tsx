@@ -40,13 +40,13 @@ describe("grouped colours", () => {
     expect(native.groupedCell).toBe("token-card");
   });
 
-  it("keeps the system grouped colours in light and the tokens when Light is forced", () => {
+  it("uses the token page and card in light too, in System and forced Light", () => {
     appearance.resolved = "light";
-    expect(native.groupedPage).toBe("platform:systemGroupedBackground");
-    expect(native.groupedCell).toBe("platform:secondarySystemGroupedBackground");
+    expect(native.groupedPage).toBe("token-background");
+    expect(native.groupedCell).toBe("token-card");
 
     appearance.preference = "light";
-    expect(native.groupedPage).toBe("token-muted");
+    expect(native.groupedPage).toBe("token-background");
     expect(native.groupedCell).toBe("token-card");
   });
 });
