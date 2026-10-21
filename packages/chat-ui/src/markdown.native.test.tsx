@@ -466,7 +466,9 @@ describe("native markdown tables", () => {
       expect(colorOf("Name")).toBe(palette.foreground);
       expect(colorOf("Alice")).toBe(palette.mutedForeground);
       expect(colorOf("A quote")).toBe(palette.mutedForeground);
-      expect(colorOf("\u00B7")).toBe(palette.faintForeground);
+      expect(bulletDots(html)[0]?.getAttribute("data-background-color")).toBe(
+        palette.faintForeground,
+      );
     },
   );
 
@@ -806,7 +808,8 @@ describe("native markdown lists", () => {
     expect(line?.textContent).toBe("\u200B");
     expect(line?.getAttribute("data-line-height")).toBe("22");
     expect(line?.getAttribute("data-font-size")).toBe("17");
-    expect(dots[0]?.getAttribute("data-background-color")).toBe(darkTokens.foreground);
+    // Markers sit back in the faint colour so the text leads.
+    expect(dots[0]?.getAttribute("data-background-color")).toBe(darkTokens.faintForeground);
     // 13 + 5 + 8: the dot ends where a one-digit number ends.
     expect(dots[0]?.parentElement?.getAttribute("data-margin-left")).toBe("13");
     expect(dots[0]?.parentElement?.getAttribute("data-margin-right")).toBe("8");

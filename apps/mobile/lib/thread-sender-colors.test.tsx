@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { resolvePersonaColorDef } from "@rakazo/core";
-import { botColors, darkTokens } from "@rakazo/ui-tokens";
+import { botColors, darkTokens, fontWeight, typeScale } from "@rakazo/ui-tokens";
 import React, { useState } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
@@ -31,6 +31,8 @@ const scope = {
   View: "div",
   Text: "span",
   Pressable: "button",
+  typeScale,
+  fontWeight,
 };
 const MessageBubble = new Function(
   ...Object.keys(scope),

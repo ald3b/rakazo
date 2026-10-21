@@ -2670,8 +2670,8 @@ function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId: string
               fallbackStyle={{
                 borderRadius: 14,
                 borderWidth: 1,
-              borderColor: tokens.glassStroke,
-              backgroundColor: tokens.glassFill,
+                borderColor: tokens.glassStroke,
+                backgroundColor: tokens.glassFill,
                 paddingStart: 12,
                 paddingEnd: 12,
                 paddingVertical: 10,
