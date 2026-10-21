@@ -42,6 +42,7 @@ import {
   buildComposerMentionOptions,
   clampMentionHighlightIndex,
   cronFromPreset,
+  dismissableAskMessageIds,
   expandPeerReplies,
   foldPeerReplies,
   formatMessageTime,
@@ -2053,6 +2054,10 @@ function SpaceShell() {
   }, []);
   const currentRuns = activeThreadRuns(activeSnapshot);
   const answerableAskIds = useMemo(() => answerableAskMessageIds(activeSnapshot), [activeSnapshot]);
+  const dismissableAskIds = useMemo(
+    () => dismissableAskMessageIds(activeSnapshot, userId),
+    [activeSnapshot, userId],
+  );
   const workingRuns = currentRuns.filter((run) =>
     ["running", "queued", "leased"].includes(run.status),
   );
@@ -4061,6 +4066,7 @@ function SpaceShell() {
             olderCursor={activeSnapshot?.olderCursor ?? null}
             loadingOlder={loadingOlder}
             answerableAskIds={answerableAskIds}
+            dismissableAskIds={dismissableAskIds}
             running={transcriptRunning}
             workingBots={workingBots}
             onCallBack={
@@ -5269,6 +5275,7 @@ const Transcript = memo(function Transcript({
   olderCursor,
   loadingOlder,
   answerableAskIds,
+  dismissableAskIds,
   running,
   workingBots,
   onCallBack,
@@ -5299,6 +5306,7 @@ const Transcript = memo(function Transcript({
   olderCursor: number | null;
   loadingOlder: boolean;
   answerableAskIds: Set<string>;
+  dismissableAskIds: Set<string>;
   running: boolean;
   workingBots: GroupAvatarMember[];
   /** Calls the bot back from a missed call in the transcript. */
@@ -5682,6 +5690,7 @@ const Transcript = memo(function Transcript({
                       artifactTarget={artifactTarget}
                       message={message}
                       canAnswer={answerableAskIds.has(message.id)}
+                      canDismiss={dismissableAskIds.has(message.id)}
                       onOpenBot={onOpenBot}
                       onOpenPeerMessages={onOpenPeerMessages}
                       peerReplies={
@@ -7089,6 +7098,7 @@ function ComputerReleaseActions({
 const MessageView = memo(function MessageView({
   artifactTarget,
   canAnswer,
+  canDismiss,
   message,
   onAnswer,
   onOpenBot,
@@ -7111,6 +7121,7 @@ const MessageView = memo(function MessageView({
 }: {
   artifactTarget: ArtifactTarget;
   canAnswer: boolean;
+  canDismiss: boolean;
   message: ThreadMessage;
   onAnswer: (
     message: ThreadMessage,
@@ -7547,6 +7558,7 @@ const MessageView = memo(function MessageView({
               key={i}
               block={block}
               canAnswer={canAnswer}
+              canDismiss={canDismiss}
               onAnswer={(text, username) => onAnswer(message, text, username)}
               onDismiss={() => onAnswer(message, "", undefined, true)}
             />

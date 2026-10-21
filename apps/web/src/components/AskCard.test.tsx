@@ -51,7 +51,9 @@ async function render(
   onAnswer: (text: string, username?: string) => Promise<void> = async () => undefined,
 ) {
   await act(async () =>
-    root.render(<AskCard block={block} canAnswer onAnswer={onAnswer} onDismiss={onDismiss} />),
+    root.render(
+      <AskCard block={block} canAnswer canDismiss onAnswer={onAnswer} onDismiss={onDismiss} />,
+    ),
   );
 }
 
@@ -127,3 +129,37 @@ it("styles dismissed secrets like denied approvals, apart from the destination",
   expect(dismissed.classList.contains("mt-3.5")).toBe(true);
   expect(dismissed.classList.contains("text-muted-foreground")).toBe(true);
 });
+
+for (const input of ["secret", "login"]) {
+  it.each([true, false])(`gates only ${input} dismissal: %s`, async (canDismiss) => {
+    const block = {
+      kind: "ask" as const,
+      text: "Secret",
+      input: "secret" as const,
+      status: "pending" as const,
+      ...(input === "login"
+        ? {
+            credential: {
+              name: "example",
+              origin: "https://example.test",
+              auth: { type: "login" as const },
+            },
+          }
+        : {}),
+    };
+    await act(async () =>
+      root.render(
+        <AskCard
+          block={block}
+          canAnswer
+          canDismiss={canDismiss}
+          onAnswer={async () => {}}
+          onDismiss={async () => {}}
+        />,
+      ),
+    );
+    const labels = [...container.querySelectorAll("button")].map((button) => button.textContent);
+    expect(labels.includes("Dismiss")).toBe(canDismiss);
+    expect(labels.includes("Save")).toBe(true);
+  });
+}

@@ -22,6 +22,7 @@ import {
   attachmentsForThread,
   buildComposerMentionOptions,
   cloudAgentHttpsUrl,
+  dismissableAskMessageIds,
   expandPeerReplies,
   foldPeerReplies,
   formatFileSize,
@@ -304,7 +305,9 @@ function speakableMessageText(message: MobileMessage): string {
 export default function ThreadRoute() {
   const generation = useSyncExternalStore(subscribeSessionGeneration, currentSessionGeneration);
   const ready = useSyncExternalStore(subscribeSessionGeneration, currentReadySessionGeneration);
-  const [owner, setOwner] = useState<{ key: string; generation: number } | null>(null);
+  const [owner, setOwner] = useState<{ key: string; generation: number; userId: string } | null>(
+    null,
+  );
   useEffect(() => {
     if (generation !== ready) return;
     const apiBase = currentApiBase();
@@ -321,7 +324,11 @@ export default function ThreadRoute() {
             generation === currentSessionGeneration() &&
             apiBase === currentApiBase()
           )
-            setOwner({ key: JSON.stringify([apiBase, scope.userId]), generation });
+            setOwner({
+              key: JSON.stringify([apiBase, scope.userId]),
+              generation,
+              userId: scope.userId,
+            });
         })
         .catch((error) => {
           if (!cancelled && !notified) Alert.alert(t("Could not continue"), errorText(error));
@@ -389,7 +396,7 @@ export default function ThreadRoute() {
       <>
         {owner?.generation !== generation ? <ActivityIndicator color={tokens.foreground} /> : null}
         <View style={{ flex: 1, display: owner?.generation === generation ? "flex" : "none" }}>
-          {owner ? <Thread key={owner.key} sessionEpoch={ready} /> : null}
+          {owner ? <Thread key={owner.key} sessionEpoch={ready} userId={owner.userId} /> : null}
         </View>
       </>
     );
@@ -418,7 +425,7 @@ export default function ThreadRoute() {
   );
 }
 
-function Thread({ sessionEpoch }: { sessionEpoch: number }) {
+function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId: string }) {
   const colorScheme = useResolvedAppearance();
   const tokens = mobileTokens();
   const styles = useThemedStyles(createThreadHeaderStyles);
@@ -2015,6 +2022,7 @@ function Thread({ sessionEpoch }: { sessionEpoch: number }) {
   }
 
   const answerableAskIds = useMemo(() => answerableAskMessageIds(snap), [snap]);
+  const dismissableAskIds = useMemo(() => dismissableAskMessageIds(snap, userId), [snap, userId]);
   const runError = snap?.run?.status === "failed" ? (snap.run.error ?? null) : null;
   const separatorIds = useMemo(() => timeSeparatorIds(visibleMessages), [visibleMessages]);
   const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
@@ -2260,6 +2268,7 @@ function Thread({ sessionEpoch }: { sessionEpoch: number }) {
           readOnly={readOnly}
           onCall={onCall}
           canAnswer={!readOnly && answerableAskIds.has(message.id)}
+          canDismiss={dismissableAskIds.has(message.id)}
           highlighted={highlightedMessageId === message.id}
           separator={separatorIds.has(message.id)}
           replyAuthor={replyAuthor}
@@ -2301,6 +2310,7 @@ function Thread({ sessionEpoch }: { sessionEpoch: number }) {
       readOnly,
       onCall,
       answerableAskIds,
+      dismissableAskIds,
       highlightedMessageId,
       separatorIds,
       columnWidth,
@@ -2994,6 +3004,7 @@ type MessageRowProps = {
   readOnly: boolean;
   onCall: boolean;
   canAnswer: boolean;
+  canDismiss: boolean;
   highlighted: boolean;
   separator: boolean;
   replyAuthor: string;
@@ -3022,6 +3033,7 @@ const MessageRow = memo(function MessageRow({
   readOnly,
   onCall,
   canAnswer,
+  canDismiss,
   highlighted,
   separator,
   replyAuthor,
@@ -3279,6 +3291,7 @@ const MessageRow = memo(function MessageRow({
                 bots={bots}
                 members={members}
                 canAnswer={canAnswer}
+                canDismiss={canDismiss}
                 onAnswer={actions.answer}
                 onOpenBot={actions.openBot}
                 onOpenComputer={actions.openComputer}
@@ -3335,6 +3348,7 @@ const MessageBubble = memo(function MessageBubble({
   message,
   members,
   canAnswer,
+  canDismiss,
   onAnswer,
   onOpenBot,
   onOpenComputer,
@@ -3352,6 +3366,7 @@ const MessageBubble = memo(function MessageBubble({
   message: MobileMessage;
   members?: MobileSnapshot["members"];
   canAnswer: boolean;
+  canDismiss: boolean;
   onAnswer: (
     message: MobileMessage,
     answer: string,
@@ -3406,6 +3421,7 @@ const MessageBubble = memo(function MessageBubble({
           ask={ask}
           actionProps={actionProps}
           canAnswer={canAnswer}
+          canDismiss={canDismiss}
           onAnswer={(answer, username) => onAnswer(message, answer, username)}
           onDismiss={() => onAnswer(message, "", undefined, true)}
         />
@@ -4173,12 +4189,14 @@ function AgentEventLabel({
 function AskBlock({
   ask,
   canAnswer,
+  canDismiss,
   onAnswer,
   onDismiss,
   actionProps,
 }: {
   ask: Extract<MobileMessage["blocks"][number], { kind: "ask" }>;
   canAnswer: boolean;
+  canDismiss: boolean;
   onAnswer: (answer: string, username?: string) => Promise<void>;
   /** Turns down a secret request without a value. */
   onDismiss: () => Promise<void>;
@@ -4293,13 +4311,15 @@ function AskBlock({
               setSheetOpen(true);
             }}
           />
-          <NativeActionButton
-            label={t("Dismiss")}
-            disabled={submitting}
-            fill={false}
-            prominence="secondary"
-            onPress={() => void dismiss()}
-          />
+          {canDismiss ? (
+            <NativeActionButton
+              label={t("Dismiss")}
+              disabled={submitting}
+              fill={false}
+              prominence="secondary"
+              onPress={() => void dismiss()}
+            />
+          ) : null}
         </View>
       ) : canAnswer ? (
         <>
@@ -4326,7 +4346,7 @@ function AskBlock({
               fill={false}
               onPress={() => void submit()}
             />
-            {secretInput ? (
+            {secretInput && canDismiss ? (
               <NativeActionButton
                 label={t("Dismiss")}
                 disabled={submitting}

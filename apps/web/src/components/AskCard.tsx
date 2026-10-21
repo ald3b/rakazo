@@ -52,11 +52,13 @@ function secretFieldLabel(purpose: AskBlock["purpose"]): string {
 export function AskCard({
   block,
   canAnswer,
+  canDismiss,
   onAnswer,
   onDismiss,
 }: {
   block: AskBlock;
   canAnswer: boolean;
+  canDismiss: boolean;
   onAnswer: (text: string, username?: string) => Promise<void>;
   /** Turns down a secret request without a value. */
   onDismiss: () => Promise<void>;
@@ -305,14 +307,16 @@ export function AskCard({
             >
               {pendingAction === "submit" ? <Trans>Saving…</Trans> : <Trans>Save</Trans>}
             </Button>
-            <Button
-              type="button"
-              variant="outline"
-              disabled={submitting}
-              onClick={() => void dismissSecret()}
-            >
-              <Trans>Dismiss</Trans>
-            </Button>
+            {canDismiss ? (
+              <Button
+                type="button"
+                variant="outline"
+                disabled={submitting}
+                onClick={() => void dismissSecret()}
+              >
+                <Trans>Dismiss</Trans>
+              </Button>
+            ) : null}
           </div>
         </form>
       ) : editing ? (

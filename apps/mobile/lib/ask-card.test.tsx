@@ -109,6 +109,7 @@ async function render(
       <AskBlock
         ask={{ kind: "ask", text: longTitle, status: "pending", ...ask }}
         canAnswer
+        canDismiss
         onAnswer={onAnswer}
         onDismiss={onDismiss}
         actionProps={{}}
@@ -309,3 +310,38 @@ it("lets the card's buttons wrap instead of overflowing at large text sizes", ()
   )({ create: <T,>(value: T) => value });
   expect(styles.buttons).toMatchObject({ flexDirection: "row", flexWrap: "wrap" });
 });
+
+for (const input of ["secret", "login"]) {
+  it.each([true, false])(`gates only ${input} dismissal: %s`, async (canDismiss) => {
+    const block = {
+      kind: "ask" as const,
+      text: "Secret",
+      input: "secret" as const,
+      status: "pending" as const,
+      ...(input === "login"
+        ? {
+            credential: {
+              name: "example",
+              origin: "https://example.test",
+              auth: { type: "login" as const },
+            },
+          }
+        : {}),
+    };
+    await act(async () =>
+      root.render(
+        <AskBlock
+          ask={block}
+          canAnswer
+          canDismiss={canDismiss}
+          onAnswer={async () => {}}
+          onDismiss={async () => {}}
+          actionProps={{}}
+        />,
+      ),
+    );
+    const labels = [...container.querySelectorAll("button")].map((button) => button.textContent);
+    expect(labels.includes("Dismiss")).toBe(canDismiss);
+    expect(labels.includes(input === "login" ? "Continue" : "Save")).toBe(true);
+  });
+}
