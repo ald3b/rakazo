@@ -165,6 +165,7 @@ import {
 } from "../lib/api";
 import { useAppForeground } from "../lib/app-foreground";
 import { mobileTokens } from "../lib/appearance";
+import { notifyArchivedChatsChanged } from "../lib/archived-chats";
 import type { MobileArtifactTarget } from "../lib/artifact-open";
 import { openMobileArtifact } from "../lib/artifact-open";
 import { plainAskTitle } from "../lib/ask-title";
@@ -1038,6 +1039,7 @@ function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId: string
     setRestoring(true);
     try {
       await restoreArchivedBot(botId);
+      notifyArchivedChatsChanged();
       router.setParams({ readOnly: "0" });
     } catch (cause) {
       Alert.alert(t("Could not restore bot"), errorText(cause, t("Try again.")));
@@ -1113,7 +1115,10 @@ function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId: string
       text: t("Archive"),
       onPress: () =>
         void rpc("bots/archive", { botId })
-          .then(leaveBot)
+          .then(() => {
+            notifyArchivedChatsChanged();
+            leaveBot();
+          })
           .catch((error) =>
             Alert.alert(t("Could not archive bot"), errorText(error, t("Try again."))),
           ),
@@ -1121,7 +1126,11 @@ function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId: string
     {
       text: t("Delete…"),
       destructive: true,
-      onPress: () => confirmDeleteBot({ id: botId ?? "", name: displayName || t("Bot") }, leaveBot),
+      onPress: () =>
+        confirmDeleteBot({ id: botId ?? "", name: displayName || t("Bot") }, () => {
+          notifyArchivedChatsChanged();
+          leaveBot();
+        }),
     },
   ];
 
@@ -2461,7 +2470,9 @@ function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId: string
             key={jumpScrollTarget.current ?? pinnedTarget?.messageId ?? threadKey}
             ref={pinnedScroll}
             style={{ flex: 1 }}
-            contentContainerStyle={{ paddingTop: headerHeight + 8, paddingBottom: 16 }}
+            // A pinned page always shows the floating jump button (44pt, 12pt from the
+            // bottom), so its last message must be able to scroll clear of it.
+            contentContainerStyle={{ paddingTop: headerHeight + 8, paddingBottom: 12 + 44 + 16 }}
             keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
             maintainVisibleContentPosition={messageListPosition}
             scrollEventThrottle={16}
