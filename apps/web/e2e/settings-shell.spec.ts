@@ -58,6 +58,24 @@ test("settings shell is two-pane and deep-links Models Memory Voice Usage", asyn
   await expect(settings.getByText("Stream replies", { exact: true })).toBeVisible();
   await streamReplies.scrollIntoViewIfNeeded();
   await captureScreenshot(page, testInfo, "settings-shell-general");
+  const scroller = settings.getByTestId("settings-scroll");
+  await scroller.evaluate((node) => {
+    node.scrollTop = Math.max(0, (node.scrollHeight - node.clientHeight) / 2);
+  });
+  await expect.poll(() => scroller.evaluate((node) => node.scrollTop)).toBeGreaterThan(0);
+  // Scrolled content clips at a visible divider with space under the subtitle.
+  const headerEdge = await settings.getByTestId("settings-header").evaluate((node) => {
+    const style = getComputedStyle(node);
+    return {
+      border: Number.parseFloat(style.borderBottomWidth),
+      borderStyle: style.borderBottomStyle,
+      padding: Number.parseFloat(style.paddingBottom),
+    };
+  });
+  expect(headerEdge.border).toBeGreaterThanOrEqual(1);
+  expect(headerEdge.borderStyle).toBe("solid");
+  expect(headerEdge.padding).toBeGreaterThanOrEqual(16);
+  await captureScreenshot(page, testInfo, "settings-shell-scrolled");
   await streamReplies.click();
   await expect(streamReplies).toBeChecked();
   await expect
@@ -111,11 +129,21 @@ test("Honcho memory settings empty and filled", async ({ page }, testInfo) => {
   await memory.getByLabel("Provider").selectOption("honcho");
   await expect(memory.getByLabel("API key", { exact: true })).toBeVisible();
   await expect(memory.getByLabel("Workspace", { exact: true })).toBeVisible();
+  await expect(memory.getByLabel("User peer", { exact: true })).toHaveCount(0);
   await expect(memory.getByRole("button", { name: "Connect", exact: true })).toBeDisabled();
   await page.setViewportSize({ width: 1280, height: 900 });
   await captureScreenshot(page, testInfo, "memory-honcho-empty");
   await memory.getByLabel("API key", { exact: true }).fill("hch-test-key");
   await memory.getByLabel("Workspace", { exact: true }).fill("team-notes");
+  const userPeer = memory.getByLabel("User peer", { exact: true });
+  await userPeer.fill("bot-123");
+  await expect(userPeer).toHaveAttribute("aria-invalid", "true");
+  await expect(
+    memory.getByText("rakazo-shared and IDs starting with bot- are reserved for Rakazo."),
+  ).toBeVisible();
+  await expect(memory.getByRole("button", { name: "Connect", exact: true })).toBeDisabled();
+  await captureScreenshot(page, testInfo, "memory-honcho-user-peer-reserved");
+  await userPeer.fill("user-alex");
   await expect(memory.getByRole("button", { name: "Connect", exact: true })).toBeEnabled();
   await captureScreenshot(page, testInfo, "memory-honcho-filled");
   await memory.getByRole("button", { name: "Local", exact: true }).click();

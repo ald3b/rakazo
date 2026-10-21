@@ -9,8 +9,11 @@ fi
 
 export RAILWAY_ENVIRONMENT_ID
 RAILWAY_ENVIRONMENT_ID=$(node infra/railway/sandbox-environment.mjs)
-pnpm --filter @rakazo/db exec prisma migrate deploy
-pnpm --filter @rakazo/api exec tsx src/cli/bootstrap-owner.ts
+# Set DATABASE_MIGRATION_URL to the owner and DATABASE_URL to a runtime login to
+# enforce row-level security; with one URL the app runs as the owner and warns.
+pnpm --filter @rakazo/api db:deploy
+unset DATABASE_MIGRATION_URL
+pnpm --filter @rakazo/api exec node dist/cli/bootstrap-owner.js
 unset OWNER_PASSWORD
 
 # All processes share one volume; a failed process restarts the whole service.
