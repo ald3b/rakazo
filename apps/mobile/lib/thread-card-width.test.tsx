@@ -163,18 +163,23 @@ describe("thread cards", () => {
     ["an unmarked", undefined, undefined, 15],
     ["a text", "text" as const, undefined, 15],
     ["a code", "code" as const, "Menlo", 14],
-  ])("sets %s question detail in its font", (_, detailFormat, fontFamily, fontSize) => {
-    const detail = "Tap one option, or reply in your own words.";
-    renderAsk({ detail, detailFormat }, true);
-    const line = [...container.querySelectorAll("span")].find(
-      (span) => span.textContent === detail,
-    );
-    const style: { fontFamily?: string; fontSize?: number } = JSON.parse(
-      line?.getAttribute("data-style") ?? "{}",
-    );
-    expect(style.fontFamily).toBe(fontFamily);
-    expect(style.fontSize).toBe(fontSize);
-  });
+    ["an unmarked approval", undefined, "Menlo", 14, "effect-1"],
+    ["a text approval", "text" as const, undefined, 15, "effect-1"],
+  ])(
+    "sets %s question detail in its font",
+    (_, detailFormat, fontFamily, fontSize, effectId?: string) => {
+      const detail = "Tap one option, or reply in your own words.";
+      renderAsk({ detail, detailFormat, approvalEffectId: effectId }, true);
+      const line = [...container.querySelectorAll("span")].find(
+        (span) => span.textContent === detail,
+      );
+      const style: { fontFamily?: string; fontSize?: number } = JSON.parse(
+        line?.getAttribute("data-style") ?? "{}",
+      );
+      expect(style.fontFamily).toBe(fontFamily);
+      expect(style.fontSize).toBe(fontSize);
+    },
+  );
 
   it("bounds the MCP approval card the same way", () => {
     act(() =>

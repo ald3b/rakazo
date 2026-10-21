@@ -3823,8 +3823,10 @@ const MessageBubble = memo(function MessageBubble({
                     color:
                       askBlock.detailFormat === "text" ? tokens.foreground : tokens.mutedForeground,
                     marginTop: askBlock.text ? 8 : 0,
-                    // Only a command reads as code; a bot's own note under its question is text.
-                    ...(askBlock.detailFormat === "code"
+                    // Commands and an approval's tool arguments read as code; a bot's own note
+                    // under its question is text.
+                    ...(askBlock.detailFormat === "code" ||
+                    (!askBlock.detailFormat && askBlock.approvalEffectId)
                       ? { ...typeScale.caption, fontFamily: "Menlo" }
                       : typeScale.secondary),
                   }}

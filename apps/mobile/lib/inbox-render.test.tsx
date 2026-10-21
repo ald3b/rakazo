@@ -693,6 +693,10 @@ it("sets inbox rows and section headings in the shared type scale", () => {
   const styles = new Function(...Object.keys(scope), compiled)(...Object.values(scope))();
 
   expect(styles.name).toMatchObject({ fontSize: 17, lineHeight: 22, fontWeight: "500" });
+  expect(styles.name).toMatchObject({ flexShrink: 0, maxWidth: "100%" });
+  expect(styles.tag).toMatchObject({ flexShrink: 1, minWidth: 0, overflow: "hidden" });
+  expect(styles.rowTop.alignItems).toBe("flex-start");
+  expect(styles.titleRow.overflow).toBe("hidden");
   expect(styles.preview).toMatchObject({ fontSize: 15, lineHeight: 19 });
   expect(styles.time).toMatchObject({ fontSize: 14, lineHeight: 18 });
   expect(styles.tagLabel).toMatchObject({ fontSize: 14, fontWeight: "500" });
@@ -720,4 +724,45 @@ it("sets inbox rows and section headings in the shared type scale", () => {
     });
   }
   expect(searchStyles.name.fontWeight).toBe(styles.name.fontWeight);
+});
+
+it("sets archived bot and group names in the inbox title scale", () => {
+  const archivedSource = readFileSync(
+    new URL("../components/archived-bot-list.tsx", testFileUrl),
+    "utf8",
+  );
+  const scope = {
+    React,
+    typeScale,
+    useI18n: () => ({ t: (text: string) => text }),
+    useResolvedAppearance: () => "light",
+    native: {},
+    ScrollView: "div",
+    View: "div",
+    MenuView: "div",
+    Pressable: "div",
+    Text: "span",
+    Chevron: () => null,
+    NativeSymbol: () => null,
+  };
+  const compiled = ts.transpileModule(
+    `${archivedSource.slice(archivedSource.indexOf("export function ArchivedBotList")).replace("export function", "function")}\nreturn ArchivedBotList;`,
+    { compilerOptions: { jsx: ts.JsxEmit.React, target: ts.ScriptTarget.ES2022 } },
+  ).outputText;
+  const ArchivedBotList = new Function(...Object.keys(scope), compiled)(...Object.values(scope));
+  const tree = ArchivedBotList({
+    bots: [{ id: "bot", name: "Helper" }],
+    groups: [{ id: "group", name: "Team" }],
+  });
+  const names: ReactElement<{ style: object; children: ReactNode }>[] = [];
+  function visit(node: ReactNode) {
+    React.Children.forEach(node, (child) => {
+      if (!React.isValidElement<{ style: object; children: ReactNode }>(child)) return;
+      if (child.type === "span") names.push(child);
+      visit(child.props.children);
+    });
+  }
+  visit(tree);
+  expect(names.map((name) => name.props.children)).toEqual(["Helper", "Team"]);
+  for (const name of names) expect(name.props.style).toMatchObject(typeScale.cardTitle);
 });

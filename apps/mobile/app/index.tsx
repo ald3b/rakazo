@@ -2041,12 +2041,13 @@ function createHomeStyles() {
     },
     rowTop: {
       flexDirection: "row",
-      alignItems: "center",
+      alignItems: "flex-start",
       gap: 8,
     },
     titleRow: {
       flex: 1,
       minWidth: 0,
+      overflow: "hidden",
       flexDirection: "row",
       alignItems: "center",
       gap: 6,
@@ -2061,13 +2062,16 @@ function createHomeStyles() {
       gap: 7,
     },
     name: {
-      flexShrink: 1,
+      flexShrink: 0,
+      maxWidth: "100%",
       color: native.label,
       ...typeScale.cardTitle,
       writingDirection: "auto",
     },
     tag: {
       flexShrink: 1,
+      minWidth: 0,
+      overflow: "hidden",
       borderRadius: 999,
       backgroundColor: native.fill,
       paddingHorizontal: 7,
