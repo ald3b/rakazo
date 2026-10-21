@@ -44,6 +44,7 @@ export const native = {
     return systemColor("secondaryLabel", mobileTokens().mutedForeground);
   },
   get tertiaryLabel() {
+    if (resolveMobileAppearance() === "dark") return mobileTokens().faintForeground;
     return systemColor("tertiaryLabel", mobileTokens().faintForeground);
   },
   // Grouped colours always come from the tokens: settings sit on the page colour with
