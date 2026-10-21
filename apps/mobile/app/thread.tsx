@@ -31,6 +31,8 @@ import {
   isApprovalAskBlock,
   isPeerReceiptBlocks,
   isRunTerminalEvent,
+  isRunWaitingOnUser,
+  isRunWorking,
   isSecretAskBlock,
   leaveThreadWindow,
   openThreadWindow,
@@ -163,6 +165,7 @@ import {
 } from "../lib/api";
 import { useAppForeground } from "../lib/app-foreground";
 import { mobileTokens } from "../lib/appearance";
+import { notifyArchivedChatsChanged } from "../lib/archived-chats";
 import type { MobileArtifactTarget } from "../lib/artifact-open";
 import { openMobileArtifact } from "../lib/artifact-open";
 import { plainAskTitle } from "../lib/ask-title";
@@ -283,14 +286,8 @@ function formatAttachmentSkip(item: { name: string; reason: string }): string {
   return `${name} (${item.reason})`;
 }
 
-function isWorkingStatus(status: string | undefined): boolean {
-  return (
-    status === "queued" ||
-    status === "leased" ||
-    status === "running" ||
-    status === "waiting_input" ||
-    status === "waiting_takeover"
-  );
+function isActiveStatus(status: string | undefined): boolean {
+  return isRunWorking(status) || isRunWaitingOnUser(status);
 }
 
 const ATTACHMENT_PLACEHOLDER_LINE = /^\[(?:image|file|chart): .*\]$/;
@@ -700,19 +697,22 @@ function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId: string
   activeThreadId.current = notificationThreadId;
   const currentBotStatus = snap ? snap.run?.status : currentBot?.status;
   const hasLiveProgress = visibleMessages.some((message) => message.id.startsWith("progress:"));
-  const workingGroupBots = useMemo(() => {
+  const activeGroupBots = useMemo(() => {
     if (!inGroup) return [];
     const seen = new Set<string>();
-    const working = snap?.activeRuns ?? (snap?.run ? [snap.run] : []);
-    return working.flatMap((run) => {
-      if (!run.botId || seen.has(run.botId) || !isWorkingStatus(run.status)) return [];
+    const active = snap?.activeRuns ?? (snap?.run ? [snap.run] : []);
+    return active.flatMap((run) => {
+      if (!run.botId || seen.has(run.botId) || !isActiveStatus(run.status)) return [];
       const member = snap?.members?.find((candidate) => candidate.botId === run.botId);
       if (!member) return [];
       seen.add(run.botId);
       return [{ ...member, status: run.status }];
     });
   }, [inGroup, snap?.activeRuns, snap?.members, snap?.run]);
-  const working = inGroup ? workingGroupBots.length > 0 : isWorkingStatus(currentBotStatus);
+  // A bot waiting on the user (an ask card, a computer takeover) can still be stopped, but its
+  // card is the state: no typing dots under it.
+  const workingGroupBots = activeGroupBots.filter((bot) => isRunWorking(bot.status));
+  const working = inGroup ? activeGroupBots.length > 0 : isActiveStatus(currentBotStatus);
 
   const speakFinishedReply = useCallback(() => {
     if (!botId || inGroup || !currentBot) return;
@@ -1039,6 +1039,7 @@ function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId: string
     setRestoring(true);
     try {
       await restoreArchivedBot(botId);
+      notifyArchivedChatsChanged();
       router.setParams({ readOnly: "0" });
     } catch (cause) {
       Alert.alert(t("Could not restore bot"), errorText(cause, t("Try again.")));
@@ -1114,7 +1115,10 @@ function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId: string
       text: t("Archive"),
       onPress: () =>
         void rpc("bots/archive", { botId })
-          .then(leaveBot)
+          .then(() => {
+            notifyArchivedChatsChanged();
+            leaveBot();
+          })
           .catch((error) =>
             Alert.alert(t("Could not archive bot"), errorText(error, t("Try again."))),
           ),
@@ -1122,7 +1126,11 @@ function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId: string
     {
       text: t("Delete…"),
       destructive: true,
-      onPress: () => confirmDeleteBot({ id: botId ?? "", name: displayName || t("Bot") }, leaveBot),
+      onPress: () =>
+        confirmDeleteBot({ id: botId ?? "", name: displayName || t("Bot") }, () => {
+          notifyArchivedChatsChanged();
+          leaveBot();
+        }),
     },
   ];
 
@@ -2340,7 +2348,7 @@ function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId: string
   );
 
   const workingFooter =
-    !inGroup && currentBot && isWorkingStatus(currentBotStatus) && !hasLiveProgress ? (
+    !inGroup && currentBot && isRunWorking(currentBotStatus) && !hasLiveProgress ? (
       <View
         accessibilityLabel={t("{name} is working", { name: currentBot.name })}
         accessibilityRole="text"
@@ -2462,7 +2470,9 @@ function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId: string
             key={jumpScrollTarget.current ?? pinnedTarget?.messageId ?? threadKey}
             ref={pinnedScroll}
             style={{ flex: 1 }}
-            contentContainerStyle={{ paddingTop: headerHeight + 8, paddingBottom: 16 }}
+            // A pinned page always shows the floating jump button (44pt, 12pt from the
+            // bottom), so its last message must be able to scroll clear of it.
+            contentContainerStyle={{ paddingTop: headerHeight + 8, paddingBottom: 12 + 44 + 16 }}
             keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
             maintainVisibleContentPosition={messageListPosition}
             scrollEventThrottle={16}
@@ -4261,6 +4271,9 @@ function AskBlock({
   const answered = saved || dismissed || ask.status === "answered";
   const secretInput = isSecretAskBlock(ask);
   const loginInput = secretInput && ask.credential?.auth.type === "login";
+  // A login or credential is saved for the run's user, so only they can fill one in; others see
+  // the card without fields or buttons.
+  const ownerOnly = secretInput && Boolean(ask.credential) && !canDismiss;
   const incomplete = secretInput ? answer.length === 0 : !answer.trim();
   const secretLabel =
     ask.purpose === "password"
@@ -4346,7 +4359,7 @@ function AskBlock({
             ? t(dismissed || ask.dismissed ? "Dismissed" : "Saved")
             : t("Answered: {answer}", { answer: ask.answer ?? t("Done") })}
         </Text>
-      ) : canAnswer && loginInput ? (
+      ) : canAnswer && ownerOnly ? null : canAnswer && loginInput ? (
         <View style={askInputStyles.buttons}>
           <NativeActionButton
             label={t("Continue")}
@@ -4421,8 +4434,9 @@ function AskBlock({
         <SecretAskSheet
           title={plainAskTitle(ask.text)}
           destination={secretDestinationLabel(ask.credential)}
-          // Once any save is accepted the open sheet clears its own fields, then closes itself.
-          pending={canAnswer && !answered}
+          // Once any save is accepted, or the viewer is no longer the run's user, the open sheet
+          // clears its own fields, then closes itself.
+          pending={canAnswer && !answered && !ownerOnly}
           onClose={() => {
             if (session === sheetSession.current) setSheetOpen(false);
           }}

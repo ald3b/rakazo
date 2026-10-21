@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { readFileSync } from "node:fs";
+import { ACTIVE_RUN_STATUSES, isRunWorking } from "@rakazo/core";
 import type { ComponentType, ReactElement, ReactNode } from "react";
 import * as React from "react";
 import { act, memo, useCallback, useEffect, useMemo, useState } from "react";
@@ -18,6 +19,10 @@ vi.mock("./api", () => ({}));
 
 const testFileUrl = import.meta.url;
 const source = readFileSync(new URL("../app/index.tsx", testFileUrl), "utf8");
+const rowDimensions = source.slice(
+  source.indexOf("const INBOX_ROW ="),
+  source.indexOf("function ConversationRow("),
+);
 
 // Run the actual row and renderItem code with native presentation stubbed out.
 // React still performs real memo comparisons; this measures JS row executions only.
@@ -39,7 +44,7 @@ function measure(before: boolean) {
     previewSnippet: (text: string) => text,
     formatThreadTime: () => "",
     botTag: () => "",
-    ACTIVE_RUN_STATUSES: ["running"],
+    isRunWorking,
     mobileBotAvatarPresentation: () => {
       renders++;
       return { kind: "color", color: "gray" };
@@ -60,9 +65,10 @@ function measure(before: boolean) {
         module: ts.ModuleKind.CommonJS,
       },
     }).outputText;
-  const BotRow = new Function(...Object.keys(scope), compile(`${rowSource}\nreturn BotRow;`))(
-    ...Object.values(scope),
-  );
+  const BotRow = new Function(
+    ...Object.keys(scope),
+    compile(`${rowDimensions}\n${rowSource}\nreturn BotRow;`),
+  )(...Object.values(scope));
   const action = vi.fn();
   const dependencies = {
     React,
@@ -192,7 +198,7 @@ it.each(["midnight", "focus", "foreground"])(
       previewSnippet: (text: string) => text,
       formatThreadTime,
       botTag: () => "",
-      ACTIVE_RUN_STATUSES: ["running"],
+      isRunWorking,
       mobileBotAvatarPresentation: () => ({ kind: "color", color: "gray" }),
       FALLBACK_COLOR: "gray",
       ConversationRow: ({ time }: { time: string }) => <span>{time}</span>,
@@ -236,7 +242,7 @@ it.each(["midnight", "focus", "foreground"])(
       source.indexOf("  if (!ready) {"),
     );
     const compiled = ts.transpileModule(
-      `${rowSource}\nreturn function List({ items }) {\n${daySource}\n${listSource}
+      `${rowDimensions}\n${rowSource}\nreturn function List({ items }) {\n${daySource}\n${listSource}
         return items.map((item, index) => React.cloneElement(renderItem({ item }), { key: index }));
       };`,
       { compilerOptions: { jsx: ts.JsxEmit.React, target: ts.ScriptTarget.ES2022 } },
@@ -306,7 +312,7 @@ it("renders saved bot rows without a title or notification setting", () => {
     previewSnippet: (text: string) => text,
     formatThreadTime,
     botTag,
-    ACTIVE_RUN_STATUSES: ["running"],
+    isRunWorking,
     mobileBotAvatarPresentation: () => ({ kind: "color", color: "gray" }),
     FALLBACK_COLOR: "gray",
     ConversationRow: ({
@@ -332,7 +338,7 @@ it("renders saved bot rows without a title or notification setting", () => {
     source.indexOf("const BotRow = memo("),
     source.indexOf("const GroupRow = memo("),
   );
-  const compiled = ts.transpileModule(`${rowSource}\nreturn BotRow;`, {
+  const compiled = ts.transpileModule(`${rowDimensions}\n${rowSource}\nreturn BotRow;`, {
     compilerOptions: { jsx: ts.JsxEmit.React, target: ts.ScriptTarget.ES2022 },
   }).outputText;
   const BotRow = new Function(...Object.keys(scope), compiled)(...Object.values(scope));
@@ -354,6 +360,69 @@ it("renders saved bot rows without a title or notification setting", () => {
       "Research|Research|Alpha, Research, Research",
       "|No messages yet|Beta, No messages yet",
       "|No messages yet|Gamma, notifications silenced, No messages yet muted",
+    ]);
+  } finally {
+    act(() => root.unmount());
+    vi.unstubAllGlobals();
+  }
+});
+
+it("shows the working dots only while the bot works, not while it waits on the user", () => {
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  const scope = {
+    React,
+    memo,
+    useI18n: () => ({ t: (text: string) => text }),
+    previewSnippet: (text: string) => text,
+    formatThreadTime,
+    botTag: () => "",
+    ACTIVE_RUN_STATUSES,
+    isRunWorking,
+    mobileBotAvatarPresentation: () => ({ kind: "color", color: "gray" }),
+    FALLBACK_COLOR: "gray",
+    ConversationRow: ({
+      accessibilityLabel,
+      indicator,
+    }: {
+      accessibilityLabel: string;
+      indicator: ReactElement | null;
+    }) => (
+      <span>
+        {accessibilityLabel}
+        {indicator}
+      </span>
+    ),
+    BotAvatar: () => null,
+    WorkingIndicator: () => " dots",
+  };
+  const rowSource = source.slice(
+    source.indexOf("const BotRow = memo("),
+    source.indexOf("const GroupRow = memo("),
+  );
+  const compiled = ts.transpileModule(`${rowDimensions}\n${rowSource}\nreturn BotRow;`, {
+    compilerOptions: { jsx: ts.JsxEmit.React, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  const BotRow = new Function(...Object.keys(scope), compiled)(...Object.values(scope));
+  const bots = ["running", "waiting_takeover", "waiting_input", "idle"].map((status) => ({
+    id: status,
+    name: "Helper",
+    preview: "Hi",
+    status,
+  }));
+  const container = document.createElement("div");
+  const root = createRoot(container);
+  try {
+    act(() =>
+      root.render(
+        bots.map((bot) => <BotRow key={bot.id} bot={bot} day={0} onPress={() => undefined} />),
+      ),
+    );
+    // A "Needs you" computer card or an ask card is the state; the row must not claim work.
+    expect(Array.from(container.querySelectorAll("span"), (span) => span.textContent)).toEqual([
+      "Helper, Working…, Hi dots",
+      "Helper, Hi",
+      "Helper, Hi",
+      "Helper, Hi",
     ]);
   } finally {
     act(() => root.unmount());
