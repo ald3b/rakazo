@@ -1,4 +1,9 @@
 export const ZH_MESSAGES: Record<string, string> = {
+  "About {label}": "关于{label}",
+  "Manage the bots it creates": "管理它创建的机器人",
+  "Organize the sidebar and edit bots. Instruction, model, routine and group edits need approval.":
+    "整理侧边栏并编辑机器人。更改群组、指令、模型和例行任务需要你的批准。",
+
   Resets: "重置时间",
   Limit: "限额",
   "Provider message": "提供商消息",
@@ -22,8 +27,6 @@ export const ZH_MESSAGES: Record<string, string> = {
   "{name} asked": "{name} 问",
   Close: "关闭",
   Link: "链接",
-  "Lets this bot organize, retune and schedule the bots it creates. You approve each change.":
-    "允许此机器人整理、调整和安排它创建的机器人。每项更改都由你批准。",
   "Too many attempts. Try again in a few minutes.": "尝试次数过多。请过几分钟再试。",
   "The server had a problem. Try again in a moment.": "服务器出现问题。请稍后重试。",
   "Password sign-in is turned off on this server": "此服务器已关闭密码登录",
@@ -304,6 +307,7 @@ export const ZH_MESSAGES: Record<string, string> = {
   "Could not play a sample": "无法播放示例",
   "Could not play that clip.": "无法播放该音频。",
   "Could not reach the server": "无法连接服务器",
+  "Request timed out": "请求超时",
   "Enter a password": "请输入密码",
   "Enter a valid email": "请输入有效的邮箱地址",
   "Something went wrong. Try again.": "出了点问题，请重试。",
@@ -599,6 +603,7 @@ export const ZH_MESSAGES: Record<string, string> = {
   "Try again.": "请重试。",
   "Treg token": "Treg 令牌",
   "Type your answer": "输入你的回答",
+  Pinned: "置顶",
   Unassigned: "未分组",
   Unpin: "取消置顶",
   unread: "未读",
@@ -644,7 +649,6 @@ export const ZH_MESSAGES: Record<string, string> = {
   archived: "已归档",
   Attachment: "附件",
   "Bearer authentication": "Bearer 认证",
-  "Booting {label}": "正在启动 {label}",
   bot: "Bot",
   "{from} messaged {to}": "{from} 已向 {to} 发消息",
   "Bring your own key. ElevenLabs, OpenAI, Cartesia, and Fish Audio all plug into the same speak buttons.":
@@ -863,7 +867,6 @@ export const ZH_MESSAGES: Record<string, string> = {
   "Remove photo": "移除照片",
   Shape: "形状",
   "Shape {number}": "形状 {number}",
-  "Fleet management": "集群管理",
   "Try again": "重试",
   "Your session expired": "会话已过期",
   "The server had a problem": "服务器出现问题",
@@ -897,4 +900,7 @@ export const ZH_MESSAGES: Record<string, string> = {
   "Add passkey": "添加通行密钥",
   Rename: "重命名",
   "Add a passkey for faster sign-in?": "添加通行密钥以便更快登录？",
+  "Couldn't start the computer": "无法启动电脑",
+  "Something went wrong while it was starting. Try again in a moment.":
+    "启动时出了点问题。请稍后重试。",
 };
