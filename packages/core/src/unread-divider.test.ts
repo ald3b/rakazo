@@ -1,0 +1,80 @@
+import { describe, expect, it } from "vitest";
+import {
+  settleReadBoundary,
+  unreadDividerMessageId,
+  voiceChatHoldsMessage,
+} from "./unread-divider.js";
+import { groupVoiceChats } from "./voice-chat-groups.js";
+
+const thread = [
+  { id: "m0", role: "bot", seq: 0 },
+  { id: "m1", role: "user", seq: 1 },
+  { id: "m2", role: "user", seq: 2 },
+  { id: "m3", role: "bot", seq: 3 },
+  { id: "m4", role: "bot", seq: 4 },
+];
+
+describe("unreadDividerMessageId", () => {
+  it("sits above the first bot message after the read cursor, skipping the user's own", () => {
+    expect(unreadDividerMessageId(thread, 0, null)).toBe("m3");
+    expect(unreadDividerMessageId(thread, 3, null)).toBe("m4");
+  });
+
+  it("shows nothing when nothing was unread or only the user wrote since", () => {
+    expect(unreadDividerMessageId(thread, null, null)).toBeNull();
+    expect(unreadDividerMessageId(thread, 4, null)).toBeNull();
+    expect(unreadDividerMessageId(thread.slice(0, 3), 0, null)).toBeNull();
+  });
+
+  it("marks a chat never read from its first bot message", () => {
+    expect(unreadDividerMessageId(thread, -1, null)).toBe("m0");
+  });
+
+  it("ignores rows without a seq, such as live progress", () => {
+    expect(unreadDividerMessageId([{ id: "progress:run", role: "bot" }, ...thread], 2, null)).toBe(
+      "m3",
+    );
+  });
+
+  it("waits while an unloaded older page could hold the first unread message", () => {
+    const latestPage = thread.slice(3);
+    expect(unreadDividerMessageId(latestPage, 0, 3)).toBeNull();
+    expect(unreadDividerMessageId(latestPage, 2, 3)).toBe("m3");
+    expect(unreadDividerMessageId(latestPage, 0, null)).toBe("m3");
+  });
+
+  it("doesn't wait when the loaded page starts with a hidden message right after the cursor", () => {
+    // The page starts at seq 50, a hidden tool message; only the reply at 51 is visible.
+    expect(unreadDividerMessageId([{ id: "m51", role: "bot", seq: 51 }], 49, 50)).toBe("m51");
+  });
+});
+
+describe("voiceChatHoldsMessage", () => {
+  it("finds the first unread reply inside a voice card that starts with the user's turn", () => {
+    const messages = [
+      { id: "m1", role: "user", seq: 1, callId: "call-1", runId: "run-1", blocks: [] },
+      { id: "m2", role: "bot", seq: 2, runId: "run-1", blocks: [] },
+    ];
+    const [card] = groupVoiceChats(messages);
+    const dividerId = unreadDividerMessageId(messages, 1, null);
+    expect(card?.kind).toBe("voiceChat");
+    expect(card?.kind === "voiceChat" && card.messages[0]?.id === dividerId).toBe(false);
+    expect(card?.kind === "voiceChat" && voiceChatHoldsMessage(card, dividerId)).toBe(true);
+    expect(card?.kind === "voiceChat" && voiceChatHoldsMessage(card, null)).toBe(false);
+  });
+});
+
+describe("settleReadBoundary", () => {
+  it("keeps the first answer of the open visit", () => {
+    const first = settleReadBoundary(null, 1, { visit: 1, seq: 3 });
+    expect(first).toEqual({ visit: 1, seq: 3 });
+    expect(settleReadBoundary(first, 1, { visit: 1, seq: null })).toBe(first);
+  });
+
+  it("drops a late answer from a chat the user has left", () => {
+    // Open A (visit 1), switch to B (visit 2), B answers, then A's slow answer arrives.
+    const b = settleReadBoundary(null, 2, { visit: 2, seq: 7 });
+    expect(settleReadBoundary(b, 2, { visit: 1, seq: 3 })).toEqual({ visit: 2, seq: 7 });
+    expect(settleReadBoundary(null, 2, { visit: 1, seq: 3 })).toBeNull();
+  });
+});
