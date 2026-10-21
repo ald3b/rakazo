@@ -7,7 +7,12 @@ import path from "node:path";
 import tls from "node:tls";
 import { lingui } from "@lingui/vite-plugin";
 import type { DesktopStackProbeResponse } from "@rakazo/contracts";
-import { contentSecurityPolicyFor } from "@rakazo/contracts/content-security-policy";
+import {
+  appContentSecurityPolicy,
+  CSP_REPORTING_ENDPOINTS,
+  contentSecurityPolicyFor,
+  parseContentSecuritySources,
+} from "@rakazo/contracts/content-security-policy";
 import {
   safeScreenProxyResponseHeaders,
   stripSensitiveHandshakeHeaders,
@@ -20,7 +25,14 @@ import { defineConfig, loadEnv } from "vite";
 import { resolveScreenProxySecret } from "../../packages/core/src/secrets-guard.ts";
 import { createServiceLogger } from "../../packages/logging/src/env.ts";
 import { appendForwardedFor } from "./src/forwarded-for.js";
-import { collectNovncHtml, MAX_NOVNC_HTML_BYTES } from "./src/novnc-html.js";
+import { missingAssetMiddleware } from "./src/missing-asset.js";
+import {
+  collectNovncHtml,
+  injectNovncStorageShim,
+  isNovncPage,
+  MAX_NOVNC_HTML_BYTES,
+  shouldInjectNovncStorageShim,
+} from "./src/novnc-html.js";
 import {
   resolveNovncTarget,
   safeProxyHeaders,
@@ -100,7 +112,8 @@ function attachNovncProxy(server: ViteDevServer | PreviewServer, secret: string,
     }
     const headers = {
       ...safeProxyHeaders(req.headers),
-      ...(isCreateOSNovncHost(target.hostname) ? { "accept-encoding": "identity" } : {}),
+      // The storage shim rewrites the page, so ask for it uncompressed.
+      ...(isNovncPage(target.path) ? { "accept-encoding": "identity" } : {}),
       host: `${target.hostname}:${target.port}`,
     };
     const transport = target.protocol === "https:" ? https : http;
@@ -168,7 +181,7 @@ function attachNovncProxy(server: ViteDevServer | PreviewServer, secret: string,
             });
           }
           const responseHeaders = safeScreenProxyResponseHeaders(incoming.headers);
-          if (shouldInjectNovncStorageShim(responseHeaders, target.hostname)) {
+          if (shouldInjectNovncStorageShim(responseHeaders, target.path)) {
             const declaredLength = Number(incoming.headers["content-length"] ?? 0);
             if (Number.isFinite(declaredLength) && declaredLength > MAX_NOVNC_HTML_BYTES) {
               finishUnavailable("html_too_large");
@@ -369,36 +382,6 @@ function attachNovncProxy(server: ViteDevServer | PreviewServer, secret: string,
   });
 }
 
-const NOVNC_STORAGE_SHIM_HOSTS = [".app.sb.createos.sh"];
-
-function isCreateOSNovncHost(hostname: string) {
-  return NOVNC_STORAGE_SHIM_HOSTS.some((suffix) => hostname.endsWith(suffix));
-}
-
-function shouldInjectNovncStorageShim(headers: http.IncomingHttpHeaders, hostname: string) {
-  if (!isCreateOSNovncHost(hostname)) return false;
-  if (headers["content-encoding"]) return false;
-  const contentType = String(headers["content-type"] ?? "").toLowerCase();
-  return contentType.includes("text/html") || contentType.includes("application/xhtml+xml");
-}
-
-function injectNovncStorageShim(html: string) {
-  const shim = `<script>
-Object.defineProperty(window, "localStorage", {
-  configurable: true,
-  value: {
-    getItem() { return null; },
-    setItem() {},
-    removeItem() {},
-    clear() {},
-  },
-});
-</script>`;
-  return html.includes("<head>")
-    ? html.replace("<head>", `<head>${shim}`)
-    : html.replace(/<script\b/i, `${shim}<script`);
-}
-
 export default defineConfig(({ mode }) => {
   const rootEnv = loadEnv(mode, path.resolve(import.meta.dirname, "../.."), "");
   const api = process.env.API_PROXY_TARGET ?? rootEnv.API_PROXY_TARGET ?? "http://127.0.0.1:3100";
@@ -444,6 +427,17 @@ export default defineConfig(({ mode }) => {
   const desktopStackToken =
     process.env.RAKAZO_DESKTOP_STACK_TOKEN ?? rootEnv.RAKAZO_DESKTOP_STACK_TOKEN ?? "";
   const imageTag = process.env.RAKAZO_IMAGE_TAG ?? rootEnv.RAKAZO_IMAGE_TAG ?? "edge";
+  // Invalid origins throw here, so the server refuses to start rather than serve a wider policy.
+  const appPolicy = appContentSecurityPolicy({
+    scriptSrc: parseContentSecuritySources(
+      "RAKAZO_CSP_SCRIPT_SRC",
+      process.env.RAKAZO_CSP_SCRIPT_SRC ?? rootEnv.RAKAZO_CSP_SCRIPT_SRC,
+    ),
+    connectSrc: parseContentSecuritySources(
+      "RAKAZO_CSP_CONNECT_SRC",
+      process.env.RAKAZO_CSP_CONNECT_SRC ?? rootEnv.RAKAZO_CSP_CONNECT_SRC,
+    ),
+  });
   return {
     plugins: [
       react(),
@@ -455,10 +449,24 @@ export default defineConfig(({ mode }) => {
         name: "rakazo-content-security-policy",
         configurePreviewServer(server) {
           server.middlewares.use((req, res, next) => {
-            const policy = contentSecurityPolicyFor(req.url?.split("?", 1)[0] ?? "/");
-            if (policy) res.setHeader("content-security-policy", policy);
+            const policy = contentSecurityPolicyFor(req.url?.split("?", 1)[0] ?? "/", appPolicy);
+            if (policy) {
+              res.setHeader("content-security-policy", policy);
+              res.setHeader("reporting-endpoints", CSP_REPORTING_ENDPOINTS);
+            }
             next();
           });
+        },
+      },
+      {
+        name: "rakazo-missing-asset-404",
+        configurePreviewServer({ config, middlewares }) {
+          middlewares.use(
+            missingAssetMiddleware(
+              path.resolve(config.root, config.build.outDir, config.build.assetsDir),
+              `${config.base}${config.build.assetsDir}/`,
+            ),
+          );
         },
       },
       {

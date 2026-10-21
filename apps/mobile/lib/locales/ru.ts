@@ -1,4 +1,9 @@
 export const RU_MESSAGES: Record<string, string> = {
+  "About {label}": "О настройке «{label}»",
+  "Manage the bots it creates": "Управлять созданными им ботами",
+  "Organize the sidebar and edit bots. Instruction, model, routine and group edits need approval.":
+    "Упорядочивайте боковую панель и редактируйте ботов. Изменения групп, инструкций, моделей и процедур требуют вашего одобрения.",
+
   Resets: "Сброс",
   Limit: "Лимит",
   "Provider message": "Сообщение провайдера",
@@ -22,8 +27,6 @@ export const RU_MESSAGES: Record<string, string> = {
   "{name} asked": "{name} спрашивает",
   Close: "Закрыть",
   Link: "Ссылка",
-  "Lets this bot organize, retune and schedule the bots it creates. You approve each change.":
-    "Позволяет этому боту организовывать, настраивать и планировать работу созданных им ботов. Вы одобряете каждое изменение.",
   "Too many attempts. Try again in a few minutes.":
     "Слишком много попыток. Попробуйте снова через несколько минут.",
   "The server had a problem. Try again in a moment.":
@@ -327,6 +330,7 @@ export const RU_MESSAGES: Record<string, string> = {
   "Could not play a sample": "Не удалось воспроизвести сэмпл",
   "Could not play that clip.": "Не удалось воспроизвести этот клип.",
   "Could not reach the server": "Не удалось связаться с сервером",
+  "Request timed out": "Время ожидания запроса истекло",
   "Enter a password": "Введите пароль",
   "Enter a valid email": "Введите корректный адрес электронной почты",
   "Something went wrong. Try again.": "Что-то пошло не так. Попробуйте ещё раз.",
@@ -626,6 +630,7 @@ export const RU_MESSAGES: Record<string, string> = {
   "Try again.": "Попробуйте еще раз.",
   "Treg token": "Токен Treg",
   "Type your answer": "Введите ответ",
+  Pinned: "Закреплённые",
   Unassigned: "Без раздела",
   Unpin: "Открепить",
   unread: "непрочитано",
@@ -674,7 +679,6 @@ export const RU_MESSAGES: Record<string, string> = {
   archived: "в архиве",
   Attachment: "Вложение",
   "Bearer authentication": "Аутентификация Bearer",
-  "Booting {label}": "Загрузка {label}",
   bot: "бот",
   "{from} messaged {to}": "{from} отправил сообщение {to}",
   "Bring your own key. ElevenLabs, OpenAI, and Cartesia all plug into the same speak buttons.":
@@ -896,7 +900,6 @@ export const RU_MESSAGES: Record<string, string> = {
   "Remove photo": "Удалить фото",
   Shape: "Форма",
   "Shape {number}": "Форма {number}",
-  "Fleet management": "Управление флотом",
   "Try again": "Повторить",
   "Your session expired": "Сеанс истёк",
   "The server had a problem": "На сервере произошла ошибка",
@@ -930,4 +933,7 @@ export const RU_MESSAGES: Record<string, string> = {
   "Add passkey": "Добавить ключ доступа",
   Rename: "Переименовать",
   "Add a passkey for faster sign-in?": "Добавить ключ доступа для быстрого входа?",
+  "Couldn't start the computer": "Не удалось запустить компьютер",
+  "Something went wrong while it was starting. Try again in a moment.":
+    "При запуске что-то пошло не так. Попробуйте ещё раз чуть позже.",
 };
