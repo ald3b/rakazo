@@ -186,6 +186,7 @@ import { emptyActivityFilters } from "../lib/activity-list-filters";
 import { readActivityMode, writeActivityMode } from "../lib/activity-mode";
 import type { ArtifactTarget } from "../lib/artifact-open";
 import { authClient } from "../lib/auth";
+import { autoReadStillWanted } from "../lib/auto-read";
 import {
   discardPrimedBootstrap,
   primeSpaceBootstrap,
@@ -1017,13 +1018,7 @@ function SpaceShell() {
       if (manuallyUnread.current.has(id)) return;
       if (document.visibilityState === "visible" && document.hasFocus()) {
         const visit = readVisit.current.visit;
-        void markBotRead(
-          id,
-          () =>
-            readVisit.current.visit === visit &&
-            document.visibilityState === "visible" &&
-            document.hasFocus(),
-        )
+        void markBotRead(id, () => autoReadStillWanted(readVisit.current.visit, visit))
           .then((seq) => {
             if (seq !== undefined) captureReadBoundary(visit, seq);
           })
@@ -1631,7 +1626,7 @@ function SpaceShell() {
       readVisibleGroups.current.add(groupId);
       const visit = readVisit.current.visit;
       void readInOrder(`group:${groupId}`, () =>
-        readVisit.current.visit === visit && document.visibilityState === "visible"
+        autoReadStillWanted(readVisit.current.visit, visit)
           ? rpc.threads.markRead({ groupId })
           : Promise.resolve(null),
       )
