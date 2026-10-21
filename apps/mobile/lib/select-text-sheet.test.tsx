@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { act } from "react";
 import type { Root } from "react-dom/client";
 import { createRoot } from "react-dom/client";
@@ -26,14 +26,17 @@ vi.mock("react-native", () => {
       editable,
       multiline,
       scrollEnabled,
+      style,
     }: {
       value: string;
       editable?: boolean;
       multiline?: boolean;
       scrollEnabled?: boolean;
+      style?: CSSProperties[];
     }) => (
       <textarea
         value={value}
+        style={Object.assign({}, ...(style ?? []))}
         readOnly={editable === false}
         data-multiline={multiline}
         data-scroll-enabled={scrollEnabled}
@@ -89,6 +92,14 @@ it("shows the whole message in a read-only text view on iOS so any range can be 
   expect(view?.readOnly).toBe(true);
   expect(view?.dataset.multiline).toBe("true");
   expect(container.querySelector("span")).toBeNull();
+});
+
+it("removes the iOS text view's default vertical padding", () => {
+  render(message);
+
+  const view = container.querySelector("textarea");
+  expect(view?.style.paddingTop).toBe("0px");
+  expect(view?.style.paddingBottom).toBe("0px");
 });
 
 it("scrolls the sheet rather than the text view, so it opens at the start of the message", () => {

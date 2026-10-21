@@ -46,7 +46,7 @@ export function SelectTextSheet({ text, onClose }: { text: string | null; onClos
               editable={false}
               multiline
               scrollEnabled={false}
-              style={styles.text}
+              style={[styles.text, styles.iosTextInput]}
             />
           ) : (
             <Text selectable style={styles.text}>
@@ -66,5 +66,6 @@ function createStyles() {
     header: { flexDirection: "row", justifyContent: "flex-end", padding: 16 },
     content: { paddingHorizontal: 20, paddingBottom: 40 },
     text: { color: tokens.foreground, fontSize: 16, lineHeight: 24 },
+    iosTextInput: { paddingTop: 0, paddingBottom: 0 },
   });
 }
