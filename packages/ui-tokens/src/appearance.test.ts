@@ -122,6 +122,30 @@ function contrastRatio(a: string, b: string): number {
   return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
 }
 
+describe("light palette readability", () => {
+  it.each(["background", "card", "muted"] as const)(
+    "keeps faint text readable and lighter than secondary text on %s",
+    (surface) => {
+      const faint = contrastRatio(lightTokens.faintForeground, lightTokens[surface]);
+      const secondary = contrastRatio(lightTokens.mutedForeground, lightTokens[surface]);
+      expect(faint).toBeGreaterThanOrEqual(3);
+      expect(secondary - faint).toBeGreaterThanOrEqual(1);
+    },
+  );
+
+  it("separates grouped cells at least as much as the iOS grouped palette", () => {
+    expect(contrastRatio(lightTokens.card, lightTokens.background)).toBeGreaterThanOrEqual(
+      contrastRatio("#FFFFFF", "#F2F2F7"),
+    );
+  });
+
+  it("keeps enabled password actions readable", () => {
+    expect(
+      contrastRatio(lightTokens.primaryForeground, lightTokens.primary),
+    ).toBeGreaterThanOrEqual(4.5);
+  });
+});
+
 describe("dark palette readability", () => {
   // The destructive fill follows the system palette; ordinary body text meets AA.
   it.each(["background", "card", "muted"] as const)(

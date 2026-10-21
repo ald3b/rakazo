@@ -51,7 +51,7 @@
   --background: #fcfcfc;
   --dialog: #ffffff;
   --foreground: #000000;
-  --card: #f2f2f1;
+  --card: #efefef;
   --card-foreground: #000000;
   --popover: #ffffff;
   --popover-foreground: #000000;
@@ -64,8 +64,8 @@
   --chat-user: #0b0b0b;
   --chat-user-foreground: #ffffff;
   --muted: #f2f2f1;
-  --muted-foreground: #3c3c4399;
-  --faint-foreground: #3c3c434d;
+  --muted-foreground: #3c3c43b3;
+  --faint-foreground: #3c3c4394;
   --accent: #78788029;
   --accent-foreground: #000000;
   --destructive: #ce2c31;

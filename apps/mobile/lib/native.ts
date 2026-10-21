@@ -41,11 +41,11 @@ export const native = {
     return systemColor("label", mobileTokens().foreground);
   },
   get secondaryLabel() {
+    if (resolveMobileAppearance() === "light") return mobileTokens().mutedForeground;
     return systemColor("secondaryLabel", mobileTokens().mutedForeground);
   },
   get tertiaryLabel() {
-    if (resolveMobileAppearance() === "dark") return mobileTokens().faintForeground;
-    return systemColor("tertiaryLabel", mobileTokens().faintForeground);
+    return mobileTokens().faintForeground;
   },
   // Grouped colours always come from the tokens: settings sit on the page colour with
   // grey cells in both themes, and in dark iOS lifts the system ones inside sheets and with
