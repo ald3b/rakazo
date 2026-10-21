@@ -588,7 +588,7 @@ describe("web markdown code copy", () => {
 
   it("gives an empty fence no copy button, as on mobile", () => {
     const html = renderToStaticMarkup(
-      <ChatMarkdown>{"```ts\n```\n\n```\n\n```\n\n    indented"}</ChatMarkdown>,
+      <ChatMarkdown>{"```ts\n```\n\n```\n\n\n```\n\n    indented"}</ChatMarkdown>,
     );
     expect(html.match(/<pre/g)).toHaveLength(3);
     expect(html.match(/aria-label="Copy code"/g)).toHaveLength(1);

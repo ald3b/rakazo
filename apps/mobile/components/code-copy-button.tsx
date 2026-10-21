@@ -42,12 +42,13 @@ export function CodeCopyButton({ code }: { code: string }) {
   );
 }
 
-// Square, so its icon centres on the first line of code beside it.
+// Match the code's horizontal padding while centring on its first line.
 const styles = StyleSheet.create({
   button: {
     width: 40,
     height: 40,
-    alignItems: "center",
+    alignItems: "flex-end",
+    paddingRight: 10,
     justifyContent: "center",
   },
 });

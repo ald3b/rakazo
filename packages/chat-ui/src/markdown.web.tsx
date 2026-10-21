@@ -157,7 +157,7 @@ function MarkdownPre({
   const streamingSource = useContext(StreamingSourceContext);
   const diagram = mermaidFenceSource(node);
   // An empty fence has nothing to copy.
-  const codeBlock = <CodeBlock {...props} copyable={codeText(codeElement(node)) !== ""} />;
+  const codeBlock = <CodeBlock {...props} copyable={/\S/.test(codeText(codeElement(node)))} />;
   if (diagram === undefined) return codeBlock;
   // Parser offsets identify the fence inside quotes and lists too. Inspect the original source,
   // since a display-only closing fence must never trigger a diagram render.

@@ -584,6 +584,9 @@ describe("native markdown code copy", () => {
   });
 
   it("gives inline code and an empty fence no button", () => {
+    const blankFence = "```ts\n\n\n```";
+    expect(renderWithCopy(blankFence).querySelector("copy-probe")).toBeNull();
+    expect(markdownCodeBlocks(blankFence)).toEqual([]);
     expect(renderWithCopy("Run `npm test` first.").querySelector("copy-probe")).toBeNull();
     expect(renderWithCopy("```ts\n```").querySelector("copy-probe")).toBeNull();
   });

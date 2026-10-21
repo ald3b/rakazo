@@ -82,7 +82,7 @@ export function markdownCodeBlocks(markdown: string): string[] {
   return tokens
     .filter((token) => token.type === "fence" || token.type === "code_block")
     .map((token) => token.content.replace(/\n$/, ""))
-    .filter((code) => code !== "");
+    .filter((code) => /\S/.test(code));
 }
 
 // Hebrew, Arabic and the other right-to-left scripts, with their presentation forms.
@@ -729,7 +729,7 @@ export const CodeCopyButtonContext = createContext<ComponentType<{ code: string 
 function CodeScrollView({ code, children }: { code: string; children?: ReactNode }) {
   const CopyButton = useContext(CodeCopyButtonContext);
   const scrollView = <SidewaysScrollView>{children}</SidewaysScrollView>;
-  if (!CopyButton || !code) return scrollView;
+  if (!CopyButton || !/\S/.test(code)) return scrollView;
   return (
     <View style={layout.codeRow}>
       {scrollView}

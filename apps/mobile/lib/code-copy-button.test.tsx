@@ -12,16 +12,23 @@ vi.mock("react-native", () => ({
     accessibilityRole,
     accessibilityLabel,
     onPress,
+    style,
     children,
   }: {
     accessibilityRole?: string;
     accessibilityLabel?: string;
     onPress?: () => void;
+    style: (state: { pressed: boolean }) => unknown;
     children?: ReactNode;
   }) =>
     createElement(
       "rn-pressable",
-      { role: accessibilityRole, "aria-label": accessibilityLabel, onClick: onPress },
+      {
+        role: accessibilityRole,
+        "aria-label": accessibilityLabel,
+        onClick: onPress,
+        "data-style": JSON.stringify(Object.assign({}, ...(style({ pressed: false }) as object[]))),
+      },
       children,
     ),
   StyleSheet: { create: (styles: unknown) => styles },
@@ -97,5 +104,17 @@ it("stays a copy button when the clipboard refuses", async () => {
   });
   expect(view.button()?.getAttribute("aria-label")).toBe("Copy code");
   expect(view.symbol()?.getAttribute("data-ios")).toBe("doc.on.doc");
+  await view.unmount();
+});
+
+it("aligns the icon with the code padding inside a 40pt hit target", async () => {
+  const view = await renderButton("npm test");
+  expect(JSON.parse(view.button()?.getAttribute("data-style") ?? "{}")).toMatchObject({
+    width: 40,
+    height: 40,
+    alignItems: "flex-end",
+    paddingRight: 10,
+    justifyContent: "center",
+  });
   await view.unmount();
 });
