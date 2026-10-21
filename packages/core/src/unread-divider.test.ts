@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  createChatQueues,
   createSerialQueue,
   settleReadBoundary,
   unreadDividerMessageId,
@@ -109,5 +110,23 @@ describe("createSerialQueue", () => {
     const inOrder = createSerialQueue(20);
     void inOrder(() => new Promise<never>(() => undefined));
     await expect(inOrder(async () => "next")).resolves.toBe("next");
+  });
+});
+
+describe("createChatQueues", () => {
+  it("keeps one chat's reads in order without holding up another chat", async () => {
+    const inOrder = createChatQueues();
+    const answered: string[] = [];
+    let releaseA!: () => void;
+    const openingA = inOrder(
+      "bot:a",
+      () => new Promise<string>((resolve) => (releaseA = () => resolve("a1"))),
+    ).then((value) => answered.push(value));
+    const liveA = inOrder("bot:a", async () => "a2").then((value) => answered.push(value));
+    await inOrder("bot:b", async () => "b1").then((value) => answered.push(value));
+    expect(answered).toEqual(["b1"]);
+    releaseA();
+    await Promise.all([openingA, liveA]);
+    expect(answered).toEqual(["b1", "a1", "a2"]);
   });
 });

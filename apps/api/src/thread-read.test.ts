@@ -82,9 +82,9 @@ describe("markThreadRead", () => {
         return { count: 1 };
       },
     );
-    const executeRaw = vi.fn(async () => 1);
+    const queryRaw = vi.fn(async () => [{ id: "thread-1" }]);
     const tx = {
-      $executeRaw: executeRaw,
+      $queryRaw: queryRaw,
       thread: {
         findFirst,
         updateMany: vi.fn(async ({ data }: { data: Partial<Row> }) => {
@@ -100,7 +100,7 @@ describe("markThreadRead", () => {
 
     await expect(markThreadRead(prisma, actor, target)).resolves.toBe(3);
     expect(updateMany).toHaveBeenCalledTimes(3);
-    expect(executeRaw).toHaveBeenCalledOnce();
+    expect(queryRaw).toHaveBeenCalledOnce();
     expect(row).toEqual({ unread: false, lastReadSeq: 9, nextMessageSeq: 10 });
   });
 

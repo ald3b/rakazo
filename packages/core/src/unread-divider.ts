@@ -52,6 +52,24 @@ export function createSerialQueue(maxWaitMs = 10_000): <T>(task: () => Promise<T
   };
 }
 
+/**
+ * One serial queue per chat: reads stay in order within a chat, and a slow read in one chat
+ * never holds up another's.
+ */
+export function createChatQueues(
+  maxWaitMs = 10_000,
+): <T>(chat: string, task: () => Promise<T>) => Promise<T> {
+  const queues = new Map<string, ReturnType<typeof createSerialQueue>>();
+  return (chat, task) => {
+    let queue = queues.get(chat);
+    if (!queue) {
+      queue = createSerialQueue(maxWaitMs);
+      queues.set(chat, queue);
+    }
+    return queue(task);
+  };
+}
+
 function waitAtMost(previous: Promise<void>, ms: number): Promise<void> {
   return new Promise((resolve) => {
     const timer = setTimeout(resolve, ms);

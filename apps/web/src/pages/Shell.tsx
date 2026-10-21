@@ -39,7 +39,7 @@ import {
   attachmentsForThread,
   buildComposerMentionOptions,
   clampMentionHighlightIndex,
-  createSerialQueue,
+  createChatQueues,
   cronFromPreset,
   dismissableAskMessageIds,
   expandPeerReplies,
@@ -921,8 +921,8 @@ function SpaceShell() {
   // follows it for the rest of the visit. Each open of a chat is a new visit.
   const readVisit = useRef<{ chat: string | null; visit: number }>({ chat: null, visit: 0 });
   const [readBoundary, setReadBoundary] = useState<ReadBoundary | null>(null);
-  // markRead calls run one at a time so the request that opened a chat answers first.
-  const [readInOrder] = useState(createSerialQueue);
+  // A chat's markRead calls run one at a time so the request that opened it answers first.
+  const [readInOrder] = useState(createChatQueues);
   const captureReadBoundary = useCallback((visit: number, seq: number | null) => {
     setReadBoundary((current) =>
       settleReadBoundary(current, readVisit.current.visit, { visit, seq }),
@@ -983,9 +983,14 @@ function SpaceShell() {
       );
     });
   }, []);
+  // `stillWanted` lets an automatic read that waited in the queue skip once the user has left.
   const markBotRead = useCallback(
-    async (id: string) => {
-      const { unreadAfterSeq } = await readInOrder(() => rpc.threads.markRead({ botId: id }));
+    async (id: string, stillWanted: () => boolean = () => true) => {
+      const answer = await readInOrder(`bot:${id}`, () =>
+        stillWanted() ? rpc.threads.markRead({ botId: id }) : Promise.resolve(null),
+      );
+      if (!answer) return undefined;
+      const { unreadAfterSeq } = answer;
       manuallyUnread.current.delete(id);
       updateBotUnread(id, false);
       return unreadAfterSeq;
@@ -1012,8 +1017,16 @@ function SpaceShell() {
       if (manuallyUnread.current.has(id)) return;
       if (document.visibilityState === "visible" && document.hasFocus()) {
         const visit = readVisit.current.visit;
-        void markBotRead(id)
-          .then((seq) => captureReadBoundary(visit, seq))
+        void markBotRead(
+          id,
+          () =>
+            readVisit.current.visit === visit &&
+            document.visibilityState === "visible" &&
+            document.hasFocus(),
+        )
+          .then((seq) => {
+            if (seq !== undefined) captureReadBoundary(visit, seq);
+          })
           .catch(() => undefined);
       }
     },
@@ -1617,9 +1630,17 @@ function SpaceShell() {
         return;
       readVisibleGroups.current.add(groupId);
       const visit = readVisit.current.visit;
-      void readInOrder(() => rpc.threads.markRead({ groupId }))
-        .then(({ unreadAfterSeq }) => {
-          captureReadBoundary(visit, unreadAfterSeq);
+      void readInOrder(`group:${groupId}`, () =>
+        readVisit.current.visit === visit && document.visibilityState === "visible"
+          ? rpc.threads.markRead({ groupId })
+          : Promise.resolve(null),
+      )
+        .then((answer) => {
+          if (!answer) {
+            readVisibleGroups.current.delete(groupId);
+            return;
+          }
+          captureReadBoundary(visit, answer.unreadAfterSeq);
           setGroups((current) => {
             const group = current.find((candidate) => candidate.id === groupId);
             if (!group?.unread) return current;

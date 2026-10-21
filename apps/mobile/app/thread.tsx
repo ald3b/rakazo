@@ -22,7 +22,7 @@ import {
   attachmentsForThread,
   buildComposerMentionOptions,
   cloudAgentHttpsUrl,
-  createSerialQueue,
+  createChatQueues,
   dismissableAskMessageIds,
   expandPeerReplies,
   foldPeerReplies,
@@ -537,8 +537,8 @@ function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId: string
     visit: 0,
   });
   const [readBoundary, setReadBoundary] = useState<ReadBoundary | null>(null);
-  // markRead calls run one at a time so the request that opened the chat answers first.
-  const [readInOrder] = useState(createSerialQueue);
+  // A chat's markRead calls run one at a time so the request that opened it answers first.
+  const [readInOrder] = useState(createChatQueues);
   const autoSpoken = useRef<string | null>(null);
   const autoSpokenBotId = useRef<string | null>(null);
   const threadKey = groupId ?? botId;
@@ -1415,20 +1415,29 @@ function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId: string
     if (activeThreadId.current) {
       void dismissThreadNotifications({ threadId: activeThreadId.current }).catch(() => undefined);
     }
-    void readInOrder(() =>
-      rpc<{ unreadAfterSeq?: number | null }>(
-        "threads/markRead",
-        groupId ? { groupId } : { botId: botId! },
-      ),
+    // A read that waited in the queue skips once the user has left the chat.
+    void readInOrder(target, () =>
+      readVisit.current.visit === visit &&
+      AppState.currentState === "active" &&
+      navigation.isFocused()
+        ? rpc<{ unreadAfterSeq?: number | null }>(
+            "threads/markRead",
+            groupId ? { groupId } : { botId: botId! },
+          )
+        : Promise.resolve(null),
     )
-      .then(({ unreadAfterSeq }) =>
+      .then((answer) => {
+        if (!answer) {
+          if (readVisibleTarget.current === target) readVisibleTarget.current = null;
+          return;
+        }
         setReadBoundary((current) =>
           settleReadBoundary(current, readVisit.current.visit, {
             visit,
-            seq: unreadAfterSeq ?? null,
+            seq: answer.unreadAfterSeq ?? null,
           }),
-        ),
-      )
+        );
+      })
       .catch(() => {
         if (readVisibleTarget.current === target) readVisibleTarget.current = null;
       });
