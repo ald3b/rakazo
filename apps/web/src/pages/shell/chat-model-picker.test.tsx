@@ -123,13 +123,13 @@ describe("ChatModelPicker", () => {
     expect(document.body.textContent).toContain("No matching models");
   });
 
-  it("keeps the popup below the trigger without switching axes", () => {
+  it("lets the popup flip vertically without switching axes", () => {
     render(choices(11), "");
     act(() => container.querySelector<HTMLButtonElement>("button#model")!.click());
     expect(popoverProps.mock.lastCall?.[0]).toMatchObject({
       side: "bottom",
       align: "start",
-      collisionAvoidance: { side: "none", align: "shift", fallbackAxisSide: "none" },
+      collisionAvoidance: { side: "flip", align: "shift", fallbackAxisSide: "none" },
     });
   });
 });

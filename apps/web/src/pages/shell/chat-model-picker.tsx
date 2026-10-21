@@ -71,7 +71,7 @@ export function ChatModelPicker({
         <PopoverContent
           align="start"
           side="bottom"
-          collisionAvoidance={{ side: "none", align: "shift", fallbackAxisSide: "none" }}
+          collisionAvoidance={{ side: "flip", align: "shift", fallbackAxisSide: "none" }}
           className="w-(--anchor-width) max-h-(--available-height) gap-0 overflow-hidden bg-popover p-0 opacity-100 animate-none! backdrop-filter-none"
         >
           <Command
