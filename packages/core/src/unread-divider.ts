@@ -32,15 +32,34 @@ export function voiceChatHoldsMessage(
 /**
  * Runs tasks one at a time, in the order they were queued, whether or not earlier ones fail.
  * markRead calls go through one so their answers arrive in the order they were sent, which
- * lets the first answer of a visit stand for the request that opened it.
+ * lets the first answer of a visit stand for the request that opened it. A task that hangs
+ * holds the queue for at most `maxWaitMs`, so one stuck request can't stop later reads.
  */
-export function createSerialQueue(): <T>(task: () => Promise<T>) => Promise<T> {
-  let tail: Promise<unknown> = Promise.resolve();
+export function createSerialQueue(maxWaitMs = 10_000): <T>(task: () => Promise<T>) => Promise<T> {
+  // The last queued task, settled either way; null while the queue is idle.
+  let tail: Promise<void> | null = null;
   return (task) => {
-    const run = tail.then(task, task);
-    tail = run.catch(() => undefined);
+    const run = (tail ? waitAtMost(tail, maxWaitMs) : Promise.resolve()).then(task);
+    const settled = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    tail = settled;
+    void settled.then(() => {
+      if (tail === settled) tail = null;
+    });
     return run;
   };
+}
+
+function waitAtMost(previous: Promise<void>, ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    void previous.then(() => {
+      clearTimeout(timer);
+      resolve();
+    });
+  });
 }
 
 /** What the open chat's "New" divider follows: the first markRead answer of the visit. */

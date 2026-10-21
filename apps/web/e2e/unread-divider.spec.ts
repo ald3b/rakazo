@@ -21,7 +21,7 @@ test("a chat opens with a New divider above replies that arrived while away", as
   const otherId = await createNamedBot(page, "Elsewhere");
 
   // Chief answers while the user is in another chat.
-  const question = `Plan the week ${stamp}`;
+  const question = "Plan my week";
   await rpc(page, "threads/send", { botId: chiefId, text: question });
   await expect
     .poll(
@@ -51,6 +51,10 @@ test("a chat opens with a New divider above replies that arrived while away", as
   // It opens at the latest message, not at the divider.
   await expect(page.getByRole("button", { name: "Jump to latest" })).toHaveCount(0);
   await captureScreenshot(page, testInfo, "chat-unread-divider");
+  await page.emulateMedia({ colorScheme: "dark" });
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await captureScreenshot(page, testInfo, "chat-unread-divider-dark");
+  await page.emulateMedia({ colorScheme: "light" });
 
   // Once read, the next visit has no divider.
   await page.goto(`/app/${otherId}`);

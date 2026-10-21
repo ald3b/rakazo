@@ -104,4 +104,10 @@ describe("createSerialQueue", () => {
     await expect(failed).rejects.toThrow("offline");
     await expect(inOrder(async () => 4)).resolves.toBe(4);
   });
+
+  it("moves on when a task hangs past the wait cap", async () => {
+    const inOrder = createSerialQueue(20);
+    void inOrder(() => new Promise<never>(() => undefined));
+    await expect(inOrder(async () => "next")).resolves.toBe("next");
+  });
 });

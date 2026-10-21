@@ -1438,7 +1438,7 @@ export async function markThreadRead(
   }
   // New messages take the same row lock, so none can land between this read and write.
   return prisma.$transaction(async (tx) => {
-    await tx.$executeRaw`SELECT id FROM threads WHERE id = ${target.threadId} FOR UPDATE`;
+    await tx.$queryRaw`SELECT id FROM threads WHERE id = ${target.threadId} FOR UPDATE`;
     const thread = await tx.thread.findFirst({
       where,
       select: { unread: true, lastReadSeq: true, nextMessageSeq: true },
