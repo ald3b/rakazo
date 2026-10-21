@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import ArchivedBots from "../app/(settings)/archived-bots";
 import { ComputerMaintenanceActions } from "../components/computer-maintenance-actions";
 import type { MobileBot, MobileGroup } from "./api";
+import { onArchivedChatsChanged } from "./archived-chats";
 
 const { rpc, groupRpc, alert, push, closeSettingsSheet, navigation, focus } = vi.hoisted(() => ({
   rpc: vi.fn(),
@@ -313,6 +314,27 @@ describe("archived chat read failures", () => {
     expect(groupRpc).toHaveBeenLastCalledWith("groups/restore", { groupId: group.id });
     expect(container.textContent).not.toContain("Restore Crew");
     expect(container.textContent).toContain(bot.name);
+  });
+
+  it("updates the inbox's archived count after a restore or delete, not after a failure", async () => {
+    const changed = vi.fn();
+    const stop = onArchivedChatsChanged(changed);
+    groupRpc.mockResolvedValueOnce([group]);
+    await act(async () => {
+      focus.current!();
+    });
+    const button = (label: string) =>
+      [...container.querySelectorAll("button")].find((item) => item.textContent === label)!;
+    groupRpc.mockRejectedValueOnce(new Error("offline"));
+    await act(async () => button("Restore Crew").click());
+    expect(changed).not.toHaveBeenCalled();
+    groupRpc.mockResolvedValueOnce({ ok: true });
+    await act(async () => button("Restore Crew").click());
+    expect(changed).toHaveBeenCalledTimes(1);
+    rpc.mockResolvedValueOnce({ ok: true });
+    await act(async () => button("Restore").click());
+    expect(changed).toHaveBeenCalledTimes(2);
+    stop();
   });
 
   it("keeps a group whose restore fails and uses the native alert", async () => {

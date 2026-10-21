@@ -161,6 +161,7 @@ import {
 } from "../lib/api";
 import { useAppForeground } from "../lib/app-foreground";
 import { mobileTokens } from "../lib/appearance";
+import { notifyArchivedChatsChanged } from "../lib/archived-chats";
 import type { MobileArtifactTarget } from "../lib/artifact-open";
 import { openMobileArtifact } from "../lib/artifact-open";
 import { plainAskTitle } from "../lib/ask-title";
@@ -1031,6 +1032,7 @@ function Thread({ sessionEpoch }: { sessionEpoch: number }) {
     setRestoring(true);
     try {
       await restoreArchivedBot(botId);
+      notifyArchivedChatsChanged();
       router.setParams({ readOnly: "0" });
     } catch (cause) {
       Alert.alert(t("Could not restore bot"), errorText(cause, t("Try again.")));

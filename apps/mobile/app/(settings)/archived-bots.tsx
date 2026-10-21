@@ -5,7 +5,7 @@ import { ArchivedBotList } from "../../components/archived-bot-list";
 import { NativeActionButton } from "../../components/native-action-button";
 import type { MobileBot, MobileGroup } from "../../lib/api";
 import { rpc } from "../../lib/api";
-import { loadArchivedChats } from "../../lib/archived-chats";
+import { loadArchivedChats, notifyArchivedChatsChanged } from "../../lib/archived-chats";
 import { confirmDeleteBot, restoreArchivedBot } from "../../lib/bot-lifecycle";
 import { useFloatingHeaderInset } from "../../lib/floating-header";
 import { useI18n } from "../../lib/i18n";
@@ -59,6 +59,7 @@ export default function ArchivedBots() {
   // load still running (it may predate the change) is restarted rather than dropped, so the
   // other list isn't lost. After leaving, a later open visit reloads instead.
   function removed(generation: number, removeRow: () => void) {
+    notifyArchivedChatsChanged();
     if (generation !== focusGeneration.current) {
       if (focused.current) void loadChats();
       return;

@@ -28,3 +28,15 @@ export function archivedChatCounts(
     groups: loaded.groups?.length ?? previous.groups,
   };
 }
+
+const changeListeners = new Set<() => void>();
+
+/** Archiving, restoring or deleting an archived chat changes the inbox's archived count. */
+export function notifyArchivedChatsChanged() {
+  for (const listener of changeListeners) listener();
+}
+
+export function onArchivedChatsChanged(listener: () => void): () => void {
+  changeListeners.add(listener);
+  return () => changeListeners.delete(listener);
+}
