@@ -18,6 +18,14 @@ import {
 
 beforeEach(() => vi.clearAllMocks());
 
+// The handler is installed once per module; keep it across cleared mocks.
+let foreground: Parameters<typeof Notifications.setNotificationHandler>[0] | undefined;
+function foregroundHandler() {
+  configureForegroundNotifications();
+  foreground ??= vi.mocked(Notifications.setNotificationHandler).mock.calls[0]?.[0];
+  return foreground;
+}
+
 describe("notification thread targeting", () => {
   it("matches Expo and native notification keys for the open agent", () => {
     expect(notificationTargetsThread({ botId: "bot-1" }, { botId: "bot-1" })).toBe(true);
@@ -43,10 +51,40 @@ describe("notification thread targeting", () => {
     ).toBe(false);
   });
 
-  it("hides only foreground notifications for the open agent", async () => {
-    configureForegroundNotifications();
+  it("tells a bot's own chat apart from a group it posted in", () => {
+    const groupPush = { botId: "bot-1", threadId: "group-thread", groupId: "group-1" };
+    expect(notificationTargetsThread(groupPush, { botId: "bot-1" })).toBe(false);
+    expect(notificationTargetsThread(groupPush, { groupId: "group-1" })).toBe(true);
+    expect(notificationTargetsThread({ "rakazo.groupId": "group-1" }, { groupId: "group-1" })).toBe(
+      true,
+    );
+    expect(notificationTargetsThread({ botId: "bot-1" }, { groupId: "group-1" })).toBe(false);
+  });
+
+  it("keeps finished-work pushes silent while the app is open, for every chat", async () => {
     await setOpenNotificationThread({ botId: "bot-1" });
-    const handler = vi.mocked(Notifications.setNotificationHandler).mock.calls[0]?.[0];
+    const handler = foregroundHandler();
+    const silent = {
+      shouldShowBanner: false,
+      shouldShowList: false,
+      shouldPlaySound: false,
+      shouldSetBadge: false,
+    };
+    await expect(
+      handler?.handleNotification({
+        request: { content: { data: { kind: "completion", botId: "bot-2" } } },
+      } as never),
+    ).resolves.toEqual(silent);
+    await expect(
+      handler?.handleNotification({
+        request: { content: { data: { kind: "help", botId: "bot-2" } } },
+      } as never),
+    ).resolves.toMatchObject({ shouldShowBanner: true, shouldShowList: true });
+  });
+
+  it("hides only foreground notifications for the open agent", async () => {
+    await setOpenNotificationThread({ botId: "bot-1" });
+    const handler = foregroundHandler();
     expect(handler).toBeTruthy();
 
     await expect(

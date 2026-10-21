@@ -44,6 +44,7 @@ import {
   subscribeApiBase,
   subscribeSessionRejected,
 } from "../lib/api";
+import { syncAppBadge } from "../lib/app-badge";
 import { loadAppearancePreference, mobileTokens } from "../lib/appearance";
 import { replaceWithSignIn } from "../lib/auth-routing";
 import { loadAvatarStyle } from "../lib/avatar-style";
@@ -82,6 +83,7 @@ capTextScaling();
 configureForegroundNotifications();
 registerSessionDiskCache(clearSavedChats);
 installClientUpdates();
+registerSessionDiskCache(() => void syncAppBadge(0));
 // Keep the splash up until the saved appearance applies, so the first frame isn't in the OS scheme.
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 

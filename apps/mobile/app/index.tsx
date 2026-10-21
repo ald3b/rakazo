@@ -82,6 +82,7 @@ import {
   selectSpace,
   signOut,
 } from "../lib/api";
+import { forgetAppBadge, syncAppBadge, unreadChatCount } from "../lib/app-badge";
 import { mobileTokens, resolveMobileAppearance } from "../lib/appearance";
 import {
   archivedChatCounts,
@@ -118,7 +119,7 @@ import {
   inboxRowActionList,
   unreadOverrideKey,
 } from "../lib/inbox-swipe";
-import { afterChatNotifyChange } from "../lib/live-notifications";
+import { afterChatNotifyChange, dismissThreadNotifications } from "../lib/live-notifications";
 import { native, useThemedStyles } from "../lib/native";
 import { iosAtLeast } from "../lib/native-controls";
 import { offerPasskeyOnce } from "../lib/passkey";
@@ -551,6 +552,18 @@ function Home({ embedded, onSelectSpace }: InboxPaneProps & { embedded: boolean 
     const items: InboxItem[] = spaceInboxItems(sidebarSpaces, collapsed, me?.spaceId);
     return !SWIPE_ROWS && pinned.length > 0 ? [{ type: "pinned", chats: pinned }, ...items] : items;
   }, [inboxSpaces, collapsed, me?.spaceId, spaces, visible, visibleGroups, locale]);
+  const badgeCount = me ? unreadChatCount(inboxSpaces) : null;
+  useEffect(() => {
+    if (badgeCount === null) return;
+    void syncAppBadge(badgeCount);
+    // A push may have set the icon while the app was away, so coming back writes the count again.
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state !== "active") return;
+      forgetAppBadge();
+      void syncAppBadge(badgeCount);
+    });
+    return () => subscription.remove();
+  }, [badgeCount]);
   const initials = accountDisplay(me ?? {}, t("You")).initial ?? "?";
   const organizeSpace = organizeTarget
     ? organizeTarget.spaceId === me?.spaceId
@@ -941,6 +954,15 @@ function Home({ embedded, onSelectSpace }: InboxPaneProps & { embedded: boolean 
         const spaceId = chat.spaceId ?? selectedSpaceId();
         const session = currentSessionGeneration();
         setUnreadOverrides((current) => new Map(current).set(key, action === "unread"));
+        if (action === "read") {
+          void dismissThreadNotifications(
+            kind === "group"
+              ? { groupId: chat.id }
+              : "threadId" in chat && chat.threadId
+                ? { threadId: chat.threadId }
+                : { botId: chat.id },
+          ).catch(() => undefined);
+        }
         await sendReadState(
           key,
           action === "unread",

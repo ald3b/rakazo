@@ -23,6 +23,9 @@ interface Scenario {
   toolCalls?: number;
   botMessages?: number;
   retryEnqueueFails?: boolean;
+  unreadChats?: number;
+  /** Active member bots of each unread group in the run's Space. */
+  unreadGroupMembers?: number[];
 }
 
 async function failRun(scenario: Scenario) {
@@ -90,6 +93,12 @@ async function failRun(scenario: Scenario) {
       updateMany: vi.fn(async () => ({ count: 1 })),
     },
     thread: {
+      count: vi.fn(async () => scenario.unreadChats ?? 0),
+      findMany: vi.fn(async () =>
+        (scenario.unreadGroupMembers ?? []).map((members) => ({
+          group: { members: Array.from({ length: members }, (_, i) => ({ botId: `bot-${i}` })) },
+        })),
+      ),
       findUniqueOrThrow: vi.fn(async () => ({
         id: run.threadId,
         groupId: null,
@@ -157,7 +166,7 @@ async function failRun(scenario: Scenario) {
   const retries = enqueue.mock.calls
     .map(([job]) => job)
     .filter((job) => job.name === "routine.retry");
-  return { retries, send };
+  return { retries, send, prisma };
 }
 
 const overloaded = () =>
@@ -183,6 +192,46 @@ describe("routine failure notifications", () => {
     expect(send).toHaveBeenCalledWith(
       expect.objectContaining({ kind: "failure", title: "Assistant failed" }),
       expect.anything(),
+    );
+  });
+
+  it("puts the unread chats of the run's Space on the app icon", async () => {
+    const { send, prisma } = await failRun({
+      error: new Error("Invalid API key"),
+      routineNotify: true,
+      unreadChats: 3,
+    });
+
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "failure", badge: 3 }),
+      expect.anything(),
+    );
+    expect(prisma.thread.count).toHaveBeenCalledWith({
+      where: {
+        spaceId: expect.any(String),
+        userId: expect.any(String),
+        unread: true,
+        bot: { archivedAt: null },
+      },
+    });
+  });
+
+  it("leaves out unread groups the inbox hides for having too few active bots", async () => {
+    const { send, prisma } = await failRun({
+      error: new Error("Invalid API key"),
+      routineNotify: true,
+      unreadChats: 2,
+      unreadGroupMembers: [3, 2, 1, 0],
+    });
+
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "failure", badge: 4 }),
+      expect.anything(),
+    );
+    expect(prisma.thread.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ unread: true, group: { archivedAt: null } }),
+      }),
     );
   });
 
