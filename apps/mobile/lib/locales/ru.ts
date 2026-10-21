@@ -929,4 +929,7 @@ export const RU_MESSAGES: Record<string, string> = {
   "Add passkey": "Добавить ключ доступа",
   Rename: "Переименовать",
   "Add a passkey for faster sign-in?": "Добавить ключ доступа для быстрого входа?",
+  "Couldn't start the computer": "Не удалось запустить компьютер",
+  "Something went wrong while it was starting. Try again in a moment.":
+    "При запуске что-то пошло не так. Попробуйте ещё раз чуть позже.",
 };

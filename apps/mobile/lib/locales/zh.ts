@@ -896,4 +896,7 @@ export const ZH_MESSAGES: Record<string, string> = {
   "Add passkey": "添加通行密钥",
   Rename: "重命名",
   "Add a passkey for faster sign-in?": "添加通行密钥以便更快登录？",
+  "Couldn't start the computer": "无法启动电脑",
+  "Something went wrong while it was starting. Try again in a moment.":
+    "启动时出了点问题。请稍后重试。",
 };

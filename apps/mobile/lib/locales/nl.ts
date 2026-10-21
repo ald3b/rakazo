@@ -889,4 +889,7 @@ export const NL_MESSAGES: Record<string, string> = {
   "Add passkey": "Passkey toevoegen",
   Rename: "Naam wijzigen",
   "Add a passkey for faster sign-in?": "Passkey toevoegen om sneller aan te melden?",
+  "Couldn't start the computer": "De computer kon niet worden gestart",
+  "Something went wrong while it was starting. Try again in a moment.":
+    "Er ging iets mis tijdens het opstarten. Probeer het over een moment opnieuw.",
 };

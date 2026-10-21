@@ -53,7 +53,7 @@ import { useMobileTokens } from "../lib/native";
 import { iosAtLeast } from "../lib/native-controls";
 import { holdFreeRotation } from "../lib/orientation";
 import { stacksAtTextScale } from "../lib/text-scale";
-import { errorText } from "../lib/user-error";
+import { computerBootErrorDetail, errorText } from "../lib/user-error";
 
 export default function Computer() {
   const { t } = useI18n();
@@ -212,7 +212,9 @@ export default function Computer() {
       return true;
     } catch (err) {
       if (!action.isActive()) return false;
-      setError(errorText(err, t("Could not open computer")));
+      setError(
+        needsBoot ? computerBootErrorDetail(err) : errorText(err, t("Could not open computer")),
+      );
       setBootFailed(true);
       throw err;
     } finally {
@@ -336,14 +338,27 @@ export default function Computer() {
       contentContainerStyle={{ padding: 24 }}
       contentInsetAdjustmentBehavior="automatic"
     >
-      {error ? (
+      {canRetry && computer?.state !== "running" ? (
+        <View style={{ gap: 8, marginBottom: 16 }}>
+          <Text style={{ color: tokens.destructive, fontSize: 17, fontWeight: "600" }}>
+            {t("Couldn't start the computer")}
+          </Text>
+          <Text style={{ color: tokens.mutedForeground }}>
+            {t("Something went wrong while it was starting. Try again in a moment.")}
+          </Text>
+          {error ? (
+            <Text style={{ color: tokens.mutedForeground, fontSize: 13 }}>{error}</Text>
+          ) : null}
+        </View>
+      ) : error ? (
         <Text style={{ color: tokens.mutedForeground, marginBottom: 12 }}>{error}</Text>
       ) : null}
       {canRetry ? (
         <NativeActionButton
           label={t("Try again")}
-          prominence="secondary"
-          style={{ alignSelf: "flex-start", marginBottom: 12 }}
+          prominence="primary"
+          size="default"
+          style={{ marginBottom: 16 }}
           onPress={() =>
             void bootComputer({ takeControl: false, showProgress: true, force: true }).catch(
               () => undefined,
@@ -387,7 +402,7 @@ export default function Computer() {
               padding: 16,
             }}
           >
-            {bootPending ? <ActivityIndicator color={tokens.mutedForeground} /> : null}
+            {bootPending ? <ActivityIndicator size="large" color={tokens.mutedForeground} /> : null}
             <Text style={{ color: tokens.mutedForeground, textAlign: "center" }}>
               {placeholder}
             </Text>

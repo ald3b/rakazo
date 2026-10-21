@@ -933,4 +933,7 @@ export const DE_MESSAGES: Record<string, string> = {
   "Add passkey": "Passkey hinzufügen",
   Rename: "Umbenennen",
   "Add a passkey for faster sign-in?": "Passkey für schnellere Anmeldung hinzufügen?",
+  "Couldn't start the computer": "Der Computer konnte nicht gestartet werden",
+  "Something went wrong while it was starting. Try again in a moment.":
+    "Beim Starten ist etwas schiefgelaufen. Versuche es in einem Moment erneut.",
 };

@@ -23,11 +23,12 @@ const picker = vi.hoisted(() => ({
 vi.mock("react-native", () => {
   function MockView(props: {
     children?: ReactNode;
-    style?: { flexDirection?: string; flex?: number; alignSelf?: string };
+    style?: { flexDirection?: string; flex?: number; alignSelf?: string; color?: string };
   }) {
     return createElement(
       "div",
       {
+        "data-color": props.style?.color,
         "data-direction": props.style?.flexDirection,
         "data-flex": props.style?.flex,
         "data-align-self": props.style?.alignSelf,
@@ -63,7 +64,8 @@ vi.mock("react-native", () => {
   }
 
   return {
-    ActivityIndicator: () => createElement("progress"),
+    ActivityIndicator: (props: { size?: string }) =>
+      createElement("progress", { "data-size": props.size }),
     AppState: {
       addEventListener: (_type: string, listener: (state: string) => void) => {
         appState.listeners.add(listener);
@@ -130,6 +132,7 @@ vi.mock("../components/native-action-button", () => {
       label: string;
       onPress: () => void;
       prominence?: string;
+      size?: string;
       disabled?: boolean;
     }) =>
       createElement(
@@ -137,6 +140,7 @@ vi.mock("../components/native-action-button", () => {
         {
           type: "button",
           "data-prominence": props.prominence,
+          "data-size": props.size,
           disabled: props.disabled,
           onClick: props.onPress,
         },
@@ -193,6 +197,7 @@ vi.mock("./native", () => ({
     muted: "muted",
     mutedForeground: "muted-foreground",
     primary: "primary",
+    destructive: "destructive",
     success: "success",
   }),
 }));
@@ -491,7 +496,7 @@ describe("computer screen", () => {
 
       expect(calls("computer/boot")).toHaveLength(1);
       expect(view.querySelector("section")).toBeNull();
-      expect(view.querySelector("progress")).not.toBeNull();
+      expect(view.querySelector("progress")?.getAttribute("data-size")).toBe("large");
       expect(view.textContent).toContain("Booting live desktop…");
       expect(previewButton(view).disabled).toBe(true);
       expect(previewButton(view).getAttribute("aria-label")).toBe("Booting live desktop…");
@@ -537,6 +542,30 @@ describe("computer screen", () => {
       await settle();
 
       expect(rpc.mock.calls.length).toBe(callsBefore);
+    });
+
+    it.each([
+      new Error("Internal server error"),
+      Object.assign(new Error("Service failed"), { status: 500 }),
+      new Error("HTTP 503 Service unavailable"),
+      new Error("Network request failed"),
+      new Error("Request timed out"),
+    ])("shows friendly recovery for %s", async (error) => {
+      const view = await render();
+      await act(async () => boots[0]?.reject(error));
+      await settle();
+
+      const title = Array.from(view.querySelectorAll("[data-color]")).find(
+        (element) => element.textContent === "Couldn't start the computer",
+      );
+      expect(title?.getAttribute("data-color")).toBe("destructive");
+      expect(view.textContent).toContain(
+        "Something went wrong while it was starting. Try again in a moment.",
+      );
+      expect(view.textContent).not.toContain(error.message);
+      expect(tryAgain(view)?.getAttribute("data-prominence")).toBe("primary");
+      expect(tryAgain(view)?.getAttribute("data-size")).toBe("default");
+      expect(tryAgain(view)?.disabled).toBe(false);
     });
 
     it("offers Try again after a failed boot", async () => {
