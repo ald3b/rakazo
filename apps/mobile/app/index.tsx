@@ -1706,7 +1706,7 @@ const PinnedTiles = memo(function PinnedTiles({
             onLongPress={organize}
             style={({ pressed }) => [
               styles.pinnedTile,
-              selectedId === id ? { backgroundColor: native.fill } : null,
+              selectedId === id ? { backgroundColor: native.fillPressed } : null,
               pressed && styles.rowPressed,
             ]}
           >
@@ -1990,7 +1990,7 @@ function createHomeStyles() {
       marginHorizontal: 12,
       paddingHorizontal: 4,
       borderRadius: 12,
-      backgroundColor: native.fill,
+      backgroundColor: native.fillPressed,
     },
     pinnedTiles: {
       flexDirection: "row",
@@ -2064,7 +2064,7 @@ function createHomeStyles() {
     tag: {
       flexShrink: 1,
       borderRadius: 999,
-      backgroundColor: native.fill,
+      backgroundColor: native.quietFill,
       paddingHorizontal: 7,
       paddingVertical: 2,
     },
@@ -2075,7 +2075,7 @@ function createHomeStyles() {
       writingDirection: "auto",
     },
     time: {
-      color: native.secondaryLabel,
+      color: native.tertiaryLabel,
       fontSize: 15,
     },
     preview: {
@@ -2092,7 +2092,7 @@ function createHomeStyles() {
       width: 8,
       height: 8,
       borderRadius: 4,
-      backgroundColor: tokens.foreground,
+      backgroundColor: tokens.unread,
     },
     spaceHeading: {
       flexDirection: "row",

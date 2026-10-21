@@ -156,36 +156,55 @@ function markdownStyles(palette: ColorTokens) {
     },
     code_block: {
       color: palette.foreground,
-      backgroundColor: palette.background,
+      backgroundColor: palette.secondary,
       borderColor: palette.border,
     },
+    // The header and code sit inside the fence; a fill of their own would stack the translucent one.
     fence: {
-      backgroundColor: palette.background,
+      backgroundColor: palette.secondary,
       borderColor: palette.border,
     },
     fence_code: {
-      backgroundColor: palette.background,
+      backgroundColor: "transparent",
     },
-    // Bot bubbles are filled with `muted`, which `border` matches in light mode,
-    // so rules drawn inside a message use the muted foreground to stay visible.
+    fence_header: {
+      backgroundColor: "transparent",
+      borderBottomColor: palette.border,
+    },
+    fence_language_label: {
+      color: palette.foreground,
+    },
+    // Quotes read as secondary text behind a faint bar.
     blockquote: {
       backgroundColor: "transparent",
-      borderLeftColor: palette.mutedForeground,
+      color: palette.mutedForeground,
+      borderLeftColor: palette.faintForeground,
       gap: BLOCK_GAP,
     },
+    bullet_list_icon: {
+      color: palette.faintForeground,
+    },
+    ordered_list_icon: {
+      color: palette.faintForeground,
+    },
+    // Tables are rules only: secondary-text cells under a primary-text header.
     table: {
-      borderColor: palette.mutedForeground,
+      borderColor: palette.input,
       borderWidth: StyleSheet.hairlineWidth,
     },
     tr: {
-      borderColor: palette.mutedForeground,
+      borderColor: palette.input,
       borderBottomWidth: StyleSheet.hairlineWidth,
     },
     th: {
+      color: palette.foreground,
       fontWeight: "600",
     },
+    td: {
+      color: palette.mutedForeground,
+    },
     hr: {
-      backgroundColor: palette.mutedForeground,
+      backgroundColor: palette.border,
       height: StyleSheet.hairlineWidth,
     },
     // Custom keys. An image label outside a text node inherits no color, so it carries the body color.
@@ -234,7 +253,7 @@ function markdownStyles(palette: ColorTokens) {
       color: palette.foreground,
       fontWeight: "500",
       textDecorationLine: "underline",
-      textDecorationColor: palette.mutedForeground,
+      textDecorationColor: palette.input,
     },
     link_favicon_plate: {
       backgroundColor: palette.faviconPlate,
@@ -1179,7 +1198,8 @@ export const LinkifiedText = memo(function LinkifiedText({
     color,
     fontWeight: "500",
     textDecorationLine: "underline",
-    textDecorationColor: palette.mutedForeground,
+    // Links in a bubble are the bubble's text colour, so the underline is what marks them.
+    textDecorationColor: linkColor,
   };
   return (
     <Text

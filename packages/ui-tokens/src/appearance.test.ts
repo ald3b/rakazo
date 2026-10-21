@@ -46,7 +46,13 @@ describe("appearance preference", () => {
     expect(tokensForAppearance("dark")).toBe(darkTokens);
     expect(tokensForAppearance("light")).toBe(lightTokens);
     for (const key of Object.keys(darkTokens) as (keyof ColorTokens)[]) {
-      if (key === "destructiveForeground" || key === "faviconPlate") continue;
+      if (
+        key === "destructiveForeground" ||
+        key === "destructiveFill" ||
+        key === "faviconPlate" ||
+        key === "unread"
+      )
+        continue;
       expect(darkTokens[key], key).not.toBe(lightTokens[key]);
     }
   });
@@ -93,6 +99,46 @@ describe("appearance preference", () => {
       if (desc) Object.defineProperty(globalThis, "localStorage", desc);
       else delete (globalThis as { localStorage?: Storage }).localStorage;
     }
+  });
+});
+
+// WCAG 2.x contrast ratio of two opaque #RRGGBB colours.
+function contrastRatio(a: string, b: string): number {
+  const channel = (hex: string, i: number) => {
+    const c = Number.parseInt(hex.slice(i, i + 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  const luminance = (hex: string) =>
+    0.2126 * channel(hex, 1) + 0.7152 * channel(hex, 3) + 0.0722 * channel(hex, 5);
+  const la = luminance(a);
+  const lb = luminance(b);
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+}
+
+describe("dark palette contrast", () => {
+  // Opaque text tokens on the surfaces they are drawn on. Secondary and faint text are
+  // translucent system label colours and white on the solid red fill is 3.9:1, so the
+  // palette matches the iOS design there instead of 4.5:1; they are not listed.
+  const pairs: [keyof ColorTokens, keyof ColorTokens][] = [
+    ["foreground", "background"],
+    ["foreground", "dialog"],
+    ["cardForeground", "card"],
+    ["popoverForeground", "popover"],
+    ["foreground", "muted"],
+    ["chatUserForeground", "chatUser"],
+    ["primaryForeground", "primary"],
+    ["sidebarForeground", "sidebar"],
+    ["sidebarAccentForeground", "sidebarAccent"],
+    ["link", "background"],
+    ["link", "card"],
+    ["destructive", "background"],
+    ["destructive", "card"],
+    ["success", "background"],
+    ["success", "card"],
+  ];
+
+  it.each(pairs)("%s on %s meets WCAG AA (4.5:1)", (text, surface) => {
+    expect(contrastRatio(darkTokens[text], darkTokens[surface])).toBeGreaterThanOrEqual(4.5);
   });
 });
 

@@ -128,6 +128,7 @@ vi.mock("react-native", async () => {
       "accessibilityRole",
       "accessibilityLabel",
       "textDecorationLine",
+      "textDecorationColor",
       "color",
       "fontWeight",
       "fontFamily",
@@ -374,34 +375,41 @@ describe("native markdown tables", () => {
     ["light", lightTokens],
     ["dark", darkTokens],
   ] as const)(
-    "draws table, quote and divider rules that show on the %s bot bubble",
+    "draws table, quote, list and divider colours on the %s bot bubble",
     (scheme, palette) => {
       const html = renderToStaticMarkup(
         <ChatMarkdown palette={palette} colorScheme={scheme}>
-          {`${THREE_COLUMN_TABLE}\n\n> A quote\n\n---`}
+          {`${THREE_COLUMN_TABLE}\n\n> A quote\n\n- An item\n\n---`}
         </ChatMarkdown>,
       );
-      const rule = palette.mutedForeground;
       const hairline = "1";
       expect(html).toMatch(
         new RegExp(
-          `<rn-scroll-view[^>]*data-border-color="${rule}"[^>]*data-border-width="${hairline}"`,
+          `<rn-scroll-view[^>]*data-border-color="${palette.input}"[^>]*data-border-width="${hairline}"`,
         ),
       );
       const rows = html.match(
         new RegExp(
-          `<rn-view[^>]*data-border-color="${rule}"[^>]*data-border-bottom-width="${hairline}"`,
+          `<rn-view[^>]*data-border-color="${palette.input}"[^>]*data-border-bottom-width="${hairline}"`,
           "g",
         ),
       );
       expect(rows).toHaveLength(3);
-      expect(html).toContain(`data-border-left-color="${rule}"`);
+      expect(html).toContain(`data-border-left-color="${palette.faintForeground}"`);
       expect(html).toMatch(
-        new RegExp(`<rn-view[^>]*data-background-color="${rule}"[^>]*data-height="${hairline}"`),
+        new RegExp(
+          `<rn-view[^>]*data-background-color="${palette.border}"[^>]*data-height="${hairline}"`,
+        ),
       );
-      // The bubble is filled with `muted`; a rule in that color is invisible.
-      expect(html).not.toContain(`data-border-color="${palette.muted}"`);
-      expect(html).not.toContain(`data-border-left-color="${palette.muted}"`);
+      const texts = [
+        ...new DOMParser().parseFromString(html, "text/html").querySelectorAll("rn-text"),
+      ];
+      const colorOf = (label: string) =>
+        texts.findLast((text) => text.textContent === label)?.getAttribute("data-color");
+      expect(colorOf("Name")).toBe(palette.foreground);
+      expect(colorOf("Alice")).toBe(palette.mutedForeground);
+      expect(colorOf("A quote")).toBe(palette.mutedForeground);
+      expect(colorOf("\u00B7")).toBe(palette.faintForeground);
     },
   );
 
@@ -566,7 +574,7 @@ describe("native markdown code copy", () => {
       expect(row?.querySelector("rn-scroll-view")).not.toBeNull();
       const frame = row?.parentElement;
       expect(frame?.getAttribute("data-border-width")).toBeTruthy();
-      expect(frame?.getAttribute("data-background-color")).toBe(lightTokens.background);
+      expect(frame?.getAttribute("data-background-color")).toBe(lightTokens.secondary);
     }
   });
 
@@ -1082,6 +1090,19 @@ describe("message direction", () => {
     for (const text of code) expect(text.outerHTML).not.toMatch(directionAttributes);
   });
 
+  it("fills code blocks with the secondary fill, not the page colour", () => {
+    const html = renderToStaticMarkup(
+      <ChatMarkdown>{"    indented();\n\n```\nfenced();\n```"}</ChatMarkdown>,
+    );
+    expect(html).toContain(`data-background-color="${darkTokens.secondary}"`);
+    expect(html).not.toContain(`data-background-color="${darkTokens.background}"`);
+  });
+
+  it("fills a fence once, so its header and code do not stack the translucent fill", () => {
+    const html = renderToStaticMarkup(<ChatMarkdown>{"```ts\nfenced();\n```"}</ChatMarkdown>);
+    expect(html.split(`data-background-color="${darkTokens.secondary}"`)).toHaveLength(2);
+  });
+
   it("keeps a left-to-right bot message laid out as before", () => {
     const html = renderToStaticMarkup(
       <ChatMarkdown>
@@ -1325,6 +1346,22 @@ describe("native website links", () => {
     const mail = view.links().find((link) => link.textContent === "mail");
     expect(mail?.getAttribute("data-color")).toBe(darkTokens.link);
     await view.cleanup();
+  });
+
+  it("underlines a user-message link in the bubble's text colour", () => {
+    const html = renderToStaticMarkup(
+      <LinkifiedText
+        color={darkTokens.chatUserForeground}
+        linkColor={darkTokens.chatUserForeground}
+        palette={darkTokens}
+      >
+        {"see https://example.com/docs"}
+      </LinkifiedText>,
+    );
+    expect(html).toContain(
+      `data-text-decoration-line="underline" data-text-decoration-color="${darkTokens.chatUserForeground}"`,
+    );
+    expect(html).not.toContain(`data-text-decoration-color="${darkTokens.input}"`);
   });
 
   it("draws the tile in user messages, in the message's own colour", async () => {

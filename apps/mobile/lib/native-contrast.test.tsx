@@ -14,7 +14,9 @@ vi.mock("./appearance", () => ({
   getCachedAppearancePreference: () => appearance.preference,
   mobileTokens: () => ({
     background: "token-background",
+    border: "token-border",
     card: "token-card",
+    faintForeground: "token-faint",
     muted: "token-muted",
   }),
   resolveMobileAppearance: () => appearance.resolved,
@@ -46,5 +48,27 @@ describe("grouped colours", () => {
     appearance.preference = "light";
     expect(native.groupedPage).toBe("token-muted");
     expect(native.groupedCell).toBe("token-card");
+  });
+});
+
+describe("text, fills and separators", () => {
+  beforeEach(() => {
+    appearance.preference = "system";
+    appearance.resolved = "light";
+  });
+
+  it("divides rows with the palette divider in every mode", () => {
+    expect(native.separator).toBe("token-border");
+    appearance.preference = "dark";
+    expect(native.separator).toBe("token-border");
+  });
+
+  it("falls back to faint text for tertiary labels and the muted fill for quiet chips", () => {
+    expect(native.tertiaryLabel).toBe("platform:tertiaryLabel");
+    expect(native.quietFill).toBe("platform:quaternarySystemFill");
+
+    appearance.preference = "light";
+    expect(native.tertiaryLabel).toBe("token-faint");
+    expect(native.quietFill).toBe("token-muted");
   });
 });

@@ -11,7 +11,7 @@ export function TimeSeparator({ createdAt }: { createdAt?: string }) {
       accessibilityRole="header"
       selectable={false}
       style={{
-        color: mobileTokens().mutedForeground,
+        color: mobileTokens().faintForeground,
         fontSize: 12,
         textAlign: "center",
         marginVertical: 12,
