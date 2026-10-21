@@ -371,7 +371,6 @@ export const DE_MESSAGES: Record<string, string> = {
   "Get notified when this Bot finishes or needs input":
     "Benachrichtigung, wenn dieser Bot fertig ist oder Eingabe braucht",
   // app/computer.tsx
-  "Booting {label}": "{label} wird gestartet",
   Bot: "Bot",
   "Close computer": "Computer schließen",
   "Computer keyboard": "Computertastatur",

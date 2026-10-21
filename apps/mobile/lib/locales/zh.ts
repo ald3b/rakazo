@@ -644,7 +644,6 @@ export const ZH_MESSAGES: Record<string, string> = {
   archived: "已归档",
   Attachment: "附件",
   "Bearer authentication": "Bearer 认证",
-  "Booting {label}": "正在启动 {label}",
   bot: "Bot",
   "{from} messaged {to}": "{from} 已向 {to} 发消息",
   "Bring your own key. ElevenLabs, OpenAI, Cartesia, and Fish Audio all plug into the same speak buttons.":

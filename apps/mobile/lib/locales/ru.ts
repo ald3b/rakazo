@@ -674,7 +674,6 @@ export const RU_MESSAGES: Record<string, string> = {
   archived: "в архиве",
   Attachment: "Вложение",
   "Bearer authentication": "Аутентификация Bearer",
-  "Booting {label}": "Загрузка {label}",
   bot: "бот",
   "{from} messaged {to}": "{from} отправил сообщение {to}",
   "Bring your own key. ElevenLabs, OpenAI, and Cartesia all plug into the same speak buttons.":

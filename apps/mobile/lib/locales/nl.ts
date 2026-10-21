@@ -356,7 +356,6 @@ export const NL_MESSAGES: Record<string, string> = {
   Profile: "Profiel",
   Routines: "Routines",
   "Could not load routines": "Routines laden mislukt",
-  "Booting {label}": "{label} opstarten",
   Bot: "Bot",
   "Close computer": "Computer sluiten",
   "Computer keyboard": "Computertoetsenbord",
