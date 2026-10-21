@@ -165,7 +165,7 @@ export function AskCard({
             ? "instruction-approval-card"
             : undefined
       }
-      className="w-full min-w-0 max-w-xl rounded-2xl border border-border bg-card px-5 py-4"
+      className={`w-full min-w-0 ${secretInput ? "" : "max-w-xl "}rounded-2xl border border-border bg-card px-5 py-4`}
     >
       <div className="text-[15.5px] leading-[1.5] text-foreground">
         {block.instructionUpdate ? (
@@ -281,6 +281,7 @@ export function AskCard({
         >
           {loginInput ? (
             <Input
+              className="w-full"
               aria-label={t`Username`}
               autoComplete="off"
               spellCheck={false}
@@ -291,6 +292,7 @@ export function AskCard({
             />
           ) : null}
           <Input
+            className="w-full"
             aria-label={secretLabel}
             type="password"
             autoComplete="off"
@@ -300,9 +302,10 @@ export function AskCard({
             onChange={(event) => setAnswer(event.target.value)}
             placeholder={secretLabel}
           />
-          <div className="flex flex-wrap gap-2 self-start">
+          <div className="flex gap-2">
             <Button
               type="submit"
+              className="h-auto min-w-0 flex-1 whitespace-normal"
               disabled={answer.length === 0 || (loginInput && !username.trim()) || submitting}
             >
               {pendingAction === "submit" ? <Trans>Saving…</Trans> : <Trans>Save</Trans>}
@@ -311,6 +314,7 @@ export function AskCard({
               <Button
                 type="button"
                 variant="outline"
+                className="h-auto min-w-0 flex-1 whitespace-normal"
                 disabled={submitting}
                 onClick={() => void dismissSecret()}
               >

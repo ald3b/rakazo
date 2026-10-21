@@ -3021,6 +3021,10 @@ type MessageRowProps = {
   index: number;
 };
 
+function isWideAskBlock(blocks: MobileMessage["blocks"]) {
+  return blocks.some(isSecretAskBlock);
+}
+
 const MessageRow = memo(function MessageRow({
   message,
   actions,
@@ -3248,12 +3252,16 @@ const MessageRow = memo(function MessageRow({
         ) : null}
         <View
           style={{
-            width: isCenteredAgentEvent(message.blocks) ? "100%" : undefined,
-            maxWidth: isCenteredAgentEvent(message.blocks)
-              ? "100%"
-              : activityBotId
-                ? undefined
-                : "90%",
+            width:
+              isCenteredAgentEvent(message.blocks) || isWideAskBlock(message.blocks)
+                ? "100%"
+                : undefined,
+            maxWidth:
+              isCenteredAgentEvent(message.blocks) || isWideAskBlock(message.blocks)
+                ? "100%"
+                : activityBotId
+                  ? undefined
+                  : "90%",
             flex: activityBotId ? 1 : undefined,
             flexShrink: 1,
           }}
@@ -3271,12 +3279,15 @@ const MessageRow = memo(function MessageRow({
           )}
           <MessageContextMenu
             actions={menu}
+            fullWidth={isWideAskBlock(message.blocks)}
             maxWidth={
-              isCenteredAgentEvent(message.blocks)
-                ? columnWidth - 40
-                : activityBotId
-                  ? columnWidth - 40 - (inGroup ? 28 : 36)
-                  : (columnWidth - 40) * 0.9
+              isWideAskBlock(message.blocks)
+                ? columnWidth - 40 - (activityBotId ? (inGroup ? 28 : 36) : 0)
+                : isCenteredAgentEvent(message.blocks)
+                  ? columnWidth - 40
+                  : activityBotId
+                    ? columnWidth - 40 - (inGroup ? 28 : 36)
+                    : (columnWidth - 40) * 0.9
             }
             colorScheme={colorScheme}
             onAction={onMenuAction}
@@ -4261,7 +4272,7 @@ function AskBlock({
   return (
     <View
       style={{
-        width: "90%",
+        width: secretInput ? "100%" : "90%",
         borderRadius: 18,
         borderWidth: 1,
         borderColor: tokens.border,
@@ -4305,7 +4316,8 @@ function AskBlock({
           <NativeActionButton
             label={t("Continue")}
             disabled={submitting}
-            fill={false}
+            fill={secretInput}
+            style={secretInput ? askInputStyles.button : undefined}
             onPress={() => {
               sheetSession.current += 1;
               setSheetOpen(true);
@@ -4315,7 +4327,8 @@ function AskBlock({
             <NativeActionButton
               label={t("Dismiss")}
               disabled={submitting}
-              fill={false}
+              fill={secretInput}
+              style={secretInput ? askInputStyles.button : undefined}
               prominence="secondary"
               onPress={() => void dismiss()}
             />
@@ -4336,21 +4349,27 @@ function AskBlock({
             autoCapitalize={secretInput ? "none" : "sentences"}
             editable={!submitting}
             onSubmitEditing={() => void submit()}
-            style={[askInputStyles.field, { borderColor: tokens.border, color: tokens.foreground }]}
+            style={[
+              askInputStyles.field,
+              secretInput ? { alignSelf: "stretch" } : undefined,
+              { borderColor: tokens.border, color: tokens.foreground },
+            ]}
           />
           <View style={askInputStyles.buttons}>
             <NativeActionButton
               label={submitLabel}
               disabled={incomplete}
               busy={submitting}
-              fill={false}
+              fill={secretInput}
+              style={secretInput ? askInputStyles.button : undefined}
               onPress={() => void submit()}
             />
             {secretInput && canDismiss ? (
               <NativeActionButton
                 label={t("Dismiss")}
                 disabled={submitting}
-                fill={false}
+                fill={secretInput}
+                style={secretInput ? askInputStyles.button : undefined}
                 prominence="secondary"
                 onPress={() => void dismiss()}
               />
@@ -4390,6 +4409,10 @@ const askInputStyles = StyleSheet.create({
     borderWidth: 1,
     paddingHorizontal: 12,
     paddingVertical: 9,
+  },
+  button: {
+    flex: 1,
+    minWidth: 100,
   },
   // Wraps at large text sizes so neither button is pushed off the card.
   buttons: {

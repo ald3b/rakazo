@@ -16,6 +16,15 @@ const cardSource = source.slice(
   source.indexOf("function AskBlock({"),
   source.indexOf("const askInputStyles = StyleSheet.create("),
 );
+const stylesSource = source.slice(
+  source.indexOf("const askInputStyles = StyleSheet.create("),
+  source.indexOf("});", source.indexOf("const askInputStyles = StyleSheet.create(")) + 3,
+);
+const askInputStyles = new Function(
+  "StyleSheet",
+  `${ts.transpileModule(stylesSource, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText}\nreturn askInputStyles;`,
+)({ create: <T,>(value: T) => value });
+
 type SheetProps = {
   destination: string;
   pending: boolean;
@@ -34,8 +43,10 @@ const scope = {
   secretDestinationLabel,
   secretFieldTraits: () => ({}),
   errorText: (_error: unknown, fallback: string) => fallback,
-  askInputStyles: { field: {}, buttons: {} },
-  View: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  askInputStyles,
+  View: ({ children, style }: { children?: ReactNode; style?: React.CSSProperties }) => (
+    <div style={style}>{children}</div>
+  ),
   Text: ({
     children,
     numberOfLines,
@@ -54,21 +65,44 @@ const scope = {
       {children}
     </span>
   ),
-  TextInput: ({ accessibilityLabel }: { accessibilityLabel?: string }) => (
-    <input aria-label={accessibilityLabel} />
+  TextInput: ({
+    accessibilityLabel,
+    style,
+    onChangeText,
+  }: {
+    accessibilityLabel?: string;
+    style: React.CSSProperties[];
+    onChangeText: (value: string) => void;
+  }) => (
+    <input
+      aria-label={accessibilityLabel}
+      style={Object.assign({}, ...style)}
+      onChange={(event) => onChangeText(event.target.value)}
+    />
   ),
   NativeActionButton: ({
     label,
     onPress,
     disabled,
     prominence = "primary",
+    fill,
+    style,
   }: {
     label: string;
     onPress: () => void;
     disabled?: boolean;
     prominence?: string;
+    fill?: boolean;
+    style?: React.CSSProperties;
   }) => (
-    <button type="button" onClick={onPress} disabled={disabled} data-prominence={prominence}>
+    <button
+      type="button"
+      onClick={onPress}
+      disabled={disabled}
+      data-prominence={prominence}
+      data-fill={fill}
+      style={style}
+    >
       {label}
     </button>
   ),
@@ -342,6 +376,100 @@ for (const input of ["secret", "login"]) {
     );
     const labels = [...container.querySelectorAll("button")].map((button) => button.textContent);
     expect(labels.includes("Dismiss")).toBe(canDismiss);
+    const primary = button(input === "login" ? "Continue" : "Save");
+    expect(primary.style.flex).toBe("1 1 0%");
+    expect(primary.dataset.fill).toBe("true");
+    if (canDismiss) expect(button("Dismiss").style.flex).toBe(primary.style.flex);
     expect(labels.includes(input === "login" ? "Continue" : "Save")).toBe(true);
   });
 }
+
+it("stretches secret inputs and equal actions, enabling Save only with input", async () => {
+  await render({ input: "secret", purpose: "otp" });
+  expect(container.firstElementChild?.getAttribute("style")).toContain("width: 100%");
+  const input = container.querySelector("input")!;
+  expect(input.style.alignSelf).toBe("stretch");
+  expect(button("Save").disabled).toBe(true);
+  for (const label of ["Save", "Dismiss"]) {
+    expect(button(label).style.flex).toBe("1 1 0%");
+    expect(button(label).dataset.fill).toBe("true");
+  }
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(
+      input,
+      "example-code",
+    );
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+  });
+  expect(button("Save").disabled).toBe(false);
+  expect(button("Save").dataset.prominence).toBe("primary");
+});
+
+it("fills the message column only for secret asks, including answered and login asks", async () => {
+  const helperSource = source.slice(
+    source.indexOf("function isWideAskBlock("),
+    source.indexOf("const MessageRow = memo("),
+  );
+  const isWideAskBlock = new Function(
+    "isSecretAskBlock",
+    `${ts.transpileModule(helperSource, {}).outputText}\nreturn isWideAskBlock;`,
+  )(
+    (block: { kind: string; input?: string; approvalEffectId?: string }) =>
+      block.kind === "ask" && block.input === "secret" && !block.approvalEffectId,
+  );
+  for (const status of ["pending", "answered"]) {
+    for (const ask of [{ input: "secret" }, loginAsk]) {
+      expect(isWideAskBlock([{ kind: "ask", ...ask, status }])).toBe(true);
+      await render({ ...ask, status });
+      expect((container.firstElementChild as HTMLElement).style.width).toBe("100%");
+    }
+  }
+  expect(isWideAskBlock([{ kind: "ask" }])).toBe(false);
+  expect(isWideAskBlock([{ kind: "ask", input: "secret", approvalEffectId: "approval" }])).toBe(
+    false,
+  );
+  await render({});
+  expect((container.firstElementChild as HTMLElement).style.width).toBe("90%");
+});
+
+it("uses the full column for wide asks and reserves only the visible avatar gutter", () => {
+  const rowSource = source.slice(source.indexOf("const MessageRow = memo("));
+  const wrapperSource = rowSource.slice(
+    rowSource.indexOf("width:\n"),
+    rowSource.indexOf("{isPeerReceiptBlocks(message.blocks)"),
+  );
+  const menuSource = rowSource.slice(rowSource.indexOf("<MessageContextMenu"));
+  const widthExpression = menuSource
+    .slice(
+      menuSource.indexOf("maxWidth={") + "maxWidth={".length,
+      menuSource.indexOf("colorScheme="),
+    )
+    .replace(/}\s*$/, "");
+  const measure = new Function(
+    "wide",
+    "activityBotId",
+    "inGroup",
+    "columnWidth",
+    `const message = { blocks: [] };
+     const isWideAskBlock = () => wide;
+     const isCenteredAgentEvent = () => false;
+     return {
+       wrapper: { ${wrapperSource.slice(0, wrapperSource.indexOf("}}"))} },
+       menuWidth: (${widthExpression}),
+     };`,
+  );
+  for (const [avatar, inGroup, gutter] of [
+    [false, false, 0],
+    [true, false, 36],
+    [true, true, 28],
+  ] as const) {
+    const { wrapper, menuWidth } = measure(true, avatar, inGroup, 400);
+    expect(wrapper.width).toBe("100%");
+    expect(wrapper.maxWidth).toBe("100%");
+    expect(menuWidth).toBe(400 - 40 - gutter);
+    const regular = measure(false, avatar, inGroup, 400);
+    expect(regular.wrapper.width).toBeUndefined();
+    expect(regular.wrapper.maxWidth).toBe(avatar ? undefined : "90%");
+    expect(regular.menuWidth).toBe(avatar ? 360 - gutter : 324);
+  }
+});

@@ -103,6 +103,9 @@ it("shows a dismissed secret card as Dismissed, not Saved", async () => {
 
   await render({ ...secretCard, status: "answered", answer: "" });
   expect(container.textContent).toContain("Saved");
+  const card = container.querySelector('[data-testid="secret-ask-card"]')!;
+  expect(card.classList.contains("w-full")).toBe(true);
+  expect(card.classList.contains("max-w-xl")).toBe(false);
 });
 
 it("offers Dismiss only on secret cards", async () => {
@@ -110,14 +113,24 @@ it("offers Dismiss only on secret cards", async () => {
   expect(button("Dismiss")).toBeUndefined();
 });
 
-it("puts primary Save before secondary Dismiss in a wrapping row", async () => {
+it("puts primary Save before equal-width secondary Dismiss", async () => {
   await render(secretCard);
   expect(
     [...button("Save")!.parentElement!.querySelectorAll("button")].map((item) => item.textContent),
   ).toEqual(["Save", "Dismiss"]);
   expect(button("Save")?.classList.contains("bg-primary")).toBe(true);
   expect(button("Dismiss")?.classList.contains("border-border")).toBe(true);
-  expect(button("Save")?.parentElement?.classList.contains("flex-wrap")).toBe(true);
+  expect(button("Save")!.disabled).toBe(true);
+  expect(container.querySelector("input")?.classList.contains("w-full")).toBe(true);
+  const card = container.querySelector('[data-testid="secret-ask-card"]')!;
+  expect(card.classList.contains("w-full")).toBe(true);
+  expect(card.classList.contains("max-w-xl")).toBe(false);
+  for (const label of ["Save", "Dismiss"]) {
+    expect(button(label)?.classList.contains("flex-1")).toBe(true);
+    expect(button(label)?.classList.contains("whitespace-normal")).toBe(true);
+  }
+  await type("API key", "example-key");
+  expect(button("Save")!.disabled).toBe(false);
 });
 
 it("styles dismissed secrets like denied approvals, apart from the destination", async () => {
@@ -161,5 +174,6 @@ for (const input of ["secret", "login"]) {
     const labels = [...container.querySelectorAll("button")].map((button) => button.textContent);
     expect(labels.includes("Dismiss")).toBe(canDismiss);
     expect(labels.includes("Save")).toBe(true);
+    expect(button("Save")?.classList.contains("flex-1")).toBe(true);
   });
 }
