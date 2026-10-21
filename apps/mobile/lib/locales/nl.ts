@@ -941,4 +941,17 @@ export const NL_MESSAGES: Record<string, string> = {
   "Monthly credits expire at renewal. Top-ups do not expire.":
     "Maandelijks tegoed vervalt bij verlenging. Los gekocht tegoed verloopt niet.",
   "Use Rakazo credits": "Rakazo-tegoed gebruiken",
+  "1 unread": "1 ongelezen",
+  "{count} unread": "{count} ongelezen",
+  "{count} need attention": "{count} vragen aandacht",
+  "Jump to the unread chat above": "Naar de ongelezen chat hierboven",
+  "Jump to {count} unread chats above": "Naar {count} ongelezen chats hierboven",
+  "Jump to the unread chat below": "Naar de ongelezen chat hieronder",
+  "Jump to {count} unread chats below": "Naar {count} ongelezen chats hieronder",
+  "Jump to the chat needing attention above": "Naar de chat hierboven die aandacht vraagt",
+  "Jump to {count} chats needing attention above":
+    "Naar {count} chats hierboven die aandacht vragen",
+  "Jump to the chat needing attention below": "Naar de chat hieronder die aandacht vraagt",
+  "Jump to {count} chats needing attention below":
+    "Naar {count} chats hieronder die aandacht vragen",
 };

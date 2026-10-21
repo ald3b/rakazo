@@ -57,6 +57,8 @@ export type ColorTokens = {
   statusWorking: string;
   /** Unread dot. The one blue in the inbox, in both themes. */
   unread: string;
+  /** The inbox's jump pill when an off-screen chat is waiting on the user. The same orange in both themes. */
+  attention: string;
   overlay: string;
   scrollbar: string;
   scrollbarHover: string;
@@ -100,6 +102,7 @@ export const darkTokens = {
   warning: "#DB941E",
   statusWorking: "#459FFE",
   unread: "#006CEB",
+  attention: "#FF9800",
   overlay: "rgba(0, 0, 0, 0.28)",
   scrollbar: "#1E2026",
   scrollbarHover: "#2E313A",
@@ -143,6 +146,7 @@ export const lightTokens = {
   warning: "#885A07",
   statusWorking: "#0C64C1",
   unread: "#006CEB",
+  attention: "#FF9800",
   overlay: "rgba(0, 0, 0, 0.19)",
   scrollbar: "#C8C8C4",
   scrollbarHover: "#A8A8A4",

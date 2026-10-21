@@ -52,7 +52,8 @@ describe("appearance preference", () => {
         key === "destructiveForeground" ||
         key === "destructiveFill" ||
         key === "faviconPlate" ||
-        key === "unread"
+        key === "unread" ||
+        key === "attention"
       )
         continue;
       expect(darkTokens[key], key).not.toBe(lightTokens[key]);
