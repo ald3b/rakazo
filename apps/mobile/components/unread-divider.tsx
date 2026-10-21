@@ -4,12 +4,16 @@ import { useI18n } from "../lib/i18n";
 import { useMobileTokens } from "../lib/native";
 
 /** Marks where the messages the user hadn't seen yet begin. */
-export function UnreadDivider() {
+export function UnreadDivider({ afterSeparator = false }: { afterSeparator?: boolean }) {
   const { t } = useI18n();
   const tokens = useMobileTokens();
   const line = [styles.line, { backgroundColor: tokens.unread }];
   return (
-    <View accessibilityLabel={t("New messages")} accessible style={styles.row}>
+    <View
+      accessibilityLabel={t("New messages")}
+      accessible
+      style={[styles.row, afterSeparator && { paddingTop: 0 }]}
+    >
       <View style={line} />
       <Text style={[styles.label, { color: tokens.unread }]}>{t("New")}</Text>
       <View style={line} />

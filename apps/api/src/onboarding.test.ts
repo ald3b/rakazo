@@ -2,7 +2,7 @@ import type * as db from "@rakazo/db";
 import { describe, expect, it, vi } from "vitest";
 import { chooseFocus, markAppConnected } from "./onboarding.js";
 
-const posted = vi.hoisted(() => [] as Array<{ blocks: unknown[] }>);
+const posted = vi.hoisted(() => [] as Array<{ blocks: unknown[]; markUnread?: boolean }>);
 vi.mock("@rakazo/db", async (original) => ({
   ...(await original<typeof db>()),
   createThreadMessageInTransaction: vi.fn(async (_tx, input) => {
@@ -44,6 +44,7 @@ describe("onboarding connection suggestions", () => {
       expect.objectContaining({ kind: "app_connect" }),
     );
     expect(posted.length).toBeGreaterThan(0);
+    expect(posted.every((message) => message.markUnread === false)).toBe(true);
   });
   it("uses the available connector and omits unavailable apps", async () => {
     const { deps, actor } = fixture([

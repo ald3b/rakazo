@@ -50,6 +50,12 @@ describe("UnreadDivider", () => {
     vi.unstubAllGlobals();
   });
 
+  it("avoids extra top spacing after a time separator", () => {
+    act(() => root.render(<UnreadDivider afterSeparator />));
+    const row = container.firstElementChild as HTMLElement;
+    expect(JSON.parse(row.dataset.style!).paddingTop).toBe(0);
+  });
+
   it("reads as one element, New messages, with an uppercase New between two unread-blue hairlines", () => {
     act(() => root.render(<UnreadDivider />));
     const row = container.firstElementChild as HTMLElement;

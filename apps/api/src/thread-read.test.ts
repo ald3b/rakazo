@@ -104,6 +104,12 @@ describe("markThreadRead", () => {
     expect(row).toEqual({ unread: false, lastReadSeq: 9, nextMessageSeq: 10 });
   });
 
+  it("moves the cursor of a chat that wasn't unread without placing a divider", async () => {
+    const store = threadStore({ unread: false, lastReadSeq: -1, nextMessageSeq: 1 });
+    await expect(markThreadRead(store.prisma, actor, target)).resolves.toBeNull();
+    expect(store.row()).toEqual({ unread: false, lastReadSeq: 0, nextMessageSeq: 1 });
+  });
+
   it("does nothing for a thread outside the actor's space", async () => {
     const store = threadStore({ unread: true, lastReadSeq: 3, nextMessageSeq: 7 });
     await expect(

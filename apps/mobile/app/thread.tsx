@@ -2366,7 +2366,11 @@ function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId: string
           {item.messages[0] && separatorIds.has(item.messages[0].id) ? (
             <TimeSeparator createdAt={item.messages[0].createdAt} />
           ) : null}
-          {voiceChatHoldsMessage(item, unreadDividerId) ? <UnreadDivider /> : null}
+          {voiceChatHoldsMessage(item, unreadDividerId) ? (
+            <UnreadDivider
+              afterSeparator={Boolean(item.messages[0] && separatorIds.has(item.messages[0].id))}
+            />
+          ) : null}
           <VoiceChatCard group={item} />
         </View>
       ) : (
@@ -3319,7 +3323,7 @@ const MessageRow = memo(function MessageRow({
       }}
     >
       {separator ? <TimeSeparator createdAt={message.createdAt} /> : null}
-      {unreadDivider ? <UnreadDivider /> : null}
+      {unreadDivider ? <UnreadDivider afterSeparator={separator} /> : null}
       <View
         style={{
           width: "100%",

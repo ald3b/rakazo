@@ -642,6 +642,7 @@ export function createRepos(
             await createThreadMessageInTransaction(tx, {
               threadId: thread.id,
               ...input.initialMessage,
+              markUnread: false,
             });
           }
           if (input.computerMode === "dedicated") {

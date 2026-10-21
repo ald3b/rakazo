@@ -5629,7 +5629,13 @@ const Transcript = memo(function Transcript({
                     locale={i18n.locale || "en"}
                   />
                 ) : null}
-                {voiceChatHoldsMessage(item, unreadDividerId) ? <UnreadDivider /> : null}
+                {voiceChatHoldsMessage(item, unreadDividerId) ? (
+                  <UnreadDivider
+                    afterSeparator={Boolean(
+                      item.messages[0] && separatorIds.has(item.messages[0].id),
+                    )}
+                  />
+                ) : null}
                 <VoiceChatCard
                   group={item}
                   revealMessageId={scrollRequest?.messageId}
@@ -5647,7 +5653,9 @@ const Transcript = memo(function Transcript({
               {separatorIds.has(message.id) ? (
                 <TimeSeparator createdAt={message.createdAt} locale={i18n.locale || "en"} />
               ) : null}
-              {message.id === unreadDividerId ? <UnreadDivider /> : null}
+              {message.id === unreadDividerId ? (
+                <UnreadDivider afterSeparator={separatorIds.has(message.id)} />
+              ) : null}
               <div
                 data-message-id={message.id}
                 className={peerReceipt ? "relative py-0.5" : "group/message relative hover:z-20"}

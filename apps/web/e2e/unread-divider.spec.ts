@@ -16,6 +16,7 @@ test("a chat opens with a New divider above replies that arrived while away", as
   await completeOnboarding(page);
   await page.goto("/app");
   await page.waitForURL(/\/app\/[^/]+$/);
+  await expect(page.getByTestId("unread-divider")).toHaveCount(0);
   const chiefId = activeBotId(page);
   const otherId = await createNamedBot(page, "Elsewhere");
 
