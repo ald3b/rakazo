@@ -16,7 +16,8 @@ name: rakazo
 x-app-environment: &app-environment
   # Runtime
   NODE_ENV: production
-  DATABASE_URL: postgres://${POSTGRES_USER:-rakazo}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-rakazo}
+  # The app's own login, subject to row-level security (docs/self-host.md#database-roles).
+  DATABASE_URL: postgres://rakazo_app:${POSTGRES_APP_PASSWORD:?Set POSTGRES_APP_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-rakazo}
   REALTIME_DATABASE_URL:
   DB_POOL_MAX:
   DATA_DIR: /data
@@ -325,10 +326,13 @@ services:
   api:
     image: ${RAKAZO_IMAGE:-ghcr.io/elie222/rakazo/app}:${RAKAZO_IMAGE_TAG:-edge}
     restart: unless-stopped
+    # Node runs directly, not through pnpm: pnpm does not pass SIGTERM on, so a stop would kill the
+    # process before its graceful shutdown finishes in-flight requests and jobs.
+    working_dir: /app/apps/api
     command:
       - bash
       - -lc
-      - pnpm --filter @rakazo/db exec prisma migrate deploy && pnpm --filter @rakazo/api start
+      - pnpm db:deploy && exec env -u DATABASE_MIGRATION_URL node --enable-source-maps dist/index.js
     init: true
     security_opt:
       - no-new-privileges:true
@@ -340,6 +344,8 @@ services:
       - "host.docker.internal:host-gateway"
     environment:
       <<: *app-environment
+      # Owner login for migrations; the start command drops it before serving.
+      DATABASE_MIGRATION_URL: postgres://${POSTGRES_USER:-rakazo}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-rakazo}
       # Sign-in, sessions, billing and inbound webhooks: API only.
       API_HOST: "0.0.0.0"
       API_PORT:
@@ -406,7 +412,9 @@ services:
   worker:
     image: ${RAKAZO_IMAGE:-ghcr.io/elie222/rakazo/app}:${RAKAZO_IMAGE_TAG:-edge}
     restart: unless-stopped
-    command: ["pnpm", "--filter", "@rakazo/worker", "start"]
+    # Directly, not through pnpm, so a stop reaches it (see the api command).
+    working_dir: /app/apps/worker
+    command: ["node", "--enable-source-maps", "dist/index.js"]
     init: true
     security_opt:
       - no-new-privileges:true
@@ -437,7 +445,9 @@ services:
   web:
     image: ${RAKAZO_IMAGE:-ghcr.io/elie222/rakazo/app}:${RAKAZO_IMAGE_TAG:-edge}
     restart: unless-stopped
-    command: ["pnpm", "--filter", "@rakazo/web", "preview", "--host", "0.0.0.0", "--port", "5173"]
+    # Directly, not through pnpm, so a stop reaches it (see the api command).
+    working_dir: /app/apps/web
+    command: ["node_modules/.bin/vite", "preview", "--host", "0.0.0.0", "--port", "5173"]
     init: true
     security_opt:
       - no-new-privileges:true
@@ -454,6 +464,8 @@ services:
       RAKAZO_DESKTOP_STACK_TOKEN: ${RAKAZO_DESKTOP_STACK_TOKEN:-}
       RAKAZO_IMAGE_TAG: ${RAKAZO_IMAGE_TAG:-edge}
       SCREEN_PROXY_SECRET: ${SCREEN_PROXY_SECRET:?Set SCREEN_PROXY_SECRET in .env}
+      RAKAZO_CSP_SCRIPT_SRC: ${RAKAZO_CSP_SCRIPT_SRC:-}
+      RAKAZO_CSP_CONNECT_SRC: ${RAKAZO_CSP_CONNECT_SRC:-}
     ports:
       - "127.0.0.1:${RAKAZO_WEB_PORT:-5173}:5173"
     networks:

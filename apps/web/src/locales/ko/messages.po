@@ -304,6 +304,10 @@ msgstr ""
 msgid "A subscription credential is stored securely."
 msgstr "구독 인증 정보가 안전하게 저장되어 있습니다."
 
+#: src/components/InfoTooltip.tsx
+msgid "About {label}"
+msgstr "{label} 정보"
+
 #: src/pages/shell/bot-picker.tsx
 msgid "About groups"
 msgstr ""
@@ -598,6 +602,10 @@ msgstr "항상 허용됨"
 #: src/lib/model-connection-preflight.ts
 msgid "An API key is stored for this provider, not a subscription sign-in."
 msgstr "이 서비스에는 구독 로그인이 아니라 API 키가 저장되어 있습니다."
+
+#: src/pages/memory-providers/HonchoSettingsForm.tsx
+msgid "An existing Honcho peer to read from. Rakazo never writes to it."
+msgstr "데이터를 읽어올 기존 Honcho 피어입니다. Rakazo는 이 피어에 데이터를 쓰지 않습니다."
 
 #: src/pages/RoutineEditor.tsx
 msgid "An integration tool"
@@ -2483,10 +2491,6 @@ msgstr "MCP 연결을 마무리하는 중…"
 msgid "Flag unexpected actions"
 msgstr "예상하지 못한 작업 표시"
 
-#: src/pages/shell/bot-panel.tsx
-msgid "Fleet management"
-msgstr ""
-
 #: src/pages/Auth.tsx
 msgid "Forgot password?"
 msgstr "비밀번호를 잊으셨나요?"
@@ -2806,10 +2810,6 @@ msgstr ""
 msgid "Leave"
 msgstr "나가기"
 
-#: src/pages/shell/bot-panel.tsx
-msgid "Lets this bot organize, retune and schedule the bots it creates. You approve each change."
-msgstr "이 봇이 자신이 만든 봇을 정리하고 조정하고 예약할 수 있습니다. 각 변경은 사용자가 승인합니다."
-
 #: src/pages/AccountSettingsOverlay.tsx
 msgid "Light"
 msgstr "라이트"
@@ -2958,6 +2958,10 @@ msgstr "MCP 서버 관리"
 #: src/pages/AccountSettingsOverlay.tsx
 msgid "Manage messaging settings"
 msgstr "메시징 설정 관리"
+
+#: src/pages/shell/bot-panel.tsx
+msgid "Manage the bots it creates"
+msgstr "이 봇이 만든 봇 관리"
 
 #: src/pages/PluginsOverlay.tsx
 msgid "Manual"
@@ -3458,6 +3462,14 @@ msgid "OAuth authorization was cancelled."
 msgstr "OAuth 인증이 취소되었습니다."
 
 #: src/pages/McpServersOverlay.tsx
+msgid "OAuth client ID (optional)"
+msgstr "OAuth 클라이언트 ID(선택 사항)"
+
+#: src/pages/McpServersOverlay.tsx
+msgid "OAuth client secret (optional)"
+msgstr "OAuth 클라이언트 시크릿(선택 사항)"
+
+#: src/pages/McpServersOverlay.tsx
 msgid "OAuth connected"
 msgstr "OAuth 연결됨"
 
@@ -3577,6 +3589,10 @@ msgstr "자연스럽게"
 msgid "Organization API key"
 msgstr "조직 API 키"
 
+#: src/pages/shell/bot-panel.tsx
+msgid "Organize the sidebar and edit bots. Instruction, model, routine and group edits need approval."
+msgstr "사이드바를 정리하고 봇을 편집하세요. 그룹, 지침, 모델, 루틴 변경에는 승인이 필요합니다."
+
 #: src/pages/shell/chat-context.tsx
 msgid "Original message unavailable"
 msgstr "원본 메시지를 사용할 수 없습니다"
@@ -3686,6 +3702,10 @@ msgstr "확인할 도구 선택"
 msgid "Pin"
 msgstr "고정"
 
+#: src/pages/Shell.tsx
+msgid "Pinned"
+msgstr "고정됨"
+
 #: src/components/ArtifactFileCard.tsx
 msgid "Play {name}"
 msgstr "{name} 재생"
@@ -3755,6 +3775,10 @@ msgstr "대기 중"
 
 #: src/pages/Shell.tsx
 msgid "Quote"
+msgstr ""
+
+#: src/pages/memory-providers/HonchoSettingsForm.tsx
+msgid "rakazo-shared and IDs starting with bot- are reserved for Rakazo."
 msgstr ""
 
 #: src/pages/Shell.tsx
@@ -3854,6 +3878,10 @@ msgstr "작동하지 않는 컴퓨터를 다시 만듭니다."
 #: src/components/ComputerUpdateProgress.tsx
 msgid "Recreating the computer"
 msgstr ""
+
+#: src/pages/McpServersOverlay.tsx
+msgid "Redirect URI"
+msgstr "리디렉션 URI"
 
 #: src/App.tsx
 #: src/components/ErrorBoundary.tsx
@@ -4075,6 +4103,7 @@ msgstr ""
 #: src/components/PasskeySettings.tsx
 #: src/pages/Auth.tsx
 #: src/pages/ModelBackupsSettings.tsx
+#: src/pages/PluginsOverlay.tsx
 #: src/pages/SettingsOverlay.tsx
 msgid "Retry"
 msgstr "다시 시도"
@@ -4954,6 +4983,7 @@ msgid "Type your answer"
 msgstr "답변을 입력하세요"
 
 #: src/pages/BotContextMenu.tsx
+#: src/pages/Shell.tsx
 msgid "Unassigned"
 msgstr "섹션 없음"
 
@@ -5118,6 +5148,10 @@ msgstr ""
 #: src/pages/ModelSettingsOverlay.tsx
 msgid "Use your own key"
 msgstr "내 키 사용"
+
+#: src/pages/memory-providers/HonchoSettingsForm.tsx
+msgid "User peer"
+msgstr ""
 
 #: src/components/AskCard.tsx
 #: src/pages/shell/bot-credentials.tsx
