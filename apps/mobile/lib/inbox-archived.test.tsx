@@ -34,8 +34,20 @@ beforeEach(() => vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true));
 afterEach(() => vi.unstubAllGlobals());
 
 describe("archived chats row", () => {
+  let compact = false;
+  const dimensions = slice("const INBOX_ROW =", "function ConversationRow(");
+  const styles = new Function(
+    "mobileTokens",
+    "StyleSheet",
+    "native",
+    compile(
+      `${dimensions}\n${source.slice(source.indexOf("function createHomeStyles()"))}\nreturn createHomeStyles();`,
+    ),
+  )(() => ({}), { create: (value: unknown) => value }, {});
   const ArchivedChatsRow = new Function(
     "React",
+    "useContext",
+    "CompactRowsContext",
     "useThemedStyles",
     "useI18n",
     "View",
@@ -45,11 +57,13 @@ describe("archived chats row", () => {
     "native",
     "createHomeStyles",
     compile(
-      `${slice("function ArchivedChatsRow(", "/** Points right while a section")}\nreturn ArchivedChatsRow;`,
+      `${dimensions}\n${slice("function ArchivedChatsRow(", "/** Points right while a section")}\nreturn ArchivedChatsRow;`,
     ),
   )(
     React,
-    () => ({}),
+    () => compact,
+    {},
+    () => styles,
     () => ({ t: (text: string) => text }),
     ({ children }: { children: ReactNode }) => <div>{children}</div>,
     ({
@@ -57,22 +71,27 @@ describe("archived chats row", () => {
       accessibilityRole,
       accessibilityLabel,
       onPress,
+      style,
     }: {
       children: ReactNode;
       accessibilityRole: string;
       accessibilityLabel: string;
       onPress: () => void;
+      style: (state: { pressed: boolean }) => object[];
     }) => (
       <button
         type="button"
         data-role={accessibilityRole}
         aria-label={accessibilityLabel}
         onClick={onPress}
+        style={Object.assign({}, ...style({ pressed: false }))}
       >
         {children}
       </button>
     ),
-    ({ children }: { children: ReactNode }) => <span>{children}</span>,
+    ({ children, style }: { children: ReactNode; style: object }) => (
+      <span style={style}>{children}</span>
+    ),
     ({ ios }: { ios: string }) => <i data-symbol={ios} />,
     { tertiaryLabel: "tertiary" },
     () => ({}),
@@ -101,11 +120,32 @@ describe("archived chats row", () => {
       "Archived",
       "3",
     ]);
+    expect(button.querySelectorAll("span")[1]!.style.fontSize).toBe(
+      `${styles.sectionCount.fontSize}px`,
+    );
     expect(button.querySelector("i")?.getAttribute("data-symbol")).toBe("chevron.right");
     act(() => button.click());
     expect(onPress).toHaveBeenCalledOnce();
     act(() => root.unmount());
   });
+
+  it.each([false, true])(
+    "aligns with inbox names and fills a 44pt tap target (compact: %s)",
+    (value) => {
+      compact = value;
+      const { container, root } = render(3);
+      const button = container.querySelector("button")!;
+      const row = value ? { ...styles.row, ...styles.compactRow } : styles.row;
+      expect(button.style.paddingInlineStart).toBe(`${row.paddingHorizontal + 62 + row.gap}px`);
+      expect(button.style.minHeight).toBe("44px");
+      expect(button.style.width).toBe("100%");
+      const label = button.querySelector("span")!;
+      expect(label.style.fontSize).toBe(`${styles.sectionTitle.fontSize}px`);
+      expect(label.style.fontWeight).toBe(styles.sectionTitle.fontWeight);
+      act(() => root.unmount());
+      compact = false;
+    },
+  );
 
   it("sits at the very end of the inbox list and opens the existing Archived screen", () => {
     const footer = slice("ListFooterComponent={", "renderItem={renderItem}");

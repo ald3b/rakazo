@@ -1510,6 +1510,9 @@ function ActivityRow({
   );
 }
 
+const INBOX_ROW = { padding: 16, gap: 12, avatarSize: 62 };
+const COMPACT_INBOX_ROW = { padding: 12, gap: 10 };
+
 function ConversationRow({
   chatId,
   title,
@@ -1582,7 +1585,12 @@ function ConversationRow({
         styles.row,
         compact ? styles.compactRow : null,
         selected ? styles.rowSelected : null,
-        depth > 0 ? { paddingInlineStart: (compact ? 12 : 16) + depth * 16 } : null,
+        depth > 0
+          ? {
+              paddingInlineStart:
+                (compact ? COMPACT_INBOX_ROW.padding : INBOX_ROW.padding) + depth * 16,
+            }
+          : null,
         pressed && styles.rowPressed,
       ]}
     >
@@ -1670,25 +1678,30 @@ function HeaderButton({
 function ArchivedChatsRow({ count, onPress }: { count: number; onPress: () => void }) {
   const styles = useThemedStyles(createHomeStyles);
   const { t } = useI18n();
+  const compact = useContext(CompactRowsContext);
+  const row = compact ? COMPACT_INBOX_ROW : INBOX_ROW;
   if (count < 1) return null;
   return (
-    <View style={styles.sectionHeadingRow}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`${t("Archived")}, ${count}`}
-        onPress={onPress}
-        style={({ pressed }) => [styles.sectionToggle, pressed && styles.rowPressed]}
-      >
-        <Text style={styles.sectionTitle}>{t("Archived")}</Text>
-        <Text style={styles.sectionCount}>{count}</Text>
-        <NativeSymbol
-          ios="chevron.right"
-          android="chevron-forward"
-          size={12}
-          color={native.tertiaryLabel}
-        />
-      </Pressable>
-    </View>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${t("Archived")}, ${count}`}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.sectionToggle,
+        styles.archivedRow,
+        { paddingInlineStart: row.padding + INBOX_ROW.avatarSize + row.gap },
+        pressed && styles.rowPressed,
+      ]}
+    >
+      <Text style={styles.sectionTitle}>{t("Archived")}</Text>
+      <Text style={styles.sectionCount}>{count}</Text>
+      <NativeSymbol
+        ios="chevron.right"
+        android="chevron-forward"
+        size={12}
+        color={native.tertiaryLabel}
+      />
+    </Pressable>
   );
 }
 
@@ -1881,7 +1894,7 @@ const BotRow = memo(function BotRow({
         <BotAvatar
           color={bot.color || FALLBACK_COLOR}
           identity={bot.id}
-          size={62}
+          size={INBOX_ROW.avatarSize}
           status={bot.status}
           muted={bot.notifyOnFinish === false}
         />
@@ -1950,7 +1963,7 @@ const GroupRow = memo(function GroupRow({
       onLongPress={onLongPress ? () => onLongPress(group) : undefined}
       actions={onAction ? inboxRowActionList(group) : undefined}
       onAction={runAction}
-      avatar={<GroupAvatar members={group.members} size={62} />}
+      avatar={<GroupAvatar members={group.members} size={INBOX_ROW.avatarSize} />}
     />
   );
   return onAction ? (
@@ -2047,9 +2060,9 @@ function createHomeStyles() {
     row: {
       flexDirection: "row",
       alignItems: "center",
-      paddingHorizontal: 16,
+      paddingHorizontal: INBOX_ROW.padding,
       paddingVertical: 14,
-      gap: 12,
+      gap: INBOX_ROW.gap,
     },
     rowSelected: {
       marginHorizontal: 12,
@@ -2084,8 +2097,8 @@ function createHomeStyles() {
       fontWeight: "700",
     },
     compactRow: {
-      paddingHorizontal: 12,
-      gap: 10,
+      paddingHorizontal: COMPACT_INBOX_ROW.padding,
+      gap: COMPACT_INBOX_ROW.gap,
     },
     treeToggle: {
       width: 20,
@@ -2199,6 +2212,7 @@ function createHomeStyles() {
       paddingTop: 12,
       paddingBottom: 4,
     },
+    archivedRow: { flex: 0, width: "100%" },
     sectionTitle: {
       flexShrink: 1,
       color: native.secondaryLabel,
