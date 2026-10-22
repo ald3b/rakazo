@@ -36,6 +36,7 @@ import type { ComposerMention, FoldedTranscript, ReadBoundary, SlashActionId } f
 import {
   accountDisplay,
   answerableAskMessageIds,
+  anySignal,
   attachmentsForThread,
   buildComposerMentionOptions,
   clampMentionHighlightIndex,
@@ -80,6 +81,7 @@ import {
   Button,
   Collapsible,
   CollapsibleContent,
+  CollapsibleTrigger,
   ContextMenu,
   ContextMenuContent,
   ContextMenuItem,
@@ -99,6 +101,7 @@ import {
   PopoverTrigger,
   resolvePersonaColorDef,
   Spinner,
+  toast,
 } from "@rakazo/ui-web";
 import {
   ArrowDown,
@@ -302,6 +305,7 @@ import {
   transcriptMovedDown,
 } from "../lib/transcript-scroll";
 import { speaker } from "../lib/tts";
+import { useDesktopBadge } from "../lib/use-desktop-badge";
 import { errorText } from "../lib/user-error";
 import { ActivityList } from "./ActivityList";
 import { CreateGroupForm, GroupSettings, memberName } from "./GroupPanel";
@@ -347,8 +351,17 @@ import {
 } from "./shell/message-cards";
 import type { RosterDropTarget } from "./shell/roster-drop";
 import { resolveRosterDrop } from "./shell/roster-drop";
-import { commitSpaceRename, sidebarGroupsForSpaces } from "./shell/space-sidebar";
+import { commitSpaceRename, countUnreadChats, sidebarGroupsForSpaces } from "./shell/space-sidebar";
 import { WindowChrome } from "./WindowChrome";
+
+const READ_ALOUD_TOAST = "read-aloud-error";
+
+/** Chat read-aloud has no caption to carry a failure, so it surfaces as a toast. */
+function readAloud(text: string, opts: { botId: string; messageId: string }) {
+  void speaker.speak(text, opts).then((error) => {
+    if (error) toast.error(error, { id: READ_ALOUD_TOAST });
+  });
+}
 
 const BotContextMenu = lazyOverlay(() =>
   import("./BotContextMenu").then((module) => module.BotContextMenu),
@@ -399,7 +412,7 @@ const COMPOSER_ONE_LINE_GAP_PX = 14;
 const COMPOSER_COLLAPSE_SLACK_PX = 16;
 
 function threadSnapshotSignal(parent: AbortSignal): AbortSignal {
-  return AbortSignal.any([parent, AbortSignal.timeout(THREAD_SNAPSHOT_TIMEOUT_MS)]);
+  return anySignal([parent, AbortSignal.timeout(THREAD_SNAPSHOT_TIMEOUT_MS)]);
 }
 
 function voiceStatusRefreshTimeout(): Promise<never> {
@@ -1483,7 +1496,7 @@ function SpaceShell() {
     const text = speechFromBlocks(lastBot.blocks);
     if (!text) return;
     autoSpoken.current = lastBot.id;
-    void speaker.speak(text, { botId: active.id, messageId: lastBot.id });
+    readAloud(text, { botId: active.id, messageId: lastBot.id });
   }, [
     snapshot?.messages,
     snapshot?.run?.status,
@@ -1715,8 +1728,8 @@ function SpaceShell() {
     };
   }, [activeGroup?.id, groupId, notifyBrowserForEvent]);
 
-  const sidebarGroups = useMemo(() => {
-    const sidebarSpaces =
+  const sidebarSpaces = useMemo(
+    () =>
       spaces.length > 0
         ? spaces.map((space) =>
             space.id === bootstrapMe?.spaceId ? { ...space, bots, groups, botSections } : space,
@@ -1735,12 +1748,23 @@ function SpaceShell() {
                 botSections,
               },
             ]
-          : [];
-    return sidebarGroupsForSpaces(sidebarSpaces, query, {
-      pinned: t`Pinned`,
-      unassigned: t`Unassigned`,
-    });
-  }, [bootstrapMe, botSections, bots, groups, spaces, query, t]);
+          : [],
+    [bootstrapMe, botSections, bots, groups, spaces],
+  );
+  const sidebarGroups = useMemo(
+    () =>
+      sidebarGroupsForSpaces(sidebarSpaces, query, {
+        pinned: t`Pinned`,
+        unassigned: t`Unassigned`,
+      }),
+    [sidebarSpaces, query, t],
+  );
+  // The Dock badge ignores the roster search box: a filter must not hide unread chats.
+  const unreadChatCount = useMemo(
+    () => countUnreadChats(sidebarGroupsForSpaces(sidebarSpaces, "")),
+    [sidebarSpaces],
+  );
+  useDesktopBadge(userId ? unreadChatCount : 0);
 
   const spaceSwitchRequest = useRef(0);
   useEffect(
@@ -2676,7 +2700,7 @@ function SpaceShell() {
     }
     const text = speechFromBlocks(message.blocks);
     const id = message.botId ?? activeBotId.current;
-    if (text && id) void speaker.speak(text, { botId: id, messageId: message.id });
+    if (text && id) readAloud(text, { botId: id, messageId: message.id });
   }, []);
 
   async function createGroup(input: { name: string; botIds: string[] }) {
@@ -3487,8 +3511,10 @@ function SpaceShell() {
                     ).find((item) => item.id === group.sectionId)
                   : undefined;
                 return (
-                  <div
+                  <Collapsible
                     key={group.key}
+                    open={!collapsed}
+                    onOpenChange={() => toggleSidebarSection(group.key)}
                     data-sidebar-group={group.key}
                     className="flex flex-col gap-0.5"
                   >
@@ -3523,14 +3549,18 @@ function SpaceShell() {
                           // the dedicated space-actions button still opens the space menu.
                           <ContextMenu disabled={!section}>
                             <ContextMenuTrigger
-                              render={<button type="button" />}
-                              className={`flex min-w-0 items-center justify-between gap-2 rounded-lg px-2.5 py-1 text-[11px] font-semibold tracking-wider uppercase text-muted-foreground/60 hover:text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring ${hasSpaceActions ? "col-start-1 row-start-1 w-full pe-8" : "flex-1"}`}
+                              render={
+                                group.emptySpaceId ? (
+                                  <button type="button" />
+                                ) : (
+                                  <CollapsibleTrigger />
+                                )
+                              }
+                              className={`flex min-w-0 items-center justify-between gap-2 rounded-lg px-2.5 py-1 text-[11px] font-semibold tracking-wider uppercase text-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring ${hasSpaceActions ? "col-start-1 row-start-1 w-full pe-8" : "flex-1"}`}
                               onClick={() => {
                                 if (group.emptySpaceId) {
                                   openSpaceChat(group.emptySpaceId, "/onboarding");
-                                  return;
                                 }
-                                toggleSidebarSection(group.key);
                               }}
                               onContextMenu={
                                 section
@@ -3546,7 +3576,6 @@ function SpaceShell() {
                                       }
                                     : undefined
                               }
-                              aria-expanded={group.emptySpaceId ? undefined : !collapsed}
                               aria-label={
                                 group.emptySpaceId
                                   ? t`Open ${group.title}`
@@ -3624,304 +3653,296 @@ function SpaceShell() {
                         ) : null}
                       </div>
                     ) : null}
-                    <Collapsible open={!collapsed} className="contents">
-                      <CollapsibleContent className="flex flex-col gap-0.5">
-                        {nestedRows.map(({ item, depth, hasChildren, parentId }) => {
-                          const parentCollapsed =
-                            hasChildren && collapsedRosterParents.has(item.chat.id);
-                          const selected =
-                            (item.kind === "bot" && !inGroup && active?.id === item.chat.id) ||
-                            (item.kind === "group" && inGroup && activeGroup?.id === item.chat.id);
-                          const compact = botsSidebarDensity === "compact";
-                          const workStatusLabel =
-                            item.kind === "bot" ? rosterWorkStatusLabel(item.chat.status) : null;
-                          const rowError =
-                            item.kind === "bot" &&
-                            (rosterHasUndismissedRunError(
-                              item.chat.runErrorId,
-                              dismissedRunErrorIds,
-                            ) ||
-                              (active?.id === item.chat.id && Boolean(displayedRunError)));
-                          const compactStatusLabel =
-                            compact && item.kind === "bot"
-                              ? rowError
-                                ? t`Error`
-                                : compactRosterStatusLabel(item.chat.status)
-                              : null;
-                          const rosterLine = compact
-                            ? compactStatusLabel
-                            : (workStatusLabel ??
-                              (item.kind === "bot"
-                                ? item.chat.preview ||
-                                  (item.chat.status !== "idle" ? item.chat.status : "")
-                                : item.chat.preview ||
-                                  item.chat.members.map((member) => member.name).join(", ")));
-                          const rowDropTarget: RosterDropTarget | null =
-                            item.chat.spaceId !== bootstrapMe?.spaceId
-                              ? null
-                              : item.kind === "bot"
-                                ? { kind: "bot", chat: item.chat }
-                                : {
-                                    kind: "group",
-                                    chat: {
-                                      id: item.chat.id,
-                                      memberIds: item.chat.members.map((member) => member.botId),
-                                    },
-                                  };
-                          const rowSameParent =
-                            Boolean(draggedBotId) &&
-                            groupBotIds.includes(draggedBotId ?? "") &&
-                            rosterParent.get(draggedBotId ?? "") === parentId;
-                          const rowDropKey = `row:${item.kind}:${item.chat.id}`;
-                          return (
-                            <div
-                              key={`${item.kind}:${item.chat.id}`}
-                              className="group/row relative"
-                              style={{
-                                opacity:
-                                  item.kind === "bot" && draggedBotId === item.chat.id ? 0.55 : 1,
-                              }}
-                            >
-                              {hasChildren ? (
-                                <span
-                                  className="absolute inset-y-0 z-10 flex w-3.5 items-center justify-center"
-                                  style={{ insetInlineStart: `${10 + depth * 14}px` }}
+                    <CollapsibleContent className="flex flex-col gap-0.5">
+                      {nestedRows.map(({ item, depth, hasChildren, parentId }) => {
+                        const parentCollapsed =
+                          hasChildren && collapsedRosterParents.has(item.chat.id);
+                        const selected =
+                          (item.kind === "bot" && !inGroup && active?.id === item.chat.id) ||
+                          (item.kind === "group" && inGroup && activeGroup?.id === item.chat.id);
+                        const compact = botsSidebarDensity === "compact";
+                        const workStatusLabel =
+                          item.kind === "bot" ? rosterWorkStatusLabel(item.chat.status) : null;
+                        const rowError =
+                          item.kind === "bot" &&
+                          (rosterHasUndismissedRunError(
+                            item.chat.runErrorId,
+                            dismissedRunErrorIds,
+                          ) ||
+                            (active?.id === item.chat.id && Boolean(displayedRunError)));
+                        const compactStatusLabel =
+                          compact && item.kind === "bot"
+                            ? rowError
+                              ? t`Error`
+                              : compactRosterStatusLabel(item.chat.status)
+                            : null;
+                        const rosterLine = compact
+                          ? compactStatusLabel
+                          : (workStatusLabel ??
+                            (item.kind === "bot"
+                              ? item.chat.preview ||
+                                (item.chat.status !== "idle" ? item.chat.status : "")
+                              : item.chat.preview ||
+                                item.chat.members.map((member) => member.name).join(", ")));
+                        const rowDropTarget: RosterDropTarget | null =
+                          item.chat.spaceId !== bootstrapMe?.spaceId
+                            ? null
+                            : item.kind === "bot"
+                              ? { kind: "bot", chat: item.chat }
+                              : {
+                                  kind: "group",
+                                  chat: {
+                                    id: item.chat.id,
+                                    memberIds: item.chat.members.map((member) => member.botId),
+                                  },
+                                };
+                        const rowSameParent =
+                          Boolean(draggedBotId) &&
+                          groupBotIds.includes(draggedBotId ?? "") &&
+                          rosterParent.get(draggedBotId ?? "") === parentId;
+                        const rowDropKey = `row:${item.kind}:${item.chat.id}`;
+                        return (
+                          <div
+                            key={`${item.kind}:${item.chat.id}`}
+                            className="group/row relative"
+                            style={{
+                              opacity:
+                                item.kind === "bot" && draggedBotId === item.chat.id ? 0.55 : 1,
+                            }}
+                          >
+                            {hasChildren ? (
+                              <span
+                                className="absolute inset-y-0 z-10 flex w-3.5 items-center justify-center"
+                                style={{ insetInlineStart: `${10 + depth * 14}px` }}
+                              >
+                                <button
+                                  type="button"
+                                  aria-expanded={!parentCollapsed}
+                                  aria-label={
+                                    parentCollapsed
+                                      ? t`Expand ${item.chat.name}`
+                                      : t`Collapse ${item.chat.name}`
+                                  }
+                                  className="inline-flex size-3.5 items-center justify-center rounded-sm text-muted-foreground hover:text-foreground"
+                                  onClick={() => toggleRosterParent(item.chat.id)}
                                 >
-                                  <button
-                                    type="button"
-                                    aria-expanded={!parentCollapsed}
-                                    aria-label={
-                                      parentCollapsed
-                                        ? t`Expand ${item.chat.name}`
-                                        : t`Collapse ${item.chat.name}`
-                                    }
-                                    className="inline-flex size-3.5 items-center justify-center rounded-sm text-muted-foreground hover:text-foreground"
-                                    onClick={() => toggleRosterParent(item.chat.id)}
-                                  >
-                                    <ChevronDown
-                                      size={12}
-                                      strokeWidth={2}
-                                      className={`transition-transform ${
-                                        parentCollapsed ? "-rotate-90" : ""
-                                      }`}
-                                      aria-hidden="true"
-                                    />
-                                  </button>
-                                </span>
-                              ) : null}
-                              <ContextMenu
-                                disabled={item.chat.spaceId !== bootstrapMe?.spaceId}
-                                open={botMenu?.kind === item.kind && botMenu.id === item.chat.id}
-                                // A sibling row's menu may already own the state; only clear our own.
-                                onOpenChange={(open) =>
-                                  setBotMenu((current) =>
-                                    open
-                                      ? { kind: item.kind, id: item.chat.id }
-                                      : current?.kind === item.kind && current.id === item.chat.id
-                                        ? null
-                                        : current,
+                                  <ChevronDown
+                                    size={12}
+                                    strokeWidth={2}
+                                    className={`transition-transform ${
+                                      parentCollapsed ? "-rotate-90" : ""
+                                    }`}
+                                    aria-hidden="true"
+                                  />
+                                </button>
+                              </span>
+                            ) : null}
+                            <ContextMenu
+                              disabled={item.chat.spaceId !== bootstrapMe?.spaceId}
+                              open={botMenu?.kind === item.kind && botMenu.id === item.chat.id}
+                              // A sibling row's menu may already own the state; only clear our own.
+                              onOpenChange={(open) =>
+                                setBotMenu((current) =>
+                                  open
+                                    ? { kind: item.kind, id: item.chat.id }
+                                    : current?.kind === item.kind && current.id === item.chat.id
+                                      ? null
+                                      : current,
+                                )
+                              }
+                            >
+                              <ContextMenuTrigger
+                                render={<button type="button" />}
+                                draggable={item.kind === "bot"}
+                                data-roster-bot-id={item.kind === "bot" ? item.chat.id : undefined}
+                                data-roster-unread={item.chat.unread ? "true" : undefined}
+                                data-roster-error={rowError && compact ? "true" : undefined}
+                                data-roster-depth={
+                                  item.kind === "bot" && treeActive ? depth : undefined
+                                }
+                                aria-current={selected ? "page" : undefined}
+                                aria-keyshortcuts={
+                                  item.kind === "bot" ? "Alt+ArrowUp Alt+ArrowDown" : undefined
+                                }
+                                onDragStart={(event) => {
+                                  if (item.kind !== "bot") return;
+                                  setDraggedBotId(item.chat.id);
+                                  event.dataTransfer.effectAllowed = "move";
+                                  event.dataTransfer.setData("text/plain", item.chat.id);
+                                }}
+                                onDragOver={(event) => {
+                                  if (
+                                    !rowDropTarget ||
+                                    !rosterDropAction(rowDropTarget, rowSameParent)
                                   )
+                                    return;
+                                  event.preventDefault();
+                                  event.dataTransfer.dropEffect = "move";
+                                  if (rosterDropKey !== rowDropKey) setRosterDropKey(rowDropKey);
+                                }}
+                                onDragLeave={() => {
+                                  if (rosterDropKey === rowDropKey) setRosterDropKey(null);
+                                }}
+                                onDrop={(event) => {
+                                  if (!rowDropTarget) return;
+                                  event.preventDefault();
+                                  applyRosterDrop(rowDropTarget, rowSameParent, groupBotIds);
+                                }}
+                                onDragEnd={() => {
+                                  setDraggedBotId(null);
+                                  setRosterDropKey(null);
+                                }}
+                                data-roster-drop={rosterDropKey === rowDropKey ? "true" : undefined}
+                                onKeyDown={(event) => {
+                                  if (
+                                    item.kind !== "bot" ||
+                                    !event.altKey ||
+                                    (event.key !== "ArrowUp" && event.key !== "ArrowDown")
+                                  )
+                                    return;
+                                  const siblings = siblingBotIds(parentId);
+                                  const index = siblings.indexOf(item.chat.id);
+                                  const target =
+                                    siblings[index + (event.key === "ArrowUp" ? -1 : 1)];
+                                  if (!target) return;
+                                  event.preventDefault();
+                                  reorderRosterBot(item.chat.id, target, groupBotIds);
+                                }}
+                                onClick={() => {
+                                  openSpaceChat(
+                                    item.chat.spaceId,
+                                    item.kind === "bot"
+                                      ? `/app/${item.chat.id}`
+                                      : `/app/g/${item.chat.id}`,
+                                  );
+                                }}
+                                // Focus the row so closing the menu returns focus here.
+                                onContextMenu={(event) => event.currentTarget.focus()}
+                                className={`flex w-full items-center ${
+                                  compact
+                                    ? "min-h-11 gap-2 rounded-xl px-2.5 py-1.5"
+                                    : "gap-3 rounded-xl px-2.5 py-[10px]"
+                                } text-start ${
+                                  item.kind === "bot" ? "cursor-grab active:cursor-grabbing" : ""
+                                } ${
+                                  selected || rosterDropKey === rowDropKey
+                                    ? "bg-sidebar-accent"
+                                    : "group-hover/row:bg-sidebar-accent"
+                                }`}
+                                style={
+                                  treeActive
+                                    ? { paddingInlineStart: `${24 + depth * 14}px` }
+                                    : undefined
                                 }
                               >
-                                <ContextMenuTrigger
-                                  render={<button type="button" />}
-                                  draggable={item.kind === "bot"}
-                                  data-roster-bot-id={
-                                    item.kind === "bot" ? item.chat.id : undefined
-                                  }
-                                  data-roster-unread={item.chat.unread ? "true" : undefined}
-                                  data-roster-error={rowError && compact ? "true" : undefined}
-                                  data-roster-depth={
-                                    item.kind === "bot" && treeActive ? depth : undefined
-                                  }
-                                  aria-current={selected ? "page" : undefined}
-                                  aria-keyshortcuts={
-                                    item.kind === "bot" ? "Alt+ArrowUp Alt+ArrowDown" : undefined
-                                  }
-                                  onDragStart={(event) => {
-                                    if (item.kind !== "bot") return;
-                                    setDraggedBotId(item.chat.id);
-                                    event.dataTransfer.effectAllowed = "move";
-                                    event.dataTransfer.setData("text/plain", item.chat.id);
-                                  }}
-                                  onDragOver={(event) => {
-                                    if (
-                                      !rowDropTarget ||
-                                      !rosterDropAction(rowDropTarget, rowSameParent)
-                                    )
-                                      return;
-                                    event.preventDefault();
-                                    event.dataTransfer.dropEffect = "move";
-                                    if (rosterDropKey !== rowDropKey) setRosterDropKey(rowDropKey);
-                                  }}
-                                  onDragLeave={() => {
-                                    if (rosterDropKey === rowDropKey) setRosterDropKey(null);
-                                  }}
-                                  onDrop={(event) => {
-                                    if (!rowDropTarget) return;
-                                    event.preventDefault();
-                                    applyRosterDrop(rowDropTarget, rowSameParent, groupBotIds);
-                                  }}
-                                  onDragEnd={() => {
-                                    setDraggedBotId(null);
-                                    setRosterDropKey(null);
-                                  }}
-                                  data-roster-drop={
-                                    rosterDropKey === rowDropKey ? "true" : undefined
-                                  }
-                                  onKeyDown={(event) => {
-                                    if (
-                                      item.kind !== "bot" ||
-                                      !event.altKey ||
-                                      (event.key !== "ArrowUp" && event.key !== "ArrowDown")
-                                    )
-                                      return;
-                                    const siblings = siblingBotIds(parentId);
-                                    const index = siblings.indexOf(item.chat.id);
-                                    const target =
-                                      siblings[index + (event.key === "ArrowUp" ? -1 : 1)];
-                                    if (!target) return;
-                                    event.preventDefault();
-                                    reorderRosterBot(item.chat.id, target, groupBotIds);
-                                  }}
-                                  onClick={() => {
-                                    openSpaceChat(
-                                      item.chat.spaceId,
-                                      item.kind === "bot"
-                                        ? `/app/${item.chat.id}`
-                                        : `/app/g/${item.chat.id}`,
-                                    );
-                                  }}
-                                  // Focus the row so closing the menu returns focus here.
-                                  onContextMenu={(event) => event.currentTarget.focus()}
-                                  className={`flex w-full items-center ${
-                                    compact
-                                      ? "min-h-11 gap-2 rounded-xl px-2.5 py-1.5"
-                                      : "gap-3 rounded-xl px-2.5 py-[10px]"
-                                  } text-start ${
-                                    item.kind === "bot" ? "cursor-grab active:cursor-grabbing" : ""
-                                  } ${
-                                    selected || rosterDropKey === rowDropKey
-                                      ? "bg-sidebar-accent"
-                                      : "group-hover/row:bg-sidebar-accent"
-                                  }`}
-                                  style={
-                                    treeActive
-                                      ? { paddingInlineStart: `${24 + depth * 14}px` }
-                                      : undefined
-                                  }
-                                >
-                                  {item.kind === "bot" ? (
-                                    <BotAvatar
-                                      color={item.chat.color}
-                                      identity={item.chat.id}
-                                      size={compact ? 28 : 38}
-                                      status={item.chat.status}
-                                    />
-                                  ) : (
-                                    <GroupAvatar
-                                      members={
-                                        item.chat.id === activeSnapshot?.groupId
-                                          ? (activeSnapshot.members ?? item.chat.members)
-                                          : item.chat.members
-                                      }
-                                      size={compact ? 28 : 38}
-                                    />
-                                  )}
-                                  <div className="min-w-0 flex-1">
-                                    <div className="flex items-center justify-between gap-1.5">
-                                      <div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
-                                        <span
-                                          dir="auto"
-                                          data-roster-bot-name={
-                                            item.kind === "bot" ? "" : undefined
-                                          }
-                                          className={`min-w-0 truncate text-[14px] text-foreground ${
-                                            item.chat.unread ? "font-semibold" : "font-medium"
-                                          }`}
-                                        >
-                                          {item.chat.name}
-                                        </span>
-                                        {item.chat.unread ? (
-                                          <span className="sr-only">
-                                            <Trans> (unread)</Trans>
-                                          </span>
-                                        ) : null}
-                                      </div>
-                                      <div className="flex shrink-0 items-center gap-1.5">
-                                        {!compact ? (
-                                          <span className="text-[11.5px] text-muted-foreground/60 tabular-nums">
-                                            {formatRosterTime(item.chat.updatedAt)}
-                                          </span>
-                                        ) : null}
-                                        {item.chat.unread ? (
-                                          <span
-                                            aria-hidden="true"
-                                            data-roster-unread-dot
-                                            className="inline-block h-2 w-2 rounded-full bg-unread"
-                                          />
-                                        ) : null}
-                                      </div>
-                                    </div>
-                                    {!compact && item.kind === "bot" && item.chat.title ? (
-                                      <div className="mt-1 flex">
-                                        <span className="max-w-full truncate rounded-md border border-border bg-muted px-2 py-0.5 text-[11px] font-normal text-muted-foreground">
-                                          {item.chat.title}
-                                        </span>
-                                      </div>
-                                    ) : null}
-                                    {compact ? (
-                                      compactStatusLabel ? (
-                                        <div
-                                          dir="auto"
-                                          data-roster-status={
-                                            rowError
-                                              ? "error"
-                                              : item.kind === "bot"
-                                                ? item.chat.status
-                                                : undefined
-                                          }
-                                          className={`mt-0.5 flex items-center gap-1 text-[11.5px] ${
-                                            rowError
-                                              ? "font-medium text-destructive"
-                                              : workStatusLabel
-                                                ? "font-semibold text-status-working"
-                                                : "font-medium text-foreground/75"
-                                          }`}
-                                        >
-                                          {rowError ? (
-                                            <CircleAlert size={12} aria-hidden="true" />
-                                          ) : null}
-                                          <span>{compactStatusLabel}</span>
-                                        </div>
-                                      ) : null
-                                    ) : (
-                                      <div
+                                {item.kind === "bot" ? (
+                                  <BotAvatar
+                                    color={item.chat.color}
+                                    identity={item.chat.id}
+                                    size={compact ? 28 : 38}
+                                    status={item.chat.status}
+                                  />
+                                ) : (
+                                  <GroupAvatar
+                                    members={
+                                      item.chat.id === activeSnapshot?.groupId
+                                        ? (activeSnapshot.members ?? item.chat.members)
+                                        : item.chat.members
+                                    }
+                                    size={compact ? 28 : 38}
+                                  />
+                                )}
+                                <div className="min-w-0 flex-1">
+                                  <div className="flex items-center justify-between gap-1.5">
+                                    <div className="flex min-w-0 items-center gap-1.5 overflow-hidden">
+                                      <span
                                         dir="auto"
-                                        data-roster-preview={!workStatusLabel ? "true" : undefined}
-                                        className={`mt-1 line-clamp-2 text-[12.5px] break-words whitespace-normal ${
-                                          workStatusLabel
-                                            ? "font-semibold text-status-working"
-                                            : item.chat.unread
-                                              ? "font-medium text-foreground/75"
-                                              : "text-muted-foreground/60"
+                                        data-roster-bot-name={item.kind === "bot" ? "" : undefined}
+                                        className={`min-w-0 truncate text-[14px] text-foreground ${
+                                          item.chat.unread ? "font-semibold" : "font-medium"
                                         }`}
                                       >
-                                        {rosterLine}
-                                      </div>
-                                    )}
+                                        {item.chat.name}
+                                      </span>
+                                      {item.chat.unread ? (
+                                        <span className="sr-only">
+                                          <Trans> (unread)</Trans>
+                                        </span>
+                                      ) : null}
+                                    </div>
+                                    <div className="flex shrink-0 items-center gap-1.5">
+                                      {!compact ? (
+                                        <span className="text-[11.5px] text-muted-foreground/60 tabular-nums">
+                                          {formatRosterTime(item.chat.updatedAt)}
+                                        </span>
+                                      ) : null}
+                                      {item.chat.unread ? (
+                                        <span
+                                          aria-hidden="true"
+                                          data-roster-unread-dot
+                                          className="inline-block h-2 w-2 rounded-full bg-unread"
+                                        />
+                                      ) : null}
+                                    </div>
                                   </div>
-                                </ContextMenuTrigger>
-                                {botMenu?.kind === item.kind && botMenu.id === item.chat.id ? (
-                                  <Suspense fallback={null}>{botMenuContent}</Suspense>
-                                ) : null}
-                              </ContextMenu>
-                            </div>
-                          );
-                        })}
-                      </CollapsibleContent>
-                    </Collapsible>
-                  </div>
+                                  {!compact && item.kind === "bot" && item.chat.title ? (
+                                    <div className="mt-1 flex">
+                                      <span className="max-w-full truncate rounded-md border border-border bg-muted px-2 py-0.5 text-[11px] font-normal text-muted-foreground">
+                                        {item.chat.title}
+                                      </span>
+                                    </div>
+                                  ) : null}
+                                  {compact ? (
+                                    compactStatusLabel ? (
+                                      <div
+                                        dir="auto"
+                                        data-roster-status={
+                                          rowError
+                                            ? "error"
+                                            : item.kind === "bot"
+                                              ? item.chat.status
+                                              : undefined
+                                        }
+                                        className={`mt-0.5 flex items-center gap-1 text-[11.5px] ${
+                                          rowError
+                                            ? "font-medium text-destructive"
+                                            : workStatusLabel
+                                              ? "font-semibold text-status-working"
+                                              : "font-medium text-foreground/75"
+                                        }`}
+                                      >
+                                        {rowError ? (
+                                          <CircleAlert size={12} aria-hidden="true" />
+                                        ) : null}
+                                        <span>{compactStatusLabel}</span>
+                                      </div>
+                                    ) : null
+                                  ) : (
+                                    <div
+                                      dir="auto"
+                                      data-roster-preview={!workStatusLabel ? "true" : undefined}
+                                      className={`mt-1 line-clamp-2 text-[12.5px] break-words whitespace-normal ${
+                                        workStatusLabel
+                                          ? "font-semibold text-status-working"
+                                          : item.chat.unread
+                                            ? "font-medium text-foreground/75"
+                                            : "text-muted-foreground/60"
+                                      }`}
+                                    >
+                                      {rosterLine}
+                                    </div>
+                                  )}
+                                </div>
+                              </ContextMenuTrigger>
+                              {botMenu?.kind === item.kind && botMenu.id === item.chat.id ? (
+                                <Suspense fallback={null}>{botMenuContent}</Suspense>
+                              ) : null}
+                            </ContextMenu>
+                          </div>
+                        );
+                      })}
+                    </CollapsibleContent>
+                  </Collapsible>
                 );
               })}
             </>
@@ -5694,7 +5715,7 @@ const Transcript = memo(function Transcript({
                               (block) => block.kind === "ask" || block.kind === "mcp_approval",
                             )
                           ? "relative w-full min-w-0 max-w-full"
-                          : `relative w-fit min-w-0 ${
+                          : `relative ${message.blocks.some((block) => block.kind === "app_connect") ? "w-full" : "w-fit"} min-w-0 ${
                               message.role === "user"
                                 ? "max-w-[min(84%,calc(100%_-_8rem))] [@media(hover:none)]:max-w-[84%]"
                                 : "max-w-[min(88%,calc(100%_-_8rem))] [@media(hover:none)]:max-w-[88%]"
@@ -7464,8 +7485,13 @@ const MessageView = memo(function MessageView({
             const botId = "botId" in artifactTarget ? artifactTarget.botId : message.botId;
             if (!botId) return null;
             return (
-              <div key={i} className="flex justify-start py-1">
-                <AppConnectCard botId={botId} block={block} />
+              <div key={i} className="flex justify-start">
+                <AppConnectCard
+                  botId={botId}
+                  threadId={message.threadId}
+                  messageId={message.id}
+                  block={block}
+                />
               </div>
             );
           }

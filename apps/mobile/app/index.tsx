@@ -121,6 +121,7 @@ import { iosAtLeast } from "../lib/native-controls";
 import { offerPasskeyOnce } from "../lib/passkey";
 import { previewSnippet } from "../lib/preview";
 import { registerPushToken } from "../lib/push";
+import { androidRipple } from "../lib/ripple";
 import { loadSavedInbox, saveInbox } from "../lib/saved-chats";
 import { setSearchInbox } from "../lib/search-inbox";
 import { promptSectionName } from "../lib/section-name-prompt";
@@ -774,12 +775,6 @@ function Home({ embedded, onSelectSpace }: InboxPaneProps & { embedded: boolean 
         },
         {
           type: "button" as const,
-          accessibilityLabel: t("Artifacts"),
-          icon: { type: "sfSymbol" as const, name: "square.stack.3d.up" },
-          onPress: () => router.push("/artifacts"),
-        },
-        {
-          type: "button" as const,
           accessibilityLabel: t("Search"),
           identifier: "home-search-button",
           icon: { type: "sfSymbol" as const, name: "magnifyingglass" },
@@ -1283,12 +1278,6 @@ function Home({ embedded, onSelectSpace }: InboxPaneProps & { embedded: boolean 
               />
             </HeaderButton>
             <HeaderButton
-              accessibilityLabel={t("Artifacts")}
-              onPress={() => router.push("/artifacts")}
-            >
-              <NativeSymbol ios="square.stack.3d.up" android="layers-outline" size={17} />
-            </HeaderButton>
-            <HeaderButton
               testID="home-search-button"
               accessibilityLabel={t("Search")}
               onPress={() => router.push("/search")}
@@ -1581,19 +1570,21 @@ function ConversationRow({
         if (name === "toggleChildren") onToggleChildren?.();
         else if (action) onAction?.(action);
       }}
+      android_ripple={androidRipple()}
       onPress={onPress}
       onLongPress={onLongPress}
       style={({ pressed }) => [
         styles.row,
         compact ? styles.compactRow : null,
         selected ? styles.rowSelected : null,
+        selected && Platform.OS === "android" && { overflow: "hidden" },
         depth > 0
           ? {
               paddingInlineStart:
                 (compact ? COMPACT_INBOX_ROW.padding : INBOX_ROW.padding) + depth * 16,
             }
           : null,
-        pressed && styles.rowPressed,
+        pressed && Platform.OS !== "android" && styles.rowPressed,
       ]}
     >
       {hasChildren ? (
