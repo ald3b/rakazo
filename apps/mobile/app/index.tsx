@@ -1475,13 +1475,7 @@ function Home({ embedded, onSelectSpace }: InboxPaneProps & { embedded: boolean 
               }
               renderItem={renderItem}
             />
-            {!inboxLoaded.current ||
-            refreshing ||
-            inlineError ||
-            loadFailure ||
-            inboxHasNoChats(listData)
-              ? null
-              : unreadJump.overlay}
+            {refreshing || showLoadFailure || inboxHasNoChats(listData) ? null : unreadJump.overlay}
           </View>
         </CompactRowsContext.Provider>
       </SelectedChatContext.Provider>

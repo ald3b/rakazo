@@ -31,17 +31,18 @@ vi.mock("react-native-reanimated", () => ({
   default: {
     View: (props: { children?: ReactNode }) => createElement("div", null, props.children),
   },
-  FadeIn: { duration: () => ({ reduceMotion: () => undefined }) },
-  FadeOut: { duration: () => ({ reduceMotion: () => undefined }) },
+  FadeIn: { duration: () => ({ reduceMotion: () => "fade-in" }) },
+  FadeOut: { duration: () => ({ reduceMotion: () => "fade-out" }) },
   ReduceMotion: { System: "system" },
 }));
 vi.mock("./i18n", () => ({
   useI18n: () => ({
-    t: (text: string, values?: Record<string, number>) =>
-      text.replace("{count}", String(values?.count ?? "")),
+    t: (text: string, values?: Record<string, string | number>) =>
+      text
+        .replace("{count}", String(values?.count ?? ""))
+        .replace("{label}", String(values?.label ?? "")),
   }),
 }));
-vi.mock("./native", () => ({ useMobileTokens: () => ({ unread: "blue", attention: "orange" }) }));
 vi.mock("../components/unread-jump-pill", () => ({
   UNREAD_JUMP_PILL_HEIGHT: 38,
   UnreadJumpPill: () => null,
@@ -128,12 +129,43 @@ describe("useUnreadJumpPills", () => {
       }) as ReactElement<{ onLayout: (event: unknown) => void }>;
       cell.props.onLayout({ nativeEvent: { layout: { y, height } } });
     });
-  const below = () => {
-    const [, edge] = (pills.overlay as ReactElement<{ children: ReactElement[] }>).props.children;
+  const edgeAt = (index: number) => {
+    const edge = (pills.overlay as ReactElement<{ children: ReactElement[] }>).props.children[
+      index
+    ];
     return edge as ReactElement<{
-      children: ReactElement<{ onPress: () => void; label: string }>;
+      entering?: unknown;
+      exiting?: unknown;
+      children: ReactElement<{ onPress: () => void; label: string; accessibilityLabel: string }>;
     }> | null;
   };
+  const below = () => edgeAt(1);
+
+  it("names the direction and skips only the first measured entrance", () => {
+    render(["a", "b", "c"], [unread, read, unread]);
+    layOut("a", 0);
+    layOut("b", 100);
+    viewport(100, 300);
+    expect(below()?.props.children.props.accessibilityLabel).toBe("1 unread, below");
+    expect(below()?.props.entering).toBeUndefined();
+    expect(below()?.props.exiting).toBe("fade-out");
+    act(() =>
+      pills.listProps.onScroll({
+        nativeEvent: {
+          contentOffset: { y: 100 },
+          layoutMeasurement: { height: 100 },
+          contentSize: { height: 300 },
+        },
+      } as never),
+    );
+    const above = edgeAt(0);
+    expect(above?.props.children.props.accessibilityLabel).toBe("1 unread, above");
+    expect(above?.props.entering).toBe("fade-in");
+    render(["a", "b", "c"], [unread, read, { unread: 0, attention: 1 }]);
+    expect(below()?.props.children.props.accessibilityLabel).toBe("Needs attention, below");
+    render(["a", "b", "c"], [unread, read, { unread: 0, attention: 2 }]);
+    expect(below()?.props.children.props.accessibilityLabel).toBe("2 need attention, below");
+  });
 
   it("keeps each row's layout by key when rows above it go away", () => {
     render(["a", "b", "c"], [read, read, unread]);

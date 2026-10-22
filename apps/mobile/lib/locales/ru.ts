@@ -984,6 +984,6 @@ export const RU_MESSAGES: Record<string, string> = {
   "1 unread": "1 непрочитанный",
   "{count} unread": "Непрочитанных: {count}",
   "{count} need attention": "Требуют внимания: {count}",
-  "Scrolls up": "Прокручивает вверх",
-  "Scrolls down": "Прокручивает вниз",
+  "{label}, above": "{label}, выше",
+  "{label}, below": "{label}, ниже",
 };

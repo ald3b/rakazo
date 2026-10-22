@@ -7,19 +7,16 @@ import { NativeSymbol } from "./native-symbol";
 
 export const UNREAD_JUMP_PILL_HEIGHT = 38;
 
-/** A glass capsule tinted with `color`, a chevron toward the chats it counts, and its label. */
+/** An unread-blue glass capsule with a directional chevron and label. */
 export function UnreadJumpPill({
   direction,
   label,
-  accessibilityHint,
-  color,
+  accessibilityLabel,
   onPress,
 }: {
   direction: JumpDirection;
   label: string;
-  accessibilityHint: string;
-  /** The tint: the unread blue, or the attention orange when a chat is waiting on you. */
-  color: string;
+  accessibilityLabel: string;
   onPress: () => void;
 }) {
   const tokens = useMobileTokens();
@@ -28,15 +25,17 @@ export function UnreadJumpPill({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={label}
-      accessibilityHint={accessibilityHint}
+      accessibilityLabel={accessibilityLabel}
       onPress={onPress}
       style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
     >
       <GlassSurface
-        tint={color}
+        tint={tokens.unread}
         style={styles.pill}
-        fallbackStyle={{ backgroundColor: color, boxShadow: "0 2px 6px rgba(0, 0, 0, 0.22)" }}
+        fallbackStyle={{
+          backgroundColor: tokens.unread,
+          boxShadow: "0 2px 6px rgba(0, 0, 0, 0.22)",
+        }}
       >
         <NativeSymbol
           ios={direction === "above" ? "chevron.up" : "chevron.down"}

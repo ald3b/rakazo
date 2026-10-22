@@ -52,8 +52,7 @@ describe("appearance preference", () => {
         key === "destructiveForeground" ||
         key === "destructiveFill" ||
         key === "faviconPlate" ||
-        key === "unread" ||
-        key === "attention"
+        key === "unread"
       )
         continue;
       expect(darkTokens[key], key).not.toBe(lightTokens[key]);
@@ -184,7 +183,6 @@ describe.each([
     ["foreground", "muted"],
     ["chatUserForeground", "chatUser"],
     ["chatUserForeground", "unread"],
-    ["chatUserForeground", "attention"],
     ["primaryForeground", "primary"],
     ["sidebarForeground", "sidebar"],
     ["sidebarAccentForeground", "sidebarAccent"],

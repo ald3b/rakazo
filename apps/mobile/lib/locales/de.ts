@@ -988,6 +988,6 @@ export const DE_MESSAGES: Record<string, string> = {
   "1 unread": "1 ungelesen",
   "{count} unread": "{count} ungelesen",
   "{count} need attention": "{count} brauchen Aufmerksamkeit",
-  "Scrolls up": "Scrollt nach oben",
-  "Scrolls down": "Scrollt nach unten",
+  "{label}, above": "{label}, oben",
+  "{label}, below": "{label}, unten",
 };

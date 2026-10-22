@@ -10,7 +10,6 @@ import type {
 import { StyleSheet, View } from "react-native";
 import Animated, { FadeIn, FadeOut, ReduceMotion } from "react-native-reanimated";
 import { useI18n } from "../lib/i18n";
-import { useMobileTokens } from "../lib/native";
 import type {
   InboxSignal,
   JumpDirection,
@@ -53,7 +52,6 @@ export function useUnreadJumpPills<Item>({
   bottomInset: number;
 }) {
   const { t } = useI18n();
-  const tokens = useMobileTokens();
   // Measured rows by key, so a row keeps its layout when rows above it come or go.
   const layouts = useRef(new Map<string, RowLayout>());
   // A jump to a row not measured yet scrolls to an estimate, then lands once the row lays out.
@@ -68,6 +66,11 @@ export function useUnreadJumpPills<Item>({
   // At rest the list sits at its top inset: content y 0 shows just under the header.
   const scroll = useRef({ offset: -topInset, viewportHeight: 0, contentHeight: 0 });
   const [range, setRange] = useState<VisibleRange>();
+  const hasMeasuredRows = useRef(false);
+  const animateEntering = hasMeasuredRows.current;
+  useLayoutEffect(() => {
+    if (range) hasMeasuredRows.current = true;
+  }, [range]);
   const count = signals.length;
   const keysRef = useRef(keys);
   keysRef.current = keys;
@@ -241,7 +244,7 @@ export function useUnreadJumpPills<Item>({
         key={direction}
         testID={`home-unread-pill-${direction}`}
         pointerEvents="box-none"
-        entering={entering}
+        entering={animateEntering ? entering : undefined}
         exiting={exiting}
         style={[
           styles.edge,
@@ -251,8 +254,9 @@ export function useUnreadJumpPills<Item>({
         <UnreadJumpPill
           direction={direction}
           label={label}
-          accessibilityHint={direction === "above" ? t("Scrolls up") : t("Scrolls down")}
-          color={pill.kind === "unread" ? tokens.unread : tokens.attention}
+          accessibilityLabel={
+            direction === "above" ? t("{label}, above", { label }) : t("{label}, below", { label })
+          }
           onPress={() => jump(direction, pill)}
         />
       </Animated.View>

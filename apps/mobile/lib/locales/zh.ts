@@ -951,6 +951,6 @@ export const ZH_MESSAGES: Record<string, string> = {
   "1 unread": "1 条未读",
   "{count} unread": "{count} 条未读",
   "{count} need attention": "{count} 个需要处理",
-  "Scrolls up": "向上滚动",
-  "Scrolls down": "向下滚动",
+  "{label}, above": "{label}，上方",
+  "{label}, below": "{label}，下方",
 };

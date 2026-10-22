@@ -944,6 +944,6 @@ export const NL_MESSAGES: Record<string, string> = {
   "1 unread": "1 ongelezen",
   "{count} unread": "{count} ongelezen",
   "{count} need attention": "{count} vragen aandacht",
-  "Scrolls up": "Scrolt omhoog",
-  "Scrolls down": "Scrolt omlaag",
+  "{label}, above": "{label}, boven",
+  "{label}, below": "{label}, onder",
 };
