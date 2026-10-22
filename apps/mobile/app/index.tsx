@@ -82,7 +82,12 @@ import {
   selectSpace,
   signOut,
 } from "../lib/api";
-import { forgetAppBadge, syncAppBadge, unreadChatCount } from "../lib/app-badge";
+import {
+  appBadgeGeneration,
+  forgetAppBadge,
+  syncInboxAppBadge,
+  unreadChatCount,
+} from "../lib/app-badge";
 import { mobileTokens, resolveMobileAppearance } from "../lib/appearance";
 import {
   archivedChatCounts,
@@ -322,7 +327,16 @@ function Home({ embedded, onSelectSpace }: InboxPaneProps & { embedded: boolean 
     });
   }, []);
 
+  const [badgeLoad, setBadgeLoad] = useState<{ generation: number } | null>(null);
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (state) => {
+      if (state === "active") forgetAppBadge();
+    });
+    return () => subscription.remove();
+  }, []);
+
   const loadBots = useCallback(async () => {
+    const badgeGeneration = appBadgeGeneration();
     if (spaceActionRef.current.busy || spaceActionRef.current.recoveryId) return;
     const requestId = ++inboxRequestId.current;
     const apiBase = currentApiBase();
@@ -369,6 +383,7 @@ function Home({ embedded, onSelectSpace }: InboxPaneProps & { embedded: boolean 
       setSpaces((current) => retainInboxValue(current, navigation.spaces));
       setMe((current) => retainInboxValue(current, nextMe));
       inboxLoaded.current = true;
+      setBadgeLoad({ generation: badgeGeneration });
       setLoadFailure(null);
       saveInbox(
         {
@@ -554,16 +569,9 @@ function Home({ embedded, onSelectSpace }: InboxPaneProps & { embedded: boolean 
   }, [inboxSpaces, collapsed, me?.spaceId, spaces, visible, visibleGroups, locale]);
   const badgeCount = me ? unreadChatCount(inboxSpaces) : null;
   useEffect(() => {
-    if (badgeCount === null) return;
-    void syncAppBadge(badgeCount);
-    // A push may have set the icon while the app was away, so coming back writes the count again.
-    const subscription = AppState.addEventListener("change", (state) => {
-      if (state !== "active") return;
-      forgetAppBadge();
-      void syncAppBadge(badgeCount);
-    });
-    return () => subscription.remove();
-  }, [badgeCount]);
+    if (badgeCount === null || badgeLoad === null) return;
+    void syncInboxAppBadge(badgeCount, badgeLoad.generation);
+  }, [badgeCount, badgeLoad]);
   const initials = accountDisplay(me ?? {}, t("You")).initial ?? "?";
   const organizeSpace = organizeTarget
     ? organizeTarget.spaceId === me?.spaceId

@@ -43,3 +43,28 @@ describe("app icon badge", () => {
     expect(vi.mocked(Notifications.setBadgeCountAsync).mock.calls).toEqual([[2], [2]]);
   });
 });
+
+it("waits for a fresh inbox after foreground and ignores old requests", async () => {
+  const badge = await load();
+  const before = badge.appBadgeGeneration();
+  await badge.syncInboxAppBadge(2, before);
+  badge.forgetAppBadge();
+  await badge.syncInboxAppBadge(0, before);
+  expect(Notifications.setBadgeCountAsync).toHaveBeenCalledTimes(1);
+  await badge.syncInboxAppBadge(2, badge.appBadgeGeneration());
+  expect(vi.mocked(Notifications.setBadgeCountAsync).mock.calls).toEqual([[2], [2]]);
+});
+it("clears a session badge even if the cached count is zero", async () => {
+  const badge = await load();
+  await badge.syncAppBadge(0);
+  const old = badge.appBadgeGeneration();
+  await badge.clearAppBadge();
+  await badge.syncInboxAppBadge(3, old);
+  expect(vi.mocked(Notifications.setBadgeCountAsync).mock.calls).toEqual([[0], [0]]);
+});
+
+it("does not write before a live inbox has loaded", async () => {
+  const badge = await load();
+  await badge.syncInboxAppBadge(0, null);
+  expect(Notifications.setBadgeCountAsync).not.toHaveBeenCalled();
+});

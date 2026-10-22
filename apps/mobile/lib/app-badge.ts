@@ -6,6 +6,7 @@ type InboxChats = {
 };
 
 let written: number | null = null;
+let generation = 0;
 
 /** Chats with unread replies across every Space in the inbox: what the app icon shows. */
 export function unreadChatCount(spaces: readonly InboxChats[]): number {
@@ -23,6 +24,7 @@ export function unreadChatCount(spaces: readonly InboxChats[]): number {
  * no longer what the icon shows. The next sync writes the full count again.
  */
 export function forgetAppBadge(): void {
+  generation += 1;
   written = null;
 }
 
@@ -32,4 +34,22 @@ export async function syncAppBadge(count: number): Promise<void> {
   written = count;
   const set = await Notifications.setBadgeCountAsync(count).catch(() => false);
   if (!set && written === count) written = null;
+}
+
+/** Capture when an inbox request starts; pre-foreground responses cannot overwrite a push. */
+export function appBadgeGeneration(): number {
+  return generation;
+}
+
+export async function syncInboxAppBadge(
+  count: number,
+  loadedGeneration: number | null,
+): Promise<void> {
+  if (loadedGeneration !== generation) return;
+  await syncAppBadge(count);
+}
+
+export async function clearAppBadge(): Promise<void> {
+  forgetAppBadge();
+  await syncAppBadge(0);
 }

@@ -50,7 +50,6 @@ import {
   disabledBuiltinToolSet,
   FLEET_TOOL_NAMES,
   FLEET_WRITE_TOOL_NAMES,
-  GROUP_MEMBER_MIN,
   HistoryReadInputSchema,
   HistorySearchInputSchema,
   isAttachmentImageMimeType,
@@ -118,6 +117,7 @@ import {
 import type { McpServer, PrismaClient, ThreadEvents } from "@rakazo/db";
 import {
   appendEventInTransaction,
+  countUnreadInboxChats,
   createSpaceForMember,
   createThreadMessageInTransaction,
   effectiveMemoryScope,
@@ -8654,7 +8654,15 @@ async function notifyRun(
     return null;
   });
   if (!notice?.enabled) return;
-  const badge = await unreadChatBadge(deps.prisma, run);
+  // The icon shows what the inbox shows: unread chats across the user's Spaces. Without a
+  // count the push leaves the badge as it is.
+  const badge = await countUnreadInboxChats(deps.prisma, {
+    userId: run.userId,
+    spaceId: run.spaceId,
+  }).catch((error) => {
+    getLogger().error("unread chat count", error);
+    return undefined;
+  });
   await deps.notifications
     .send(
       {
@@ -8675,38 +8683,6 @@ async function notifyRun(
       if (options.retryOnFailure) throw error;
       getLogger().error("run notification", error);
     });
-}
-
-/**
- * Unread chats in the run's Space, for the app icon: the chats the inbox lists, so a group
- * left with too few active bots doesn't count. Row security keeps this to one Space; the app
- * recounts across Spaces the next time it opens. Undefined leaves the badge as it is.
- */
-async function unreadChatBadge(
-  prisma: PrismaClient,
-  run: { spaceId: string; userId: string },
-): Promise<number | undefined> {
-  const unread = { spaceId: run.spaceId, userId: run.userId, unread: true };
-  try {
-    const [bots, groups] = await Promise.all([
-      prisma.thread.count({ where: { ...unread, bot: { archivedAt: null } } }),
-      prisma.thread.findMany({
-        where: { ...unread, group: { archivedAt: null } },
-        select: {
-          group: {
-            select: { members: { where: { bot: { archivedAt: null } }, select: { botId: true } } },
-          },
-        },
-      }),
-    ]);
-    return (
-      bots +
-      groups.filter((thread) => (thread.group?.members.length ?? 0) >= GROUP_MEMBER_MIN).length
-    );
-  } catch (error) {
-    getLogger().error("unread chat count", error);
-    return undefined;
-  }
 }
 
 async function renewRunLease(

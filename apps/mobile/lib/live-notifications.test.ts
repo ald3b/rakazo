@@ -12,6 +12,7 @@ import * as Notifications from "expo-notifications";
 import {
   afterChatNotifyChange,
   configureForegroundNotifications,
+  dismissThreadNotifications,
   notificationTargetsThread,
   setOpenNotificationThread,
 } from "./live-notifications";
@@ -80,6 +81,37 @@ describe("notification thread targeting", () => {
         request: { content: { data: { kind: "help", botId: "bot-2" } } },
       } as never),
     ).resolves.toMatchObject({ shouldShowBanner: true, shouldShowList: true });
+  });
+
+  it.each(["help", "takeover", "failure"])("still presents %s from another chat", async (kind) => {
+    await setOpenNotificationThread({ botId: "bot-1" });
+    await expect(
+      foregroundHandler()?.handleNotification({
+        request: { content: { data: { kind, botId: "bot-2" } } },
+      } as never),
+    ).resolves.toMatchObject({
+      shouldShowBanner: true,
+      shouldShowList: true,
+      shouldSetBadge: false,
+    });
+  });
+
+  it("dismisses a group's notifications without dismissing its bots' direct chats", async () => {
+    vi.mocked(Notifications.getPresentedNotificationsAsync).mockResolvedValue([
+      {
+        request: { identifier: "group", content: { data: { groupId: "group-1", botId: "bot-1" } } },
+      },
+      {
+        request: { identifier: "native-group", content: { data: { "rakazo.groupId": "group-1" } } },
+      },
+      { request: { identifier: "bot", content: { data: { botId: "bot-1" } } } },
+      { request: { identifier: "other-group", content: { data: { groupId: "group-2" } } } },
+    ] as never);
+    await dismissThreadNotifications({ groupId: "group-1" });
+    expect(vi.mocked(Notifications.dismissNotificationAsync).mock.calls).toEqual([
+      ["group"],
+      ["native-group"],
+    ]);
   });
 
   it("hides only foreground notifications for the open agent", async () => {
