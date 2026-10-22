@@ -988,14 +988,6 @@ export const DE_MESSAGES: Record<string, string> = {
   "1 unread": "1 ungelesen",
   "{count} unread": "{count} ungelesen",
   "{count} need attention": "{count} brauchen Aufmerksamkeit",
-  "Jump to the unread chat above": "Zum ungelesenen Chat oben",
-  "Jump to {count} unread chats above": "Zu {count} ungelesenen Chats oben",
-  "Jump to the unread chat below": "Zum ungelesenen Chat unten",
-  "Jump to {count} unread chats below": "Zu {count} ungelesenen Chats unten",
-  "Jump to the chat needing attention above": "Zum Chat oben, der Aufmerksamkeit braucht",
-  "Jump to {count} chats needing attention above":
-    "Zu {count} Chats oben, die Aufmerksamkeit brauchen",
-  "Jump to the chat needing attention below": "Zum Chat unten, der Aufmerksamkeit braucht",
-  "Jump to {count} chats needing attention below":
-    "Zu {count} Chats unten, die Aufmerksamkeit brauchen",
+  "Scrolls up": "Scrollt nach oben",
+  "Scrolls down": "Scrollt nach unten",
 };

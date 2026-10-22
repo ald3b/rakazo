@@ -31,9 +31,9 @@ vi.mock("react-native-reanimated", () => ({
   default: {
     View: (props: { children?: ReactNode }) => createElement("div", null, props.children),
   },
-  Easing: { out: () => () => 0, cubic: () => 0 },
+  FadeIn: { duration: () => ({ reduceMotion: () => undefined }) },
+  FadeOut: { duration: () => ({ reduceMotion: () => undefined }) },
   ReduceMotion: { System: "system" },
-  withTiming: () => 0,
 }));
 vi.mock("./i18n", () => ({
   useI18n: () => ({
@@ -165,5 +165,37 @@ describe("useUnreadJumpPills", () => {
       [{ offset: 2000 - PILL_SPACE }],
       [{ offset: 2400 - PILL_SPACE }],
     ]);
+  });
+
+  it("hides pills during top overscroll and restores them at rest", () => {
+    render(["a", "b", "c"], [read, read, unread]);
+    layOut("a", 0);
+    layOut("b", 100);
+    viewport(200, 300);
+    const scroll = (y: number) =>
+      act(() =>
+        pills.listProps.onScroll({
+          nativeEvent: {
+            contentOffset: { y },
+            layoutMeasurement: { height: 200 },
+            contentSize: { height: 300 },
+          },
+        } as never),
+      );
+    expect(below()).not.toBeNull();
+    scroll(-20);
+    expect(below()).toBeNull();
+    scroll(0);
+    expect(below()).not.toBeNull();
+  });
+
+  it("cancels a pending jump when the user drags", () => {
+    render(["a", "b", "c"], [read, read, unread]);
+    layOut("a", 0);
+    viewport(100, 300);
+    act(() => below()?.props.children.props.onPress());
+    act(() => pills.listProps.onScrollBeginDrag());
+    layOut("c", 200);
+    expect(scrollToOffset).toHaveBeenCalledTimes(1);
   });
 });

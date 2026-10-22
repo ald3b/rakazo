@@ -8,7 +8,7 @@ import type {
   NativeSyntheticEvent,
 } from "react-native";
 import { StyleSheet, View } from "react-native";
-import Animated, { Easing, ReduceMotion, withTiming } from "react-native-reanimated";
+import Animated, { FadeIn, FadeOut, ReduceMotion } from "react-native-reanimated";
 import { useI18n } from "../lib/i18n";
 import { useMobileTokens } from "../lib/native";
 import type {
@@ -27,41 +27,8 @@ import {
 } from "../lib/offscreen-unreads";
 import { UNREAD_JUMP_PILL_HEIGHT, UnreadJumpPill } from "./unread-jump-pill";
 
-const PILL_ENTER_MS = 180;
-const PILL_EXIT_MS = 160;
-const PILL_RESTING_SCALE = 0.9;
-
-function pillEntering() {
-  "worklet";
-  const timing = {
-    duration: PILL_ENTER_MS,
-    easing: Easing.out(Easing.cubic),
-    reduceMotion: ReduceMotion.System,
-  };
-  return {
-    initialValues: { opacity: 0, transform: [{ scale: PILL_RESTING_SCALE }] },
-    animations: {
-      opacity: withTiming(1, timing),
-      transform: [{ scale: withTiming(1, timing) }],
-    },
-  };
-}
-
-function pillExiting() {
-  "worklet";
-  const timing = {
-    duration: PILL_EXIT_MS,
-    easing: Easing.out(Easing.cubic),
-    reduceMotion: ReduceMotion.System,
-  };
-  return {
-    initialValues: { opacity: 1, transform: [{ scale: 1 }] },
-    animations: {
-      opacity: withTiming(0, timing),
-      transform: [{ scale: withTiming(PILL_RESTING_SCALE, timing) }],
-    },
-  };
-}
+const entering = FadeIn.duration(180).reduceMotion(ReduceMotion.System);
+const exiting = FadeOut.duration(160).reduceMotion(ReduceMotion.System);
 
 /**
  * Pills over the inbox that count unread chats scrolled out of view above and below, and
@@ -99,10 +66,13 @@ export function useUnreadJumpPills<Item>({
     const { offset, viewportHeight } = scroll.current;
     if (viewportHeight === 0) return;
     const rows = keysRef.current.slice(0, count).map((key) => layouts.current.get(key));
-    const next = visibleRange(rows, {
-      top: offset + topInset,
-      bottom: offset + viewportHeight - bottomInset,
-    });
+    const next =
+      offset < -topInset - 1
+        ? undefined
+        : visibleRange(rows, {
+            top: offset + topInset,
+            bottom: offset + viewportHeight - bottomInset,
+          });
     setRange((current) =>
       current?.first === next?.first && current?.last === next?.last ? current : next,
     );
@@ -110,7 +80,10 @@ export function useUnreadJumpPills<Item>({
   const refreshRef = useRef(refresh);
   refreshRef.current = refresh;
   // New rows or a new order need a recount before any row lays out again.
-  useEffect(() => refresh(), [refresh, keys]);
+  useEffect(() => {
+    if (pendingJump.current && !keys.includes(pendingJump.current.key)) pendingJump.current = null;
+    refresh();
+  }, [refresh, keys]);
 
   const scrollTo = (direction: JumpDirection, key: string, layout: RowLayout) => {
     const { viewportHeight, contentHeight } = scroll.current;
@@ -128,12 +101,8 @@ export function useUnreadJumpPills<Item>({
   const scrollToRef = useRef(scrollTo);
   scrollToRef.current = scrollTo;
 
-  // Pills already there when the inbox first settles appear without animating.
-  const settled = useRef(false);
-  useEffect(() => {
-    if (range) settled.current = true;
-  }, [range]);
-
+  // Viewability does not subtract the floating header, safe area or landing pill space.
+  // Replace FlatList's cell container to measure variable-height rows without extra wrappers.
   const CellRendererComponent = useMemo(
     () =>
       function InboxCell({ cellKey, onLayout, style, children }: CellRendererProps<Item>) {
@@ -205,7 +174,17 @@ export function useUnreadJumpPills<Item>({
     // Far rows aren't rendered yet: scroll to where the row should be so it renders, then
     // land on it exactly once it has laid out.
     pendingJump.current = { key, direction };
-    scrollTo(direction, key, estimateRowLayout([...layouts.current.values()], pill.index));
+    scrollTo(
+      direction,
+      key,
+      estimateRowLayout(
+        keys.flatMap((rowKey) => {
+          const row = layouts.current.get(rowKey);
+          return row ? [row] : [];
+        }),
+        pill.index,
+      ),
+    );
   };
 
   const edge = (direction: JumpDirection, pill: JumpPill | undefined): ReactNode => {
@@ -224,8 +203,8 @@ export function useUnreadJumpPills<Item>({
         key={direction}
         testID={`home-unread-pill-${direction}`}
         pointerEvents="box-none"
-        entering={settled.current ? pillEntering : undefined}
-        exiting={pillExiting}
+        entering={entering}
+        exiting={exiting}
         style={[
           styles.edge,
           direction === "above" ? { top: topInset + PILL_GAP } : { bottom: bottomInset + PILL_GAP },
@@ -234,7 +213,7 @@ export function useUnreadJumpPills<Item>({
         <UnreadJumpPill
           direction={direction}
           label={label}
-          accessibilityLabel={jumpLabel(t, direction, pill)}
+          accessibilityHint={direction === "above" ? t("Scrolls up") : t("Scrolls down")}
           color={pill.kind === "unread" ? tokens.unread : tokens.attention}
           onPress={() => jump(direction, pill)}
         />
@@ -251,32 +230,6 @@ export function useUnreadJumpPills<Item>({
       </>
     ),
   };
-}
-
-function jumpLabel(
-  t: ReturnType<typeof useI18n>["t"],
-  direction: JumpDirection,
-  pill: JumpPill,
-): string {
-  const count = pill.count;
-  if (pill.kind === "unread") {
-    if (direction === "above") {
-      return count === 1
-        ? t("Jump to the unread chat above")
-        : t("Jump to {count} unread chats above", { count });
-    }
-    return count === 1
-      ? t("Jump to the unread chat below")
-      : t("Jump to {count} unread chats below", { count });
-  }
-  if (direction === "above") {
-    return count === 1
-      ? t("Jump to the chat needing attention above")
-      : t("Jump to {count} chats needing attention above", { count });
-  }
-  return count === 1
-    ? t("Jump to the chat needing attention below")
-    : t("Jump to {count} chats needing attention below", { count });
 }
 
 const styles = StyleSheet.create({

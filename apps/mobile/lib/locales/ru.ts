@@ -984,14 +984,6 @@ export const RU_MESSAGES: Record<string, string> = {
   "1 unread": "1 непрочитанный",
   "{count} unread": "Непрочитанных: {count}",
   "{count} need attention": "Требуют внимания: {count}",
-  "Jump to the unread chat above": "К непрочитанному чату выше",
-  "Jump to {count} unread chats above": "К непрочитанным чатам выше: {count}",
-  "Jump to the unread chat below": "К непрочитанному чату ниже",
-  "Jump to {count} unread chats below": "К непрочитанным чатам ниже: {count}",
-  "Jump to the chat needing attention above": "К чату выше, который требует внимания",
-  "Jump to {count} chats needing attention above":
-    "К чатам выше, которые требуют внимания: {count}",
-  "Jump to the chat needing attention below": "К чату ниже, который требует внимания",
-  "Jump to {count} chats needing attention below":
-    "К чатам ниже, которые требуют внимания: {count}",
+  "Scrolls up": "Прокручивает вверх",
+  "Scrolls down": "Прокручивает вниз",
 };

@@ -183,6 +183,8 @@ describe.each([
     ["popoverForeground", "popover"],
     ["foreground", "muted"],
     ["chatUserForeground", "chatUser"],
+    ["chatUserForeground", "unread"],
+    ["chatUserForeground", "attention"],
     ["primaryForeground", "primary"],
     ["sidebarForeground", "sidebar"],
     ["sidebarAccentForeground", "sidebarAccent"],

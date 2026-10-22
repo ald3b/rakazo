@@ -11,13 +11,13 @@ export const UNREAD_JUMP_PILL_HEIGHT = 38;
 export function UnreadJumpPill({
   direction,
   label,
-  accessibilityLabel,
+  accessibilityHint,
   color,
   onPress,
 }: {
   direction: JumpDirection;
   label: string;
-  accessibilityLabel: string;
+  accessibilityHint: string;
   /** The tint: the unread blue, or the attention orange when a chat is waiting on you. */
   color: string;
   onPress: () => void;
@@ -28,11 +28,16 @@ export function UnreadJumpPill({
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel}
+      accessibilityLabel={label}
+      accessibilityHint={accessibilityHint}
       onPress={onPress}
       style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
     >
-      <GlassSurface tint={color} style={styles.pill} fallbackStyle={{ backgroundColor: color }}>
+      <GlassSurface
+        tint={color}
+        style={styles.pill}
+        fallbackStyle={{ backgroundColor: color, boxShadow: "0 2px 6px rgba(0, 0, 0, 0.22)" }}
+      >
         <NativeSymbol
           ios={direction === "above" ? "chevron.up" : "chevron.down"}
           android={direction === "above" ? "chevron-up" : "chevron-down"}
