@@ -118,6 +118,7 @@ test("voice settings connect a key, speak a reply, and open a call", async ({ pa
   // The out-of-credit toast sits over the mic; let it close so the press reaches the mic.
   await expect(page.getByText("Your voice provider is out of credit.")).toHaveCount(0);
   const mic = page.getByRole("button", { name: "Hold to talk", exact: true });
+  await mic.hover();
   const micBounds = await mic.boundingBox();
   if (!micBounds) throw new Error("Missing composer microphone");
   await page.mouse.move(micBounds.x + micBounds.width / 2, micBounds.y + micBounds.height / 2);
