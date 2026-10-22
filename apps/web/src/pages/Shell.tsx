@@ -37,6 +37,7 @@ import {
   foldPeerReplies,
   inferAttachmentMimeType,
   isActive,
+  isRetryableError,
   isRunTerminalEvent,
   isRunWorking,
   reorderBotTo,
@@ -133,6 +134,7 @@ import {
   useCallSession,
 } from "../lib/call-session";
 import { newClientId } from "../lib/client-id";
+import { setComposerUnsavedWork } from "../lib/composer-draft";
 import {
   getComposerEnterToSend,
   subscribeComposerEnterToSend,
@@ -362,6 +364,10 @@ function SpaceShell() {
   const [replyTarget, setReplyTarget] = useState<ThreadMessage | null>(null);
   const [replyQuote, setReplyQuote] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  useEffect(() => {
+    setComposerUnsavedWork(sending || pendingAttachments.length > 0);
+    return () => setComposerUnsavedWork(false);
+  }, [sending, pendingAttachments.length]);
   const sendingRef = useRef(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [logOutError, setLogOutError] = useState<string | null>(null);
@@ -1224,7 +1230,13 @@ function SpaceShell() {
     const refreshVisibleBots = () => {
       if (document.visibilityState !== "visible" && !callsEnabledRef.current) return;
       window.clearTimeout(refreshTimer);
-      refreshTimer = window.setTimeout(() => void refreshBots().catch(() => undefined), 50);
+      refreshTimer = window.setTimeout(
+        () =>
+          void refreshBots().catch((error) => {
+            if (!isRetryableError(error)) window.clearInterval(poll);
+          }),
+        50,
+      );
     };
     window.addEventListener("focus", refreshVisibleBots);
     document.addEventListener("visibilitychange", refreshVisibleBots);
@@ -2776,10 +2788,12 @@ function SpaceShell() {
     // A computer panel left open in a hidden window must not keep the computer awake.
     const ping = () => {
       if (document.visibilityState !== "visible") return;
-      void rpc.computer.heartbeat({ botId: heartbeatBotId }).catch(() => undefined);
+      void rpc.computer.heartbeat({ botId: heartbeatBotId }).catch((error) => {
+        if (!isRetryableError(error)) window.clearInterval(timer);
+      });
     };
-    ping();
     const timer = window.setInterval(ping, 60_000);
+    ping();
     return () => window.clearInterval(timer);
   }, [panel, computerOpen, computerBot?.id, active?.id, computer?.state]);
 
