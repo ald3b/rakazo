@@ -7,6 +7,7 @@ import { glassHeaderOptions } from "../components/glass-title";
 import { NativeActionButton } from "../components/native-action-button";
 import type { MobileBot, MobileGroup } from "../lib/api";
 import { rpc } from "../lib/api";
+import { notifyArchivedChatsChanged } from "../lib/archived-chats";
 import { confirmDeleteGroup } from "../lib/bot-lifecycle";
 import { useI18n } from "../lib/i18n";
 import { native, useMobileTokens } from "../lib/native";
@@ -62,7 +63,10 @@ export default function GroupSettingsScreen() {
 
   function remove() {
     if (!groupId || !group) return;
-    confirmDeleteGroup({ id: groupId, name: group.name }, () => router.replace("/"));
+    confirmDeleteGroup({ id: groupId, name: group.name }, () => {
+      notifyArchivedChatsChanged();
+      router.replace("/");
+    });
   }
 
   return (
@@ -71,7 +75,10 @@ export default function GroupSettingsScreen() {
       <ScrollView
         style={{ flex: 1, backgroundColor: tokens.background }}
         contentContainerStyle={{ padding: 24 }}
+        automaticallyAdjustKeyboardInsets
         contentInsetAdjustmentBehavior="automatic"
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
       >
         <Text style={{ color: tokens.mutedForeground, fontSize: 14 }}>{t("Name")}</Text>
         <TextInput
@@ -79,6 +86,7 @@ export default function GroupSettingsScreen() {
           onChangeText={setName}
           placeholder={t("Group name")}
           placeholderTextColor={tokens.mutedForeground}
+          returnKeyType="done"
           style={{
             marginTop: 8,
             backgroundColor: native.fill,
@@ -94,6 +102,9 @@ export default function GroupSettingsScreen() {
             bots={bots}
             selected={selected}
             onChange={setSelected}
+            onOpenBot={(bot) =>
+              router.push({ pathname: "/bot-profile", params: { botId: bot.id, name: bot.name } })
+            }
             disabled={pending}
           />
         ) : null}

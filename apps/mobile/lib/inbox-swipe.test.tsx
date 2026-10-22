@@ -547,6 +547,7 @@ describe("inbox swipe handlers", () => {
       afterChatNotifyChange: vi.fn(async () => {}),
       confirmDeleteBot: vi.fn(),
       confirmDeleteGroup: vi.fn(),
+      notifyArchivedChatsChanged: vi.fn(),
       currentApiBase: () => "",
       loadSessionToken: async () => null,
       selectedSpaceId: () => session.space,
@@ -747,5 +748,17 @@ describe("inbox swipe handlers", () => {
       "Could not archive bot",
       "Could not update chat",
     ]);
+    expect(h.notifyArchivedChatsChanged).not.toHaveBeenCalled();
   });
+
+  it.each(["bot", "group"] as const)(
+    "updates the archived count once a %s is archived",
+    async (kind) => {
+      const h = handlers(async () => ({ ok: true }));
+      await h.runRowAction(kind, { id: "x" }, "archive");
+      expect(h.notifyArchivedChatsChanged).toHaveBeenCalledOnce();
+      await h.runRowAction(kind, { id: "x" }, "pin");
+      expect(h.notifyArchivedChatsChanged).toHaveBeenCalledOnce();
+    },
+  );
 });
