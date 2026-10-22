@@ -49,7 +49,7 @@ describe("group deletion", () => {
     const deleted = vi.fn();
     confirmDeleteGroup({ id: "group-fixture", name: "Team" }, deleted);
     const [title, message, buttons] = alert.mock.calls[0]!;
-    expect([title, message]).toEqual(["Delete Team?", "Bots and their solo threads are kept."]);
+    expect([title, message]).toEqual(["Delete Team?", "Bots and their own chats stay."]);
     expect(
       buttons.map(({ text, style }: { text: string; style: string }) => [text, style]),
     ).toEqual([

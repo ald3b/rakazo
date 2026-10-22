@@ -386,7 +386,7 @@ export const RU_MESSAGES: Record<string, string> = {
   "Delete space": "Удалить пространство",
   "Delete memories too": "Удалить также память",
   "Delete {name}?": "Удалить {name}?",
-  "Bots and their solo threads are kept.": "Боты и их отдельные диалоги сохранятся.",
+  "Bots and their own chats stay.": "Боты и их собственные чаты сохранятся.",
   "Delete your account?": "Удалить аккаунт?",
   "Delete…": "Удалить…",
   Denied: "Запрещено",

@@ -363,7 +363,7 @@ export const ZH_MESSAGES: Record<string, string> = {
   "Delete memories too": "同时删除记忆",
   "Delete space": "删除空间",
   "Delete {name}?": "要删除 {name} 吗？",
-  "Bots and their solo threads are kept.": "Bot 及其单独对话会保留。",
+  "Bots and their own chats stay.": "Bot 和它们自己的聊天会保留。",
   "Delete your account?": "要删除你的账户吗？",
   "Delete…": "删除…",
   Denied: "已拒绝",
