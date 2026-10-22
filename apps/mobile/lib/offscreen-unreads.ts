@@ -3,7 +3,11 @@ export type InboxSignal = { unread: number; attention: number };
 
 export type RowLayout = { y: number; height: number };
 
-/** First and last rows at least half inside the viewport. */
+/**
+ * First and last rows at least half inside the viewport. When rows are measured but none is
+ * on screen (the list header fills it), the range is empty, `last` one before `first`, and
+ * sits where the viewport is, so every row counts as above or below it.
+ */
 export type VisibleRange = { first: number; last: number };
 
 export type JumpDirection = "above" | "below";
@@ -24,9 +28,12 @@ export function visibleRange(
 ): VisibleRange | undefined {
   let first: number | undefined;
   let last: number | undefined;
+  // The first measured row that starts below the top edge, for an empty range.
+  let after: number | undefined;
   for (let index = 0; index < layouts.length; index += 1) {
     const layout = layouts[index];
     if (!layout) continue;
+    if (layout.y >= viewport.top) after ??= index;
     if (layout.y >= viewport.bottom) break;
     const shown =
       Math.min(layout.y + layout.height, viewport.bottom) - Math.max(layout.y, viewport.top);
@@ -34,7 +41,10 @@ export function visibleRange(
     first ??= index;
     last = index;
   }
-  return first === undefined || last === undefined ? undefined : { first, last };
+  if (first !== undefined && last !== undefined) return { first, last };
+  if (!layouts.some(Boolean)) return undefined;
+  const edge = after ?? layouts.length;
+  return { first: edge, last: edge - 1 };
 }
 
 /**

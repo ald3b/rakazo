@@ -24,6 +24,39 @@ describe("visibleRange", () => {
     expect(visibleRange(rows, { top: 0, bottom: 280 })).toEqual({ first: 0, last: 1 });
   });
 
+  it("places an empty range where the viewport is when no row is on screen", () => {
+    // The list header (activity) fills the screen: every row starts below it.
+    const below = [
+      { y: 900, height: 100 },
+      { y: 1000, height: 100 },
+    ];
+    expect(visibleRange(below, { top: 0, bottom: 800 })).toEqual({ first: 0, last: -1 });
+    // Scrolled past every row, into the footer: every row is above.
+    expect(visibleRange(below, { top: 1200, bottom: 2000 })).toEqual({ first: 2, last: 1 });
+    // A row only a sliver on screen still counts on the side it hangs off.
+    expect(visibleRange(below, { top: 0, bottom: 920 })).toEqual({ first: 0, last: -1 });
+  });
+
+  it("counts every unread chat below when only the list header is on screen", () => {
+    const rows = [
+      { y: 900, height: 100 },
+      { y: 1000, height: 100 },
+      { y: 1100, height: 100 },
+    ];
+    const range = visibleRange(rows, { top: 0, bottom: 800 });
+    expect(range).toBeDefined();
+    expect(
+      offscreenUnreads(
+        [
+          { unread: 1, attention: 0 },
+          { unread: 0, attention: 0 },
+          { unread: 1, attention: 0 },
+        ],
+        range!,
+      ),
+    ).toEqual({ below: { kind: "unread", count: 2, index: 0 } });
+  });
+
   it("has no range before any row is measured", () => {
     expect(visibleRange([], { top: 0, bottom: 500 })).toBeUndefined();
     expect(visibleRange([undefined, undefined], { top: 0, bottom: 500 })).toBeUndefined();
