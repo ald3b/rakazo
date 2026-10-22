@@ -142,9 +142,29 @@ describe("useUnreadJumpPills", () => {
     layOut("c", 200);
     viewport(200, 300);
     expect(below()?.props.children.props.label).toBe("1 unread");
-    // "a" collapses; until the rows lay out again, "c" is still where it was, out of view.
+    // "a" collapses. "b" reports where it moved to; "c" hasn't yet, so it still counts below.
     render(["b", "c"], [read, unread]);
+    layOut("b", 0);
     expect(below()?.props.children.props.label).toBe("1 unread");
+    // Once "c" reports too, it's on screen and the pill goes.
+    layOut("c", 100);
+    expect(below()).toBeFalsy();
+  });
+
+  it("doesn't jump to where a moved row used to be before it lays out again", () => {
+    const keys = ["s1", "s2", "x", "y", "z", "w"];
+    render(keys, [read, read, read, read, unread, read]);
+    for (const [index, key] of keys.entries()) layOut(key, index * 100);
+    viewport(100, 600);
+    // A section with s1 and s2 collapses; z is now 200 higher, but far rows don't re-report.
+    render(["x", "y", "z", "w"], [read, read, unread, read]);
+    layOut("x", 0);
+    layOut("y", 100);
+    viewport(100, 400);
+    act(() => below()?.props.children.props.onPress());
+    expect(scrollToOffset.mock.lastCall?.[0].offset).toBeLessThan(400 - PILL_SPACE);
+    layOut("z", 200);
+    expect(scrollToOffset.mock.lastCall).toEqual([{ offset: 200 - PILL_SPACE }]);
   });
 
   it("scrolls toward an unmeasured row, then lands on it once it lays out", () => {
@@ -197,5 +217,26 @@ describe("useUnreadJumpPills", () => {
     act(() => pills.listProps.onScrollBeginDrag());
     layOut("c", 200);
     expect(scrollToOffset).toHaveBeenCalledTimes(1);
+  });
+
+  it("lands on a far row while the list's content size is still a short estimate", () => {
+    const keys = Array.from({ length: 30 }, (_, index) => `row-${index}`);
+    render(
+      keys,
+      keys.map((_, index) => (index === 20 ? unread : read)),
+    );
+    layOut("row-0", 0);
+    // The list reports less content than there is: the rows below aren't rendered yet.
+    viewport(300, 2300);
+    act(() => below()?.props.children.props.onPress());
+    layOut("row-20", 2400);
+    expect(scrollToOffset.mock.lastCall).toEqual([{ offset: 2400 - PILL_SPACE }]);
+    // It keeps correcting as rows settle, until the user scrolls.
+    layOut("row-20", 2380);
+    expect(scrollToOffset.mock.lastCall).toEqual([{ offset: 2380 - PILL_SPACE }]);
+    const calls = scrollToOffset.mock.calls.length;
+    act(() => pills.listProps.onScrollBeginDrag());
+    layOut("row-20", 2360);
+    expect(scrollToOffset.mock.calls).toHaveLength(calls);
   });
 });

@@ -1,5 +1,5 @@
 import type { ReactNode, RefObject } from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type {
   CellRendererProps,
   FlatList,
@@ -29,6 +29,9 @@ import { UNREAD_JUMP_PILL_HEIGHT, UnreadJumpPill } from "./unread-jump-pill";
 
 const entering = FadeIn.duration(180).reduceMotion(ReduceMotion.System);
 const exiting = FadeOut.duration(160).reduceMotion(ReduceMotion.System);
+/** How long a jump waits for the rows and content size around its target to settle again. */
+const JUMP_SETTLE_MS = 600;
+const JUMP_SETTLE_CAP_MS = 2000;
 
 /**
  * Pills over the inbox that count unread chats scrolled out of view above and below, and
@@ -53,8 +56,15 @@ export function useUnreadJumpPills<Item>({
   const tokens = useMobileTokens();
   // Measured rows by key, so a row keeps its layout when rows above it come or go.
   const layouts = useRef(new Map<string, RowLayout>());
-  // A jump to a row not measured yet: it scrolls to an estimate, then here once the row lays out.
-  const pendingJump = useRef<{ key: string; direction: JumpDirection } | null>(null);
+  // A jump to a row not measured yet scrolls to an estimate, then lands once the row lays out.
+  // It stays open briefly after that, because the list's content size is still an estimate
+  // and the rows around it settle over the next frames.
+  const pendingJump = useRef<{
+    key: string;
+    direction: JumpDirection;
+    landedAt?: number;
+    until?: number;
+  } | null>(null);
   // At rest the list sits at its top inset: content y 0 shows just under the header.
   const scroll = useRef({ offset: -topInset, viewportHeight: 0, contentHeight: 0 });
   const [range, setRange] = useState<VisibleRange>();
@@ -79,18 +89,35 @@ export function useUnreadJumpPills<Item>({
   }, [count, topInset, bottomInset]);
   const refreshRef = useRef(refresh);
   refreshRef.current = refresh;
-  // New rows or a new order need a recount before any row lays out again.
-  useEffect(() => {
+  // A row that moved in the list (a section collapsed or rows came in above it) drops its
+  // layout: a rendered row reports its new one, and an unrendered one is estimated until then.
+  const indexes = useRef(new Map<string, number>());
+  useLayoutEffect(() => {
     if (pendingJump.current && !keys.includes(pendingJump.current.key)) pendingJump.current = null;
+    const next = new Map(keys.map((key, index) => [key, index]));
+    for (const [key, index] of indexes.current) {
+      if (next.get(key) !== index) layouts.current.delete(key);
+    }
+    indexes.current = next;
     refresh();
   }, [refresh, keys]);
 
   const scrollTo = (direction: JumpDirection, key: string, layout: RowLayout) => {
     const { viewportHeight, contentHeight } = scroll.current;
+    // The list's content size is an estimate while rows below are unrendered and often runs
+    // short, which would stop the jump early; the rows after the target give a floor for it.
+    const rowsAfter = keysRef.current.length - 1 - keysRef.current.indexOf(key);
+    const rowHeight = estimateRowLayout(
+      keysRef.current.flatMap((rowKey) => {
+        const row = layouts.current.get(rowKey);
+        return row ? [row] : [];
+      }),
+      0,
+    ).height;
     listRef.current?.scrollToOffset({
       offset: jumpOffset(direction, layout, {
         viewportHeight,
-        contentHeight,
+        contentHeight: Math.max(contentHeight, layout.y + layout.height + rowsAfter * rowHeight),
         topInset,
         bottomInset,
         pillSpace: PILL_GAP + UNREAD_JUMP_PILL_HEIGHT + PILL_GAP,
@@ -98,8 +125,22 @@ export function useUnreadJumpPills<Item>({
       }),
     });
   };
-  const scrollToRef = useRef(scrollTo);
-  scrollToRef.current = scrollTo;
+  const finishJump = () => {
+    const pending = pendingJump.current;
+    const layout = pending && layouts.current.get(pending.key);
+    if (!pending || !layout) return;
+    const now = Date.now();
+    pending.landedAt ??= now;
+    if (pending.until !== undefined && now > pending.until) {
+      pendingJump.current = null;
+      return;
+    }
+    // Each correction waits a little longer for the next, up to a cap from the first landing.
+    pending.until = Math.min(now + JUMP_SETTLE_MS, pending.landedAt + JUMP_SETTLE_CAP_MS);
+    scrollTo(pending.direction, pending.key, layout);
+  };
+  const finishJumpRef = useRef(finishJump);
+  finishJumpRef.current = finishJump;
 
   // Viewability does not subtract the floating header, safe area or landing pill space.
   // Replace FlatList's cell container to measure variable-height rows without extra wrappers.
@@ -113,11 +154,7 @@ export function useUnreadJumpPills<Item>({
               onLayout?.(event);
               const { y, height } = event.nativeEvent.layout;
               layouts.current.set(cellKey, { y, height });
-              const pending = pendingJump.current;
-              if (pending?.key === cellKey) {
-                pendingJump.current = null;
-                scrollToRef.current(pending.direction, cellKey, { y, height });
-              }
+              if (pendingJump.current?.key === cellKey) finishJumpRef.current();
               refreshRef.current();
             }}
           >
@@ -154,6 +191,7 @@ export function useUnreadJumpPills<Item>({
       },
       onContentSizeChange: (_width: number, height: number) => {
         scroll.current.contentHeight = height;
+        finishJumpRef.current();
         refreshRef.current();
       },
     }),
