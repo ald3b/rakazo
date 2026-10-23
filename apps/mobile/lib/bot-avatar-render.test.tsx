@@ -10,6 +10,9 @@ import { BotAvatar } from "../components/bot-avatar";
 
 vi.mock("react-native", () => ({
   View: ({ children }: { children?: ReactNode }) => createElement("div", null, children),
+  AppState: { currentState: "active", addEventListener: () => ({ remove: () => undefined }) },
+  Pressable: ({ children }: { children?: ReactNode }) =>
+    createElement("button", { type: "button" }, children),
   Image: ({ source }: { source: { uri: string } }) => createElement("img", { src: source.uri }),
 }));
 
@@ -22,7 +25,9 @@ vi.mock("react-native-reanimated", () => {
       createAnimatedComponent: (component: unknown) => component,
     },
     cancelAnimation: () => undefined,
-    Easing: { linear: (value: number) => value },
+    Easing: { linear: (value: number) => value, inOut: (value: unknown) => value, cubic: 0 },
+    ReduceMotion: { Never: "never" },
+    withSpring: (value: unknown) => value,
     useAnimatedProps: () => ({}),
     useAnimatedStyle: () => ({}),
     useReducedMotion: () => true,
@@ -47,6 +52,9 @@ vi.mock("react-native-svg", () => {
 });
 
 vi.mock("../components/native-symbol", () => ({ NativeSymbol: () => null }));
+vi.mock("./native", () => ({
+  useMobileTokens: () => ({ background: "#FFF", workingDot: "#3FA266" }),
+}));
 vi.mock("./i18n", () => ({ useI18n: () => ({ t: (text: string) => text }) }));
 
 describe("BotAvatar", () => {
