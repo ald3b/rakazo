@@ -17,6 +17,7 @@ import {
   disabled,
   foregroundStyle,
   frame,
+  listRowInsets,
   listSectionMargins,
   listStyle,
   tint,
@@ -24,6 +25,7 @@ import {
 import { PlatformColor } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { MobileBot, MobileGroup } from "../lib/api";
+import { useFloatingHeaderInset } from "../lib/floating-header";
 import { useI18n } from "../lib/i18n";
 import { useMobileTokens, useResolvedAppearance } from "../lib/native";
 import { iosAtLeast } from "../lib/native-controls";
@@ -40,6 +42,11 @@ export function ArchivedBotList({
 }: ArchivedBotListProps) {
   const { t } = useI18n();
   const insets = useSafeAreaInsets();
+  // The list sits under the floating header. Its height comes from navigation, not from the
+  // hosting view's safe area, which can be stale after a text size change and put the first
+  // row under the close button and title. The inset is a spacer inside the scroll content, not
+  // padding on the list, so rows still scroll under the header.
+  const headerInset = useFloatingHeaderInset();
   const scheme = useResolvedAppearance();
   const tokens = useMobileTokens();
   // A swipe button is filled with its tint and keeps a white label. The host's tint is the
@@ -78,7 +85,12 @@ export function ArchivedBotList({
     );
   }
   return (
-    <Host style={{ flex: 1 }} colorScheme={scheme} seedColor={tokens.foreground}>
+    <Host
+      style={{ flex: 1 }}
+      colorScheme={scheme}
+      seedColor={tokens.foreground}
+      ignoreSafeArea={headerInset > 0 ? "container" : undefined}
+    >
       <List modifiers={[listStyle("insetGrouped")]}>
         <Section
           modifiers={
@@ -90,6 +102,16 @@ export function ArchivedBotList({
                   }),
                 ]
               : undefined
+          }
+          header={
+            headerInset > 0 ? (
+              <Spacer
+                modifiers={[
+                  frame({ height: headerInset }),
+                  listRowInsets({ top: 0, leading: 0, bottom: 0, trailing: 0 }),
+                ]}
+              />
+            ) : undefined
           }
           footer={<Spacer modifiers={[frame({ height: insets.bottom })]} />}
         >

@@ -13,6 +13,11 @@ const swift = vi.hoisted(() => ({
     modifiers?: Array<{ name: string; value: unknown }>;
   }>,
   stacks: [] as Array<Array<{ name: string; value: unknown }>>,
+  hosts: [] as Array<{ ignoreSafeArea?: string }>,
+  lists: [] as Array<Array<{ name: string; value: unknown }>>,
+  sectionHeaders: [] as unknown[],
+  spacers: [] as Array<Array<{ name: string; value: unknown }>>,
+  headerInset: 0,
   images: [] as string[],
 }));
 
@@ -20,7 +25,19 @@ vi.mock("@expo/ui/swift-ui", () => {
   const wrap = ({ children }: { children?: ReactNode }) => <div>{children}</div>;
   const ContextMenu = Object.assign(wrap, { Trigger: wrap, Items: wrap });
   const SwipeActions = Object.assign(wrap, { Actions: wrap });
-  const List = Object.assign(wrap, { ForEach: wrap });
+  const List = Object.assign(
+    ({
+      children,
+      modifiers,
+    }: {
+      children?: ReactNode;
+      modifiers?: Array<{ name: string; value: unknown }>;
+    }) => {
+      swift.lists.push(modifiers ?? []);
+      return <div>{children}</div>;
+    },
+    { ForEach: wrap },
+  );
   return {
     Button: (props: {
       label?: string;
@@ -32,7 +49,10 @@ vi.mock("@expo/ui/swift-ui", () => {
       return <div>{props.children}</div>;
     },
     ContextMenu,
-    Host: wrap,
+    Host: ({ children, ignoreSafeArea }: { children?: ReactNode; ignoreSafeArea?: string }) => {
+      swift.hosts.push({ ignoreSafeArea });
+      return <div>{children}</div>;
+    },
     HStack: ({
       children,
       modifiers,
@@ -48,8 +68,19 @@ vi.mock("@expo/ui/swift-ui", () => {
       return null;
     },
     List,
-    Section: wrap,
-    Spacer: () => null,
+    Section: ({ children, header }: { children?: ReactNode; header?: ReactNode }) => {
+      swift.sectionHeaders.push(header);
+      return (
+        <div>
+          {header}
+          {children}
+        </div>
+      );
+    },
+    Spacer: ({ modifiers }: { modifiers?: Array<{ name: string; value: unknown }> }) => {
+      swift.spacers.push(modifiers ?? []);
+      return null;
+    },
     SwipeActions,
     Text: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
   };
@@ -64,6 +95,7 @@ vi.mock("@expo/ui/swift-ui/modifiers", () => {
       "disabled",
       "foregroundStyle",
       "frame",
+      "listRowInsets",
       "listSectionMargins",
       "listStyle",
       "tint",
@@ -77,6 +109,7 @@ vi.mock("./native", () => ({
   useResolvedAppearance: () => "light",
 }));
 vi.mock("./native-controls", () => ({ iosAtLeast: () => true }));
+vi.mock("./floating-header", () => ({ useFloatingHeaderInset: () => swift.headerInset }));
 vi.mock("./i18n", () => ({ useI18n: () => ({ t: (text: string) => text }) }));
 
 it("lists archived groups after bots with a group symbol, name and Restore only", () => {
@@ -131,4 +164,47 @@ it("fills the swipe buttons so their white labels show in dark mode too", () => 
     [],
     [{ name: "tint", value: { semantic: ["systemRed"] } }],
   ]);
+});
+
+it("starts the list below the floating header from its measured height, not the host's safe area", () => {
+  const render = () =>
+    renderToStaticMarkup(
+      <ArchivedBotList
+        bots={[]}
+        groups={[{ id: "g", name: "Test" } as MobileGroup]}
+        pending={false}
+        onOpen={vi.fn()}
+        onRestore={vi.fn()}
+        onDelete={vi.fn()}
+        onRestoreGroup={vi.fn()}
+      />,
+    );
+  const headerSpacer = () =>
+    swift.spacers.find((modifiers) =>
+      modifiers.some(
+        (modifier) =>
+          modifier.name === "frame" && (modifier.value as { height?: number }).height === 64,
+      ),
+    );
+  swift.headerInset = 64;
+  swift.hosts.length = 0;
+  swift.lists.length = 0;
+  swift.sectionHeaders.length = 0;
+  swift.spacers.length = 0;
+  render();
+  expect(swift.hosts.at(-1)).toEqual({ ignoreSafeArea: "container" });
+  // The inset sits inside the scroll content, so rows still scroll under the floating header.
+  expect(swift.lists.at(-1)?.some((modifier) => modifier.name === "padding")).toBe(false);
+  expect(swift.sectionHeaders.at(-1)).toBeDefined();
+  expect(headerSpacer()).toContainEqual({
+    name: "listRowInsets",
+    value: { top: 0, leading: 0, bottom: 0, trailing: 0 },
+  });
+  // Without a floating header (older iOS) the system safe area still applies.
+  swift.headerInset = 0;
+  swift.spacers.length = 0;
+  render();
+  expect(swift.hosts.at(-1)).toEqual({ ignoreSafeArea: undefined });
+  expect(swift.sectionHeaders.at(-1)).toBeUndefined();
+  expect(headerSpacer()).toBeUndefined();
 });
