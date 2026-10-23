@@ -89,17 +89,22 @@ describe("archived chats row", () => {
       accessibilityLabel: string;
       onPress: () => void;
       style: (state: { pressed: boolean }) => object[];
-    }) => (
-      <button
-        type="button"
-        data-role={accessibilityRole}
-        aria-label={accessibilityLabel}
-        onClick={onPress}
-        style={Object.assign({}, ...style({ pressed: false }))}
-      >
-        {children}
-      </button>
-    ),
+    }) => {
+      const merged = Object.assign({}, ...style({ pressed: false }));
+      return (
+        <button
+          type="button"
+          data-role={accessibilityRole}
+          aria-label={accessibilityLabel}
+          // React Native's paddingHorizontal has no DOM equivalent, so expose it directly.
+          data-padding-horizontal={merged.paddingHorizontal}
+          onClick={onPress}
+          style={merged}
+        >
+          {children}
+        </button>
+      );
+    },
     ({ children, style }: { children: ReactNode; style: object }) => (
       <span style={style}>{children}</span>
     ),
@@ -148,6 +153,9 @@ describe("archived chats row", () => {
       const button = container.querySelector("button")!;
       // The same inset as a section header, not the chat-name column past the avatar.
       expect(button.style.paddingInlineStart).toBe("");
+      expect(button.getAttribute("data-padding-horizontal")).toBe(
+        String(styles.sectionToggle.paddingHorizontal),
+      );
       expect(button.style.paddingTop).toBe(`${styles.sectionToggle.paddingTop}px`);
       expect(button.style.minHeight).toBe("44px");
       expect(button.style.width).toBe("100%");
