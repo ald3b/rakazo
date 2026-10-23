@@ -1,6 +1,11 @@
 import { randomInt } from "node:crypto";
 import { BOT_COLORS, parseBotAvatarValue } from "@rakazo/contracts";
-import { ORGANIC_AVATAR_FAMILY_COUNT, organicAvatarFamily, organicAvatarLook } from "@rakazo/core";
+import {
+  ORGANIC_AVATAR_FAMILY_COUNT,
+  ORGANIC_AVATAR_HEART_FAMILY,
+  organicAvatarFamily,
+  organicAvatarLook,
+} from "@rakazo/core";
 
 /** A uniform number in [0, 1). */
 export type Random = () => number;
@@ -8,7 +13,7 @@ export type Random = () => number;
 const RANDOM_RANGE = 2 ** 32;
 const cryptoRandom: Random = () => randomInt(RANDOM_RANGE) / RANDOM_RANGE;
 
-/** Tries before settling for any id; each try lands on the wanted family about 1 time in 10. */
+/** Tries before settling for a non-heart id; each try matches the wanted family about 1 in 10. */
 export const BOT_ID_ATTEMPTS = 200;
 
 /** One of the options the existing values use least, at random among ties, preferring any not in `avoid`. */
@@ -63,7 +68,9 @@ export function chooseBotAvatar(
   });
   const looks = [
     ...new Set(
-      Array.from({ length: ORGANIC_AVATAR_FAMILY_COUNT }, (_, family) => organicAvatarLook(family)),
+      Array.from({ length: ORGANIC_AVATAR_FAMILY_COUNT }, (_, family) => family)
+        .filter((family) => family !== ORGANIC_AVATAR_HEART_FAMILY)
+        .map(organicAvatarLook),
     ),
   ];
   const look = pickLeastUsed(
@@ -72,10 +79,16 @@ export function chooseBotAvatar(
     random,
   );
   const lookOf = (botId: string) => organicAvatarLook(organicAvatarFamily(botId));
+  const isHeart = (botId: string) => organicAvatarFamily(botId) === ORGANIC_AVATAR_HEART_FAMILY;
   let id = cuidShapedId(random, now);
+  let lastNonHeart = isHeart(id) ? undefined : id;
   for (let attempt = 1; attempt < BOT_ID_ATTEMPTS && lookOf(id) !== look; attempt++) {
     id = cuidShapedId(random, now);
+    if (!isHeart(id)) lastNonHeart = id;
   }
+  // The cap may relax balancing, but must never relax the heart exclusion.
+  if (isHeart(id) && lastNonHeart) id = lastNonHeart;
+  while (isHeart(id)) id = cuidShapedId(random, now);
   const colors = (bots: typeof avatars) =>
     bots.flatMap((avatar) => (avatar.color === null ? [] : [avatar.color]));
   return {
@@ -86,7 +99,7 @@ export function chooseBotAvatar(
         BOT_COLORS,
         colors(avatars),
         random,
-        colors(avatars.filter((avatar) => avatar.look === look)),
+        colors(avatars.filter((avatar) => avatar.look === lookOf(id))),
       ),
   };
 }

@@ -1,4 +1,6 @@
 export const DE_MESSAGES: Record<string, string> = {
+  "Show password": "Passwort anzeigen",
+  "Hide password": "Passwort verbergen",
   Export: "Exportieren",
   "Edit avatar": "Avatar bearbeiten",
   "Add open work": "Offene Aufgabe hinzufügen",
@@ -28,6 +30,11 @@ export const DE_MESSAGES: Record<string, string> = {
   "Organize the sidebar and edit bots. Instruction, model, routine and group edits need approval.":
     "Ordne die Seitenleiste und bearbeite Bots. Änderungen an Gruppen, Anweisungen, Modellen und Routinen brauchen deine Zustimmung.",
 
+  Headers: "Header",
+  "Add header": "Header hinzufügen",
+  "Remove header": "Header entfernen",
+  "Header name": "Header-Name",
+  "Header value": "Header-Wert",
   Resets: "Zurückgesetzt",
   Limit: "Limit",
   "Provider message": "Anbieternachricht",
@@ -179,6 +186,7 @@ export const DE_MESSAGES: Record<string, string> = {
   "Expand {name}": "{name} ausklappen",
   "Mark as Read": "Als gelesen markieren",
   "Mark as Unread": "Als ungelesen markieren",
+  "Mark as unread": "Als ungelesen markieren",
   "Long press to pin or move to a section":
     "Lange drücken, um anzuheften oder in einen Abschnitt zu verschieben",
   "Long press to pin, move, or silence notifications":
@@ -295,6 +303,7 @@ export const DE_MESSAGES: Record<string, string> = {
   Artifacts: "Artefakte",
   "Could not delete this artifact": "Dieses Artefakt konnte nicht gelöscht werden",
   "Could not load artifacts.": "Artefakte konnten nicht geladen werden.",
+  "Could not load this chat.": "Dieser Chat konnte nicht geladen werden.",
   "Could not load this artifact.": "Dieses Artefakt konnte nicht geladen werden.",
   "Could not share this artifact": "Dieses Artefakt konnte nicht geteilt werden",
   "Long press to delete": "Zum Löschen gedrückt halten",
@@ -604,8 +613,6 @@ export const DE_MESSAGES: Record<string, string> = {
   "Agent messages": "Agent-Nachrichten",
   Appearance: "Erscheinungsbild",
   Archived: "Archiviert",
-  "Avatar style": "Avatar-Stil",
-  Avatars: "Avatare",
   Cancel: "Abbrechen",
   "Could not change language": "Sprache konnte nicht geändert werden",
   "Could not delete account": "Konto konnte nicht gelöscht werden",
@@ -613,7 +620,6 @@ export const DE_MESSAGES: Record<string, string> = {
   "Could not restore bot": "Bot konnte nicht wiederhergestellt werden",
   "Could not sign out": "Abmeldung fehlgeschlagen",
   "Could not update notifications": "Benachrichtigungen konnten nicht aktualisiert werden",
-  "Couldn't update avatars": "Avatare konnten nicht aktualisiert werden",
   "Current password": "Aktuelles Passwort",
   Dark: "Dunkel",
   Delete: "Löschen",
@@ -627,11 +633,9 @@ export const DE_MESSAGES: Record<string, string> = {
   "Needs attention": "Aufmerksamkeit erforderlich",
   "Notification settings": "Benachrichtigungseinstellungen",
   Notifications: "Benachrichtigungen",
-  Organic: "Organisch",
   "Questions, approvals, takeover": "Fragen, Freigaben, Übernahme",
   "Replies and completed work": "Antworten und erledigte Arbeit",
   Restore: "Wiederherstellen",
-  Robot: "Roboter",
   "Scheduled tasks": "Geplante Aufgaben",
   "Sign out": "Abmelden",
   "Stream replies": "Antworten streamen",
@@ -643,7 +647,6 @@ export const DE_MESSAGES: Record<string, string> = {
   Usage: "Nutzung",
   "Your account": "Dein Konto",
   "{runs} runs · {tokens} tokens": "{runs} Ausführungen · {tokens} Token",
-  "{style} avatars": "Avatare: {style}",
   // app/(settings)/change-password.tsx
   "Confirm password": "Passwort bestätigen",
   "Could not change password": "Passwort konnte nicht geändert werden",

@@ -1,5 +1,5 @@
 import { BOT_COLORS } from "@rakazo/contracts";
-import { organicAvatarFamily, organicAvatarLook } from "@rakazo/core";
+import { ORGANIC_AVATAR_HEART_FAMILY, organicAvatarFamily, organicAvatarLook } from "@rakazo/core";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { PrismaClient } from "./client.js";
 import { createDb } from "./client.js";
@@ -79,9 +79,12 @@ describePostgres("new bot avatars (PostgreSQL)", () => {
 
     const all = [...before, ...created];
     const lookOf = (id: string) => organicAvatarLook(organicAvatarFamily(id));
-    // Nine looks: the first nine bots never repeat one.
-    const firstNine = all.slice(0, 9);
-    expect(new Set(firstNine.map((bot) => lookOf(bot.id))).size).toBe(firstNine.length);
+    // Eight automatic looks: the heart is excluded and the two round families share a look.
+    const firstEight = all.slice(0, 8);
+    expect(new Set(firstEight.map((bot) => lookOf(bot.id))).size).toBe(firstEight.length);
+    expect(
+      created.every((bot) => organicAvatarFamily(bot.id) !== ORGANIC_AVATAR_HEART_FAMILY),
+    ).toBe(true);
     // The starter bot counts too: the first seven bots share no colour.
     const firstColors = all.slice(0, BOT_COLORS.length).map((bot) => bot.color);
     expect(new Set(firstColors).size).toBe(firstColors.length);
@@ -95,11 +98,32 @@ describePostgres("new bot avatars (PostgreSQL)", () => {
     expect(after).toEqual(expect.arrayContaining(before));
   });
 
+  it("serializes concurrent creation before reading the existing avatar looks", async () => {
+    const repos = createRepos(prisma);
+    await asSystem(prisma).bot.updateMany({
+      where: { spaceId: owner.spaceId, userId: owner.userId },
+      data: { archivedAt: new Date() },
+    });
+    const created = await runAsTenant(owner, () =>
+      Promise.all(
+        Array.from({ length: 8 }, (_, index) =>
+          repos.createBot(actor(), botInput(`Concurrent ${index}`)),
+        ),
+      ),
+    );
+    expect(new Set(created.map((bot) => organicAvatarLook(organicAvatarFamily(bot.id)))).size).toBe(
+      8,
+    );
+    expect(
+      created.every((bot) => organicAvatarFamily(bot.id) !== ORGANIC_AVATAR_HEART_FAMILY),
+    ).toBe(true);
+  });
+
   it("keeps a colour the caller chose and skips archived bots", async () => {
     const repos = createRepos(prisma);
     const system = asSystem(prisma);
     const live = await system.bot.findMany({
-      where: { spaceId: owner.spaceId, userId: owner.userId },
+      where: { spaceId: owner.spaceId, userId: owner.userId, archivedAt: null },
       select: { id: true },
     });
     // Archive every bot but one; the next bot then avoids only that one's family.

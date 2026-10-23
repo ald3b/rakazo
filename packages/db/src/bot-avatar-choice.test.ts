@@ -1,5 +1,10 @@
 import { BOT_COLORS } from "@rakazo/contracts";
-import { organicAvatarFamily, organicAvatarLook } from "@rakazo/core";
+import {
+  ORGANIC_AVATAR_FAMILY_COUNT,
+  ORGANIC_AVATAR_HEART_FAMILY,
+  organicAvatarFamily,
+  organicAvatarLook,
+} from "@rakazo/core";
 import { describe, expect, it } from "vitest";
 import { BOT_ID_ATTEMPTS, chooseBotAvatar, pickLeastUsed } from "./bot-avatar-choice.js";
 
@@ -103,6 +108,79 @@ describe("chooseBotAvatar", () => {
 
   it("keeps a colour the caller chose", () => {
     expect(chooseBotAvatar([], "#123456", { random: seeded(4), now: 0 }).color).toBe("#123456");
+  });
+
+  it("never assigns a heart with crypto randomness, regardless of existing looks", () => {
+    const ids = idsForFamilies(
+      Array.from({ length: ORGANIC_AVATAR_FAMILY_COUNT }, (_, family) => family),
+    );
+    const balanced = ids
+      .filter((id) => organicAvatarFamily(id) !== 8)
+      .map((id, index) => ({
+        id,
+        color: BOT_COLORS[index % BOT_COLORS.length]!,
+      }));
+    const hearts = Array.from({ length: 12 }, (_, index) => ({
+      id: ids[ORGANIC_AVATAR_HEART_FAMILY]!,
+      color: BOT_COLORS[index % BOT_COLORS.length]!,
+    }));
+    const assorted = ids.map((id, index) => ({
+      id,
+      color:
+        index % 3 === 0
+          ? "#3EC5A8::shape_2"
+          : index % 3 === 1
+            ? "data:image/png;base64,AAAA"
+            : "#3EC5A8",
+    }));
+    for (const existing of [[], balanced, hearts, assorted, [...balanced, ...hearts]]) {
+      for (let run = 0; run < 400; run++) {
+        const chosen = chooseBotAvatar(existing, undefined);
+        expect(organicAvatarFamily(chosen.id)).not.toBe(ORGANIC_AVATAR_HEART_FAMILY);
+      }
+    }
+  });
+
+  /** A random stream encoding the requested cuid suffix for each attempt. */
+  function idStream(ids: string[]) {
+    let calls = 0;
+    return () => {
+      const call = calls++;
+      if (call === 0) return 0; // Choose look 0.
+      const digit = call - 1;
+      const id = ids[Math.min(Math.floor(digit / 16), ids.length - 1)]!;
+      return Number.parseInt(id[9 + (digit % 16)]!, 36) / 36;
+    };
+  }
+
+  function cuidForFamily(family: number) {
+    for (let index = 0; ; index++) {
+      const id = `c00000000${index.toString(36).padStart(16, "0")}`;
+      if (organicAvatarFamily(id) === family) return id;
+    }
+  }
+
+  it("rerolls past the cap when every capped candidate is a heart", () => {
+    const heart = cuidForFamily(ORGANIC_AVATAR_HEART_FAMILY);
+    const safe = cuidForFamily(1);
+    const candidates = [...Array<string>(BOT_ID_ATTEMPTS).fill(heart), safe];
+    const chosen = chooseBotAvatar([], "#123456", { random: idStream(candidates), now: 0 });
+    expect(chosen.id).toBe(safe);
+    expect(organicAvatarFamily(chosen.id)).not.toBe(ORGANIC_AVATAR_HEART_FAMILY);
+  });
+
+  it("keeps the last non-heart candidate and breaks colour ties using its actual look", () => {
+    const safe = cuidForFamily(1);
+    const heart = cuidForFamily(ORGANIC_AVATAR_HEART_FAMILY);
+    const existing: { id: string; color: string }[] = [{ id: safe, color: BOT_COLORS[0]! }];
+    // All colours are equally used, but only the first is on the fallback look.
+    for (const color of BOT_COLORS.slice(1)) {
+      existing.push({ id: cuidForFamily(3), color });
+    }
+    const random = idStream([safe, ...Array<string>(BOT_ID_ATTEMPTS - 1).fill(heart)]);
+    const chosen = chooseBotAvatar(existing, undefined, { random, now: 0 });
+    expect(chosen.id).toBe(safe);
+    expect(chosen.color).not.toBe(BOT_COLORS[0]);
   });
 
   it("settles for the last id after the attempt cap", () => {

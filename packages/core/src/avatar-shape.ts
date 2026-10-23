@@ -14,6 +14,9 @@ export function avatarIdentitySeed(identity: string): number {
 /** Organic bodies come in this many families; the seed picks one. */
 export const ORGANIC_AVATAR_FAMILY_COUNT = 10;
 
+/** The body with two upper lobes, a central notch and a pointed bottom. */
+export const ORGANIC_AVATAR_HEART_FAMILY = 6;
+
 /** The organic body family every client draws for this identity (a bot's id). */
 export function organicAvatarFamily(identity: string): number {
   return avatarIdentitySeed(identity) % ORGANIC_AVATAR_FAMILY_COUNT;
