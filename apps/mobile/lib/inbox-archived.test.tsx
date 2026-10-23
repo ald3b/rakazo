@@ -141,13 +141,14 @@ describe("archived chats row", () => {
   });
 
   it.each([false, true])(
-    "aligns with inbox names and fills a 44pt tap target (compact: %s)",
+    "lines up with the section headers and fills a 44pt tap target (compact: %s)",
     (value) => {
       compact = value;
       const { container, root } = render(3);
       const button = container.querySelector("button")!;
-      const row = value ? { ...styles.row, ...styles.compactRow } : styles.row;
-      expect(button.style.paddingInlineStart).toBe(`${row.paddingHorizontal + 62 + row.gap}px`);
+      // The same inset as a section header, not the chat-name column past the avatar.
+      expect(button.style.paddingInlineStart).toBe("");
+      expect(button.style.paddingTop).toBe(`${styles.sectionToggle.paddingTop}px`);
       expect(button.style.minHeight).toBe("44px");
       expect(button.style.width).toBe("100%");
       const label = button.querySelector("span")!;
