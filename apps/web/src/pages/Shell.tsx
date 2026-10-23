@@ -50,7 +50,6 @@ import {
 } from "@rakazo/core";
 import type { GroupAvatarMember } from "@rakazo/ui-web";
 import {
-  AvatarStyleProvider,
   BotAvatar,
   Button,
   DropdownMenu,
@@ -4043,7 +4042,6 @@ function SpaceShell() {
             usage={usage}
             onUsageOpen={refreshUsage}
             initialSection={settingsSection}
-            avatarStyle={bootstrapMe?.avatarStyle ?? "organic"}
             billingEnabled={bootstrapMe?.billingEnabled === true}
             sandboxProvider={bootstrapMe?.sandboxProvider}
             onSandboxProviderChange={(sandboxProvider) =>
@@ -4053,13 +4051,6 @@ function SpaceShell() {
             onOpenMessaging={() => {
               setSettingsOpen(false);
               setMessagingSettingsOpen(true);
-            }}
-            onAvatarStyleChange={async (avatarStyle) => {
-              const nextMe = await rpc.preferences.update({ avatarStyle });
-              // Merge only the saved field: a concurrent save's response must not be undone.
-              setBootstrapMe((prev) =>
-                prev ? { ...prev, avatarStyle: nextMe.avatarStyle } : nextMe,
-              );
             }}
             timezone={bootstrapMe?.timezone ?? null}
             onTimezoneChange={async (timezone) => {
@@ -4133,9 +4124,7 @@ function SpaceShell() {
     </BotsSidebarLayout>
   );
 
-  return (
-    <AvatarStyleProvider value={bootstrapMe?.avatarStyle ?? "organic"}>{shell}</AvatarStyleProvider>
-  );
+  return shell;
 }
 
 function firstThreadRoute(
