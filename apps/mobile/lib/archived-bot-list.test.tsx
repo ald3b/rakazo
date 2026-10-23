@@ -11,6 +11,8 @@ const swift = vi.hoisted(() => ({
   stacks: [] as Array<Array<{ name: string; value: unknown }>>,
   hosts: [] as Array<{ ignoreSafeArea?: string }>,
   lists: [] as Array<Array<{ name: string; value: unknown }>>,
+  sectionHeaders: [] as unknown[],
+  spacers: [] as Array<Array<{ name: string; value: unknown }>>,
   headerInset: 0,
   images: [] as string[],
 }));
@@ -57,8 +59,19 @@ vi.mock("@expo/ui/swift-ui", () => {
       return null;
     },
     List,
-    Section: wrap,
-    Spacer: () => null,
+    Section: ({ children, header }: { children?: ReactNode; header?: ReactNode }) => {
+      swift.sectionHeaders.push(header);
+      return (
+        <div>
+          {header}
+          {children}
+        </div>
+      );
+    },
+    Spacer: ({ modifiers }: { modifiers?: Array<{ name: string; value: unknown }> }) => {
+      swift.spacers.push(modifiers ?? []);
+      return null;
+    },
     SwipeActions,
     Text: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
   };
@@ -73,9 +86,9 @@ vi.mock("@expo/ui/swift-ui/modifiers", () => {
       "disabled",
       "foregroundStyle",
       "frame",
+      "listRowInsets",
       "listSectionMargins",
       "listStyle",
-      "padding",
     ].map((name) => [name, modifier(name)]),
   );
 });
@@ -126,15 +139,32 @@ it("starts the list below the floating header from its measured height, not the 
         onRestoreGroup={vi.fn()}
       />,
     );
+  const headerSpacer = () =>
+    swift.spacers.find((modifiers) =>
+      modifiers.some(
+        (modifier) =>
+          modifier.name === "frame" && (modifier.value as { height?: number }).height === 64,
+      ),
+    );
   swift.headerInset = 64;
   swift.hosts.length = 0;
   swift.lists.length = 0;
+  swift.sectionHeaders.length = 0;
+  swift.spacers.length = 0;
   render();
   expect(swift.hosts.at(-1)).toEqual({ ignoreSafeArea: "container" });
-  expect(swift.lists.at(-1)).toContainEqual({ name: "padding", value: { top: 64 } });
+  // The inset sits inside the scroll content, so rows still scroll under the floating header.
+  expect(swift.lists.at(-1)?.some((modifier) => modifier.name === "padding")).toBe(false);
+  expect(swift.sectionHeaders.at(-1)).toBeDefined();
+  expect(headerSpacer()).toContainEqual({
+    name: "listRowInsets",
+    value: { top: 0, leading: 0, bottom: 0, trailing: 0 },
+  });
   // Without a floating header (older iOS) the system safe area still applies.
   swift.headerInset = 0;
+  swift.spacers.length = 0;
   render();
   expect(swift.hosts.at(-1)).toEqual({ ignoreSafeArea: undefined });
-  expect(swift.lists.at(-1)?.some((modifier) => modifier.name === "padding")).toBe(false);
+  expect(swift.sectionHeaders.at(-1)).toBeUndefined();
+  expect(headerSpacer()).toBeUndefined();
 });
