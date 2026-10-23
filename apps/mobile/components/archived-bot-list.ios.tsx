@@ -19,9 +19,11 @@ import {
   frame,
   listSectionMargins,
   listStyle,
+  padding,
 } from "@expo/ui/swift-ui/modifiers";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { MobileBot, MobileGroup } from "../lib/api";
+import { useFloatingHeaderInset } from "../lib/floating-header";
 import { useI18n } from "../lib/i18n";
 import { useMobileTokens, useResolvedAppearance } from "../lib/native";
 import { iosAtLeast } from "../lib/native-controls";
@@ -38,6 +40,10 @@ export function ArchivedBotList({
 }: ArchivedBotListProps) {
   const { t } = useI18n();
   const insets = useSafeAreaInsets();
+  // The list sits under the floating header. Its height comes from navigation, not from the
+  // hosting view's safe area, which can be stale after a text size change and put the first
+  // row under the close button and title.
+  const headerInset = useFloatingHeaderInset();
   const scheme = useResolvedAppearance();
   const tokens = useMobileTokens();
   function actions(bot: MobileBot) {
@@ -68,8 +74,18 @@ export function ArchivedBotList({
     );
   }
   return (
-    <Host style={{ flex: 1 }} colorScheme={scheme} seedColor={tokens.foreground}>
-      <List modifiers={[listStyle("insetGrouped")]}>
+    <Host
+      style={{ flex: 1 }}
+      colorScheme={scheme}
+      seedColor={tokens.foreground}
+      ignoreSafeArea={headerInset > 0 ? "container" : undefined}
+    >
+      <List
+        modifiers={[
+          listStyle("insetGrouped"),
+          ...(headerInset > 0 ? [padding({ top: headerInset })] : []),
+        ]}
+      >
         <Section
           modifiers={
             iosAtLeast(26)
