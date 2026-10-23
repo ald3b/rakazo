@@ -43,8 +43,10 @@ export function ArchivedBotList({
   const scheme = useResolvedAppearance();
   const tokens = useMobileTokens();
   // A swipe button is filled with its tint and keeps a white label. The host's tint is the
-  // ink colour, white in dark mode, so Restore needs its own fill to stay readable.
+  // ink colour, white in dark mode, and it overrides even a destructive role's red, so each
+  // swipe button needs its own fill to stay readable.
   const swipeTint = [tint(PlatformColor("systemBlue"))];
+  const swipeDeleteTint = [tint(PlatformColor("systemRed"))];
   function actions(bot: MobileBot, swipe = false) {
     return (
       <>
@@ -59,6 +61,7 @@ export function ArchivedBotList({
           label={t("Delete")}
           systemImage="trash"
           role="destructive"
+          modifiers={swipe ? swipeDeleteTint : undefined}
           onPress={() => onDelete(bot)}
         />
       </>

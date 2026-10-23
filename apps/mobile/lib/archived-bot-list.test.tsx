@@ -104,7 +104,7 @@ it("lists archived groups after bots with a group symbol, name and Restore only"
   expect(onRestoreGroup).toHaveBeenCalledWith({ id: "g", name: "Crew" });
 });
 
-it("fills the swipe Restore buttons so their white label shows in dark mode too", () => {
+it("fills the swipe buttons so their white labels show in dark mode too", () => {
   swift.buttons.length = 0;
   renderToStaticMarkup(
     <ArchivedBotList
@@ -124,5 +124,11 @@ it("fills the swipe Restore buttons so their white label shows in dark mode too"
     [{ name: "tint", value: { semantic: ["systemBlue"] } }],
     [],
     [{ name: "tint", value: { semantic: ["systemBlue"] } }],
+  ]);
+  // The host tint also overrides Delete's destructive red, so the swipe Delete gets red back.
+  const deletes = swift.buttons.filter((button) => button.label === "Delete");
+  expect(deletes.map((button) => button.modifiers ?? [])).toEqual([
+    [],
+    [{ name: "tint", value: { semantic: ["systemRed"] } }],
   ]);
 });
