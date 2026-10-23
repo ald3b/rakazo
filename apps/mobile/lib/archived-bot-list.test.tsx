@@ -7,7 +7,11 @@ import { ArchivedBotList } from "../components/archived-bot-list.ios";
 import type { MobileBot, MobileGroup } from "./api";
 
 const swift = vi.hoisted(() => ({
-  buttons: [] as Array<{ label?: string; onPress?: () => void }>,
+  buttons: [] as Array<{
+    label?: string;
+    onPress?: () => void;
+    modifiers?: Array<{ name: string; value: unknown }>;
+  }>,
   stacks: [] as Array<Array<{ name: string; value: unknown }>>,
   images: [] as string[],
 }));
@@ -18,7 +22,12 @@ vi.mock("@expo/ui/swift-ui", () => {
   const SwipeActions = Object.assign(wrap, { Actions: wrap });
   const List = Object.assign(wrap, { ForEach: wrap });
   return {
-    Button: (props: { label?: string; onPress?: () => void; children?: ReactNode }) => {
+    Button: (props: {
+      label?: string;
+      onPress?: () => void;
+      modifiers?: Array<{ name: string; value: unknown }>;
+      children?: ReactNode;
+    }) => {
       swift.buttons.push(props);
       return <div>{props.children}</div>;
     },
@@ -57,9 +66,11 @@ vi.mock("@expo/ui/swift-ui/modifiers", () => {
       "frame",
       "listSectionMargins",
       "listStyle",
+      "tint",
     ].map((name) => [name, modifier(name)]),
   );
 });
+vi.mock("react-native", () => ({ PlatformColor: (name: string) => ({ semantic: [name] }) }));
 vi.mock("react-native-safe-area-context", () => ({ useSafeAreaInsets: () => ({ bottom: 0 }) }));
 vi.mock("./native", () => ({
   useMobileTokens: () => ({ foreground: "ink" }),
@@ -91,4 +102,27 @@ it("lists archived groups after bots with a group symbol, name and Restore only"
   expect(groupButtons.map((button) => button.label)).toEqual(["Restore", "Restore"]);
   groupButtons[0]!.onPress!();
   expect(onRestoreGroup).toHaveBeenCalledWith({ id: "g", name: "Crew" });
+});
+
+it("fills the swipe Restore buttons so their white label shows in dark mode too", () => {
+  swift.buttons.length = 0;
+  renderToStaticMarkup(
+    <ArchivedBotList
+      bots={[{ id: "b", name: "Ada" } as MobileBot]}
+      groups={[{ id: "g", name: "Test" } as MobileGroup]}
+      pending={false}
+      onOpen={vi.fn()}
+      onRestore={vi.fn()}
+      onDelete={vi.fn()}
+      onRestoreGroup={vi.fn()}
+    />,
+  );
+  const restores = swift.buttons.filter((button) => button.label === "Restore");
+  // Bot menu, bot swipe, group menu, group swipe: only the swipe buttons get a fill.
+  expect(restores.map((button) => button.modifiers ?? [])).toEqual([
+    [],
+    [{ name: "tint", value: { semantic: ["systemBlue"] } }],
+    [],
+    [{ name: "tint", value: { semantic: ["systemBlue"] } }],
+  ]);
 });
