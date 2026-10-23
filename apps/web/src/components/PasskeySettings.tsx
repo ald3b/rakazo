@@ -97,7 +97,7 @@ function PasskeyList({ onRetry }: { onRetry: () => void }) {
 
   return (
     <section className="rounded-xl border border-border px-4 py-4" data-testid="passkey-settings">
-      <h3 className="text-[15px] font-medium text-foreground">
+      <h3 className="text-heading3 font-medium text-foreground">
         <Trans>Passkeys</Trans>
       </h3>
       {loadFailed ? (

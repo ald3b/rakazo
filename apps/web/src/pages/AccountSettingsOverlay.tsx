@@ -180,7 +180,7 @@ export function GeneralSettingsPanels({
   return (
     <div className="space-y-5">
       <section className="rounded-xl border border-border px-4 py-4" data-testid="account-card">
-        <h3 className="text-[15px] font-medium text-foreground">
+        <h3 className="text-heading3 font-medium text-foreground">
           <Trans>Account</Trans>
         </h3>
         {editingName ? (
@@ -268,7 +268,7 @@ export function GeneralSettingsPanels({
 
       {messagingEnabled && onOpenMessaging ? (
         <section className="rounded-xl border border-border px-4 py-4">
-          <h3 className="text-[15px] font-medium text-foreground">
+          <h3 className="text-heading3 font-medium text-foreground">
             <Trans>Messaging</Trans>
           </h3>
           <Button variant="secondary" className="mt-3 rounded-full" onClick={onOpenMessaging}>
@@ -278,7 +278,7 @@ export function GeneralSettingsPanels({
       ) : null}
 
       <section className="rounded-xl border border-border px-4 py-4">
-        <h3 className="text-[15px] font-medium text-foreground">
+        <h3 className="text-heading3 font-medium text-foreground">
           <Trans>Appearance</Trans>
         </h3>
         <AppearancePicker
@@ -321,7 +321,7 @@ export function GeneralSettingsPanels({
       </section>
 
       <section className="rounded-xl border border-border px-4 py-4">
-        <h3 className="text-[15px] font-medium text-foreground">
+        <h3 className="text-heading3 font-medium text-foreground">
           <Trans>Language</Trans>
         </h3>
         <UiLocalePicker value={locale} onChange={chooseLocale} />
@@ -332,7 +332,7 @@ export function GeneralSettingsPanels({
           className="rounded-xl border border-border px-4 py-4"
           data-testid="timezone-settings"
         >
-          <h3 id={timezoneId} className="text-[15px] font-medium text-foreground">
+          <h3 id={timezoneId} className="text-heading3 font-medium text-foreground">
             <Trans>Timezone</Trans>
           </h3>
           <NativeSelect
@@ -468,7 +468,7 @@ export function UsageSettingsPanel({
       data-testid="usage-settings"
       className="rounded-xl border border-border px-4 py-4 outline-none"
     >
-      <h3 className="text-[15px] font-medium text-foreground">
+      <h3 className="text-heading3 font-medium text-foreground">
         <Trans>Usage</Trans>
       </h3>
       {usage ? (
@@ -499,7 +499,7 @@ export function ComputerSettingsPanel({
       data-testid="computers-setup-settings"
       className="rounded-xl border border-border px-4 py-4"
     >
-      <h3 className="text-[15px] font-medium text-foreground">
+      <h3 className="text-heading3 font-medium text-foreground">
         <Trans>Computers</Trans>
       </h3>
       <ComputersUnavailableHint
@@ -561,7 +561,7 @@ function ChangePasswordSection({ email }: { email?: string | null }) {
 
   return (
     <section className="rounded-xl border border-border px-4 py-4">
-      <h3 className="text-[15px] font-medium text-foreground">
+      <h3 className="text-heading3 font-medium text-foreground">
         <Trans>Password</Trans>
       </h3>
       <div className="mt-3 grid gap-3">
