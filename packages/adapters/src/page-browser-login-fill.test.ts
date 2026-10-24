@@ -227,6 +227,62 @@ describe("live page helper code fields", () => {
     expect(inputs).toEqual(["Q", "", "", "", "", "", ""]);
   });
 
+  it("keeps a wrapped final digit with its named code", () => {
+    const wrapped = typeInto(
+      `<div><input aria-label="Middle initial" maxlength="1" value="Q" />${row("Digit", 0).replace("100,0,10,10", "0,20,10,10")}</div>`,
+      "Digit 1",
+    );
+    expect([wrapped.values("Middle"), wrapped.values("Digit")]).toEqual(["Q", ""]);
+    const last =
+      wrapped.domWindow.document.querySelector<HTMLInputElement>('[aria-label="Digit 6"]')!;
+    last.focus();
+    expect(wrapped.browser.focusHolds()).toBe(true);
+  });
+
+  it("still joins a code split into three-box subgroups", () => {
+    const boxes = row("Digit", 0)
+      .split(" />")
+      .filter(Boolean)
+      .map((box) => `${box} />`);
+    const split = typeInto(
+      `<div><span>${boxes.slice(0, 3).join("")}</span>-<span>${boxes.slice(3).join("")}</span></div>`,
+      "Digit 4",
+    );
+    expect(split.values("Digit")).toBe("");
+    expect(split.domWindow.document.activeElement?.getAttribute("aria-label")).toBe("Digit 1");
+  });
+
+  it("keeps adjacent same-named codes in their own containers", () => {
+    const { domWindow, browser } = installPageHelper(
+      "https://code.example.test/",
+      `<form><div>${row("Digit", 0)}</div><div>${row("Digit", 0)}</div></form>`,
+    );
+    browser.focusForKeys(browser.snapshot().elements[8]!.ref);
+    const groups = domWindow.document.querySelectorAll("div");
+    const values = (group: Element) =>
+      Array.from(group.querySelectorAll("input"), (box) => box.value).join("");
+    expect([values(groups[0]!), values(groups[1]!)]).toEqual(["012345", ""]);
+    expect(domWindow.document.activeElement).toBe(groups[1]!.firstElementChild);
+  });
+
+  it.each([false, true])(
+    "stops when another widget replaces the target (same container: %s)",
+    (sameContainer) => {
+      const { domWindow, browser } = typeInto(
+        `<main><div>${row("Code", 0)}</div></main>`,
+        "Code 1",
+      );
+      const group = domWindow.document.querySelector("div")!;
+      if (sameContainer) group.innerHTML = row("Other", 0);
+      else group.outerHTML = `<div>${row("Code", 0)}</div>`;
+      domWindow.document.querySelector<HTMLInputElement>("input")!.focus();
+      expect(browser.focusHolds()).toBe(false);
+      expect(
+        Array.from(domWindow.document.querySelectorAll("input"), (box) => box.value).join(""),
+      ).toBe("012345");
+    },
+  );
+
   it("lets a code be typed box by box, with or without the widget moving on", () => {
     for (const advances of [false, true]) {
       const { domWindow, browser } = installPageHelper(

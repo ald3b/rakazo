@@ -394,10 +394,14 @@ EVAL_HELPERS = r"""
     return [...root.querySelectorAll("input, textarea, select, [contenteditable]")]
       .filter((field) => field.type !== "hidden" && visible(field));
   }
+  // Boxes are usually named alike apart from their number: "Digit 1", "Digit 2", or not at all.
+  const naming = (field) => [field.getAttribute("aria-label"), field.name, field.id,
+    ...Array.from(field.labels || [], (label) => label.textContent)]
+    .join("|").replace(/[\d\s]+/g, "").toLowerCase();
   // One box per character: every box of the one code el belongs to, in page order (3 + 3 groups too).
   // A box is a one-character input, or a narrow one in a row of at least four, of el's size, type and
-  // form on el's row. The boxes are the unbroken run around el, so a password, a textarea or the boxes
-  // of a second code are never part of it, and clearing a code never touches them. A field at either
+  // form on el's row (named one-character boxes may wrap). The unbroken run stays in its container
+  // once it holds a complete code, so clearing it leaves adjacent widgets alone. A field at either
   // end of the run that is named unlike the rest, such as a middle initial before the code, is not a box.
   function codeBoxes(el) {
     if (!(el instanceof HTMLInputElement)) return [el];
@@ -406,14 +410,12 @@ EVAL_HELPERS = r"""
     const isBox = (input) => {
       if (!(input instanceof HTMLInputElement) || input.type !== el.type || input.form !== el.form) return false;
       const rect = input.getBoundingClientRect();
-      if (Math.abs(rect.top + rect.height / 2 - (own.top + own.height / 2)) >= own.height / 2) return false;
+      // Named one-character boxes can wrap onto another line in a narrow viewport.
+      if (!(input.maxLength === 1 && naming(input) === naming(el))
+          && Math.abs(rect.top + rect.height / 2 - (own.top + own.height / 2)) >= own.height / 2) return false;
       if (!near(rect.width, own.width) || !near(rect.height, own.height)) return false;
       return input.maxLength === 1 || (input.maxLength <= 2 && rect.width <= rect.height * 2);
     };
-    // Boxes are usually named alike apart from their number: "Digit 1", "Digit 2", or not at all.
-    const naming = (field) => [field.getAttribute("aria-label"), field.name, field.id,
-      ...Array.from(field.labels || [], (label) => label.textContent)]
-      .join("|").replace(/[\d\s]+/g, "").toLowerCase();
     const whole = (boxes) => boxes.every((box) => box.maxLength === 1) || boxes.length >= 4;
     let boxes = [el];
     if (!isBox(el)) return boxes;
@@ -426,8 +428,8 @@ EVAL_HELPERS = r"""
       while (to < fields.length - 1 && isBox(fields[to + 1])) to++;
       if (to - from >= 12) break;
       boxes = fields.slice(from, to + 1);
-      // Past a container that holds other fields, the run cannot grow.
-      if (boxes.length < fields.length) break;
+      // A complete code stays in its container; smaller subgroups (3 + 3) can grow.
+      if (boxes.length < fields.length || boxes.length >= 4) break;
     }
     const names = boxes.map(naming);
     const usual = names.reduce((best, name) =>
@@ -441,14 +443,15 @@ EVAL_HELPERS = r"""
   }
   // The field typed into; the field, one box or every box of its code that the keys are meant for;
   // where the first of them is among the page's fields; and how many boxes the code has.
-  let keyTarget = { el: null, boxes: [], at: -1, size: 0 };
+  let keyTarget = { el: null, boxes: [], at: -1, size: 0, container: null, names: [] };
   // Some widgets replace every box with a new one on each input. The boxes are then found again at
-  // the same place among the page's fields, in a code of as many boxes.
+  // the same place among the page's fields, in the original container with the same naming.
   function targetBoxes() {
-    const { boxes, at, size } = keyTarget;
+    const { boxes, at, size, container, names } = keyTarget;
     if (size < 2 || boxes.every((box) => box.isConnected)) return boxes;
     const first = pageFields()[at];
     const code = first instanceof HTMLInputElement ? codeBoxes(first) : [];
+    if (!container?.isConnected || code.some((box, i) => !container.contains(box) || naming(box) !== names[i])) return boxes;
     if (code.length !== size || (boxes.length > 1 && code[0] !== first) || !code.includes(first)) return boxes;
     keyTarget = { ...keyTarget, boxes: boxes.length > 1 ? code : [first] };
     return keyTarget.boxes;
@@ -655,7 +658,10 @@ EVAL_HELPERS = r"""
       }
       const code = codeBoxes(el);
       const boxes = whole ? code : [el];
-      keyTarget = { el, boxes, at: pageFields().indexOf(boxes[0]), size: code.length };
+      let container = code[0].parentElement;
+      while (container && !code.every((box) => container.contains(box))) container = container.parentElement;
+      keyTarget = { el, boxes, at: pageFields().indexOf(boxes[0]), size: code.length,
+        container, names: code.map(naming) };
       // Only boxes that hold something are emptied, so an empty widget sees no events at all.
       for (let i = 0; i < boxes.length; i++) {
         const box = targetBoxes()[i];

@@ -467,6 +467,57 @@ test("live page helper types codes as real key presses into one-box-per-digit fi
     expect(await type("rebuild 4", "482931")).toMatchObject({ ok: true });
     expect(await code("rebuild")).toBe("482931");
 
+    // Adjacent codes can share their names, size, row and form without sharing their values.
+    await page.evaluate(() => {
+      document.body.innerHTML =
+        '<form style="display:flex"><div id="left"></div><div id="right"></div></form>';
+      for (const id of ["left", "right"]) {
+        const group = document.getElementById(id)!;
+        for (let i = 0; i < 6; i++) {
+          const box = document.createElement("input");
+          box.maxLength = 1;
+          box.style.width = "20px";
+          box.setAttribute("aria-label", `Digit ${i + 1}`);
+          box.value = "7";
+          box.addEventListener("input", () => {
+            if (box.value) (box.nextElementSibling as HTMLInputElement | null)?.focus();
+          });
+          group.append(box);
+        }
+      }
+    });
+    await refresh();
+    const right = elements.filter((element) => element.name === "Digit 1")[1]!.ref;
+    expect(
+      await command("act", { actions: [{ kind: "type", ref: right, text: "482913" }] }),
+    ).toMatchObject({ ok: true });
+    expect(await code("left")).toBe("777777");
+    expect(await code("right")).toBe("482913");
+
+    // Removing a widget and focusing a same-named replacement must stop the remaining keys.
+    await page.evaluate(() => {
+      document.getElementById("left")!.remove();
+      const group = document.getElementById("right")!;
+      group.querySelectorAll("input").forEach((box) => {
+        box.value = "";
+      });
+      group.addEventListener(
+        "input",
+        () => {
+          const replacement = group.cloneNode(true) as HTMLElement;
+          replacement.querySelectorAll("input").forEach((box) => {
+            box.value = "7";
+          });
+          group.replaceWith(replacement);
+          replacement.querySelector("input")!.focus();
+        },
+        { once: true },
+      );
+    });
+    await refresh();
+    expect(await type("Digit 1", "482913")).toMatchObject({ ok: false, completed: 0 });
+    expect(await code("right")).toBe("777777");
+
     // A widget that submits on its last digit: the step is done and the result is the next page.
     await open();
     expect(await type("submit 1", "482913")).toMatchObject({
