@@ -95,6 +95,7 @@ import {
   nextFence,
   nextRoutineRunDateAcross,
   outboundSiteGate,
+  plainTextFromMarkdown,
   planActionGate,
   promptInvokesSkill,
   redactSecrets,
@@ -107,6 +108,7 @@ import {
   toolRequiresExplicitApproval,
   toolResultTaintsRun,
   truncatedPlainText,
+  truncatePlainText,
   unattendedTriggerToolRequiresApproval,
   userTurnMessageForRun,
 } from "@rakazo/core";
@@ -9792,10 +9794,13 @@ export function completionNotificationPreview(text: string): string {
 
 /** A secret card can ask for a code or a login, so the title stays generic and the label short. */
 export function secretAskNotification(botName: string, label: string, runSecrets: string[]) {
-  // Redact before the cut so no value is left half-shown, and after the strip so Markdown
-  // cannot split one past the first pass.
-  const preview = completionNotificationPreview(redactSecrets(label, runSecrets));
-  return { title: `${botName} needs an answer`, body: redactSecrets(preview, runSecrets) };
+  // Strip and redact before shortening so no protected value is left half-shown.
+  const text = plainTextFromMarkdown(redactSecrets(label, runSecrets), { maxSource: Infinity });
+  const body = truncatePlainText(
+    redactSecrets(text, runSecrets),
+    COMPLETION_NOTIFICATION_MAX_CHARS,
+  );
+  return { title: `${botName} needs an answer`, body };
 }
 
 export function completionMarksUnread(

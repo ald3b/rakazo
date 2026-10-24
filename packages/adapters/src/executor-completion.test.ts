@@ -141,6 +141,20 @@ describe("secretAskNotification", () => {
     expect(notification.body.startsWith("Sign in for [redacted] word")).toBe(true);
   });
 
+  it("redacts a Markdown-split protected value before the notification cut", () => {
+    const body = secretAskNotification("Bot", `${"x".repeat(167)} fake-**token**-123`, [
+      "fake-token-123",
+    ]).body;
+    expect(body).toBe(`${"x".repeat(167)} [redacted]`);
+    expect(body).not.toContain("fake-");
+  });
+
+  it("keeps the body within 180 characters when redaction expands a value", () => {
+    const body = secretAskNotification("Bot", `${"x".repeat(170)} ab**c1**23`, ["abc123"]).body;
+    expect(body).toHaveLength(180);
+    expect(body).not.toContain("abc");
+  });
+
   it("does not let Markdown split a protected value past redaction", () => {
     expect(secretAskNotification("Bot", "Code fake-**token**-123", ["fake-token-123"]).body).toBe(
       "Code [redacted]",
