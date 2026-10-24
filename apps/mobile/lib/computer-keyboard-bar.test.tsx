@@ -258,9 +258,36 @@ describe("computer keyboard accessory", () => {
     }
   });
 
+  it("counts a fast empty-field Backspace after an iOS deletion", async () => {
+    const bar = await renderBar();
+    try {
+      await bar.type("a");
+      bar.onCommand.mockClear();
+      await bar.key("Backspace");
+      await bar.type("");
+      bar.later(10);
+      await bar.key("Backspace");
+      expect(bar.onCommand.mock.calls).toEqual([
+        [{ type: "backspace", count: 1 }],
+        [{ type: "backspace", count: 1 }],
+      ]);
+    } finally {
+      await bar.unmount();
+    }
+  });
+
   it("deletes typed text once when the key press comes after the change", async () => {
     const bar = await renderBar();
     try {
+      await bar.type("ab", "a");
+      await bar.key("Backspace");
+      await bar.type("");
+      await bar.key("Backspace");
+      expect(bar.onCommand.mock.calls).toEqual([
+        [{ type: "text", text: "ab" }],
+        [{ type: "backspace", count: 1 }],
+        [{ type: "backspace", count: 1 }],
+      ]);
       await bar.type("a");
       bar.onCommand.mockClear();
       await bar.type("");
@@ -331,12 +358,26 @@ describe("computer keyboard accessory", () => {
       expect(input.focus).toHaveBeenCalledTimes(1);
       expect(bar.button("Show keyboard")!.getAttribute("aria-pressed")).toBe("false");
 
+      await bar.click("Show keyboard");
+      await act(async () => input.props.onBlur());
+      expect(input.focus).toHaveBeenCalledTimes(1);
+      expect(bar.button("Show keyboard")!.getAttribute("aria-pressed")).toBe("false");
+      await bar.type("a", "");
+      await bar.key("Backspace");
+      await act(async () => input.props.onSubmitEditing());
+      for (const key of ["Escape", "Tab", "Left", "Down", "Up", "Right"]) {
+        await bar.click(key);
+      }
+      expect(bar.onCommand).not.toHaveBeenCalled();
+
       // A release that fails leaves the screen open; the keyboard stays closed until the toggle.
       await bar.setActive(true);
       expect(input.focus).toHaveBeenCalledTimes(1);
       await bar.click("Show keyboard");
       expect(input.focus).toHaveBeenCalledTimes(2);
       expect(bar.button("Hide keyboard")!.getAttribute("aria-pressed")).toBe("true");
+      await bar.type("b");
+      expect(bar.onCommand).toHaveBeenLastCalledWith({ type: "text", text: "b" });
     } finally {
       await bar.unmount();
     }

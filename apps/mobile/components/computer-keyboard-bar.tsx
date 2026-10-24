@@ -44,6 +44,7 @@ export function ComputerKeyboardBar({
   // React re-renders; measured from here, the repeat finds nothing new to send.
   const handled = useRef("");
   const deletedAt = useRef<number | null>(null);
+  const backspacePressed = useRef(false);
   // On from the keyboard toggle until an explicit close; while on, a blur gives focus straight back.
   const keepOpen = useRef(false);
   const control = useRef(false);
@@ -71,6 +72,7 @@ export function ComputerKeyboardBar({
   }
 
   function send(changes: { backspaces: number; text: string }) {
+    if (!active) return;
     const commands = commandsForKeyboardChange(changes, control.current);
     for (const command of commands) onCommand(command);
     if (control.current && commands.length > 0) latch(false);
@@ -79,17 +81,24 @@ export function ComputerKeyboardBar({
   function onChangeText(next: string) {
     const changes = computerKeyboardChanges(handled.current, next);
     handled.current = next;
-    if (changes.backspaces > 0) deletedAt.current = Date.now();
+    if (changes.backspaces > 0) {
+      deletedAt.current = backspacePressed.current ? null : Date.now();
+    }
+    backspacePressed.current = false;
     send(changes);
   }
 
   // An empty field reports no change for Backspace, so its key press is the only signal there.
   // With text, the change carries the deletion, whichever of the two arrives first.
   function onKeyPress(key: string) {
-    if (key !== "Backspace" || handled.current) return;
+    if (!active || key !== "Backspace") return;
     const deleted = deletedAt.current;
     deletedAt.current = null;
     if (deleted !== null && Date.now() - deleted < DELETE_KEY_PRESS_MS) return;
+    if (handled.current) {
+      backspacePressed.current = true;
+      return;
+    }
     send({ backspaces: 1, text: "" });
   }
 
@@ -110,6 +119,7 @@ export function ComputerKeyboardBar({
   }
 
   function toggle() {
+    if (!active) return;
     if (open) {
       keepOpen.current = false;
       inputRef.current?.blur();
@@ -120,6 +130,7 @@ export function ComputerKeyboardBar({
   }
 
   function press(name: ComputerKeyName) {
+    if (!active) return;
     onCommand(control.current ? { type: "key", name, control: true } : { type: "key", name });
     if (control.current) latch(false);
   }
