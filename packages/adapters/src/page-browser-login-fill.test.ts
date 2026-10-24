@@ -252,6 +252,28 @@ describe("live page helper code fields", () => {
     expect(split.domWindow.document.activeElement?.getAttribute("aria-label")).toBe("Digit 1");
   });
 
+  it("joins a code split into four-box subgroups and keeps typing through both", () => {
+    const boxes = Array.from(
+      { length: 8 },
+      (_, i) => `<input aria-label="Digit ${i + 1}" maxlength="1" value="${i}" />`,
+    );
+    const { domWindow, browser, values } = typeInto(
+      `<div><span>${boxes.slice(0, 4).join("")}</span>-<span>${boxes.slice(4).join("")}</span></div>`,
+      "Digit 5",
+    );
+    expect(values("Digit")).toBe("");
+    const inputs = Array.from(domWindow.document.querySelectorAll("input"));
+    expect(domWindow.document.activeElement).toBe(inputs[0]);
+    for (const [i, digit] of Array.from("48291375").entries()) {
+      inputs[i]!.focus();
+      expect(browser.focusHolds()).toBe(true);
+      inputs[i]!.value = digit;
+      inputs[i]!.dispatchEvent(new domWindow.Event("input", { bubbles: true }));
+    }
+    expect(values("Digit")).toBe("48291375");
+    expect(browser.typed(refFor("Digit 5", browser.snapshot().elements), "48291375")).toBe(true);
+  });
+
   it("keeps adjacent same-named codes in their own containers", () => {
     const { domWindow, browser } = installPageHelper(
       "https://code.example.test/",

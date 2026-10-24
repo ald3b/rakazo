@@ -398,7 +398,7 @@ EVAL_HELPERS = r"""
   const naming = (field) => [field.getAttribute("aria-label"), field.name, field.id,
     ...Array.from(field.labels || [], (label) => label.textContent)]
     .join("|").replace(/[\d\s]+/g, "").toLowerCase();
-  // One box per character: every box of the one code el belongs to, in page order (3 + 3 groups too).
+  // One box per character: every box of the one code el belongs to, in page order (split groups too).
   // A box is a one-character input, or a narrow one in a row of at least four, of el's size, type and
   // form on el's row (named one-character boxes may wrap). The unbroken run stays in its container
   // once it holds a complete code, so clearing it leaves adjacent widgets alone. A field at either
@@ -428,8 +428,8 @@ EVAL_HELPERS = r"""
       while (to < fields.length - 1 && isBox(fields[to + 1])) to++;
       if (to - from >= 12) break;
       boxes = fields.slice(from, to + 1);
-      // A complete code stays in its container; smaller subgroups (3 + 3) can grow.
-      if (boxes.length < fields.length || boxes.length >= 4) break;
+      // A six-box or longer code stays in its container; smaller subgroups can grow.
+      if (boxes.length < fields.length || boxes.length >= 6) break;
     }
     const names = boxes.map(naming);
     const usual = names.reduce((best, name) =>
