@@ -422,6 +422,20 @@ EVAL_HELPERS = r"""
       if (!near(rect.width, own.width) || !near(rect.height, own.height)) return false;
       return input.maxLength === 1 || (input.maxLength <= 2 && rect.width <= rect.height * 2);
     };
+    // The number in a box's name, such as 3 in "Digit 3" or "otp-3".
+    const numberOf = (field) => {
+      const number = /\d+/.exec(field.getAttribute("aria-label") || field.name || field.id || "");
+      return number ? Number(number[0]) : null;
+    };
+    // Two codes can share one container: a second one starts where box numbers start again, or after
+    // a gap of more than two boxes on the same row.
+    const follows = (a, b) => {
+      const [first, next] = [numberOf(a), numberOf(b)];
+      if (first !== null && next !== null && next <= first) return false;
+      const [ra, rb] = [a.getBoundingClientRect(), b.getBoundingClientRect()];
+      const sameRow = Math.abs(rb.top + rb.height / 2 - (ra.top + ra.height / 2)) < ra.height / 2;
+      return !sameRow || rb.left - ra.right <= 2 * ra.width;
+    };
     const whole = (boxes) => boxes.every((box) => box.maxLength === 1) || boxes.length >= 4;
     let boxes = [el];
     if (!isBox(el)) return boxes;
@@ -430,8 +444,8 @@ EVAL_HELPERS = r"""
       let from = fields.indexOf(el);
       let to = from;
       if (from < 0) break;
-      while (from > 0 && isBox(fields[from - 1])) from--;
-      while (to < fields.length - 1 && isBox(fields[to + 1])) to++;
+      while (from > 0 && isBox(fields[from - 1]) && follows(fields[from - 1], fields[from])) from--;
+      while (to < fields.length - 1 && isBox(fields[to + 1]) && follows(fields[to], fields[to + 1])) to++;
       if (to - from >= 12) break;
       boxes = fields.slice(from, to + 1);
       // A six-box or longer code stays in its container; smaller subgroups can grow.

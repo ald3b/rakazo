@@ -377,6 +377,32 @@ describe("live page helper code fields", () => {
     expect(domWindow.document.activeElement).toBe(groups[1]!.firstElementChild);
   });
 
+  it.each([
+    // Named "Digit 1" to "Digit 6" twice, side by side.
+    [
+      "box numbers start again",
+      `${row("Digit", 0)}${row("Digit", 0).replace(/data-rect="(\d+)/g, (_, x) => `data-rect="${Number(x) + 120}`)}`,
+    ],
+    // Unnamed, with a wide gap between the two codes.
+    [
+      "a wide gap follows",
+      Array.from(
+        { length: 12 },
+        (_, i) =>
+          `<input maxlength="1" value="${i % 6}" data-rect="${i < 6 ? i * 20 : 300 + (i - 6) * 20},0,10,10" />`,
+      ).join(""),
+    ],
+  ])("keeps two codes in one container apart where %s", (_, boxes) => {
+    const { domWindow, browser } = installPageHelper(
+      "https://code.example.test/",
+      `<div>${boxes}</div>`,
+    );
+    browser.focusForKeys(browser.snapshot().elements[6]!.ref);
+    const inputs = Array.from(domWindow.document.querySelectorAll("input"));
+    expect(inputs.map((box) => box.value).join("")).toBe("012345");
+    expect(domWindow.document.activeElement).toBe(inputs[6]);
+  });
+
   it.each([false, true])(
     "stops when another widget replaces the target (same container: %s)",
     (sameContainer) => {
