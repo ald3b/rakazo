@@ -2791,6 +2791,7 @@ function lengthRecovery(
       : doubled;
     if (Number.isFinite(maxTokens) && maxTokens > sentMaxTokens) return { maxTokens };
   }
+  if (thinkingLevel === "off") return undefined;
   const supported = getSupportedThinkingLevels(target.model);
   const lower = LOWEST_FIRST_THINKING_LEVELS.slice(
     0,

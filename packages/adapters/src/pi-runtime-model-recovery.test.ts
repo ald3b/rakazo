@@ -313,6 +313,16 @@ describe("a call that spends its whole output budget on thinking", () => {
     ]);
   });
 
+  it("never turns thinking on when the user turned it off", async () => {
+    providerState.stream.mockImplementation(() => thinkingOnly(reasoner, "length"));
+    await expect(
+      run(request(reasoner, { maxTokens: 2_000, thinkingLevel: "off" })),
+    ).rejects.toThrow("The model hit its output limit before writing a response.");
+    expect(sentOptions().map(({ maxTokens, reasoning }) => [maxTokens, reasoning])).toEqual([
+      [2_000, undefined],
+    ]);
+  });
+
   it("gives a backup model its own budget, not the raised one", async () => {
     providerState.stream
       .mockImplementationOnce(() => thinkingOnly(plain, "length"))
