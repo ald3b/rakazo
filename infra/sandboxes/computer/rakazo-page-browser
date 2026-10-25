@@ -427,11 +427,8 @@ EVAL_HELPERS = r"""
       const number = /\d+/.exec(field.getAttribute("aria-label") || field.name || field.id || "");
       return number ? Number(number[0]) : null;
     };
-    // Two codes can share one container: a second one starts where box numbers start again, or after
-    // a gap of more than two boxes on the same row.
+    // A gap of more than two boxes on the same row separates codes.
     const follows = (a, b) => {
-      const [first, next] = [numberOf(a), numberOf(b)];
-      if (first !== null && next !== null && next <= first) return false;
       const [ra, rb] = [a.getBoundingClientRect(), b.getBoundingClientRect()];
       const sameRow = Math.abs(rb.top + rb.height / 2 - (ra.top + ra.height / 2)) < ra.height / 2;
       return !sameRow || rb.left - ra.right <= 2 * ra.width;
@@ -446,6 +443,22 @@ EVAL_HELPERS = r"""
       if (from < 0) break;
       while (from > 0 && isBox(fields[from - 1]) && follows(fields[from - 1], fields[from])) from--;
       while (to < fields.length - 1 && isBox(fields[to + 1]) && follows(fields[to], fields[to + 1])) to++;
+      // Generated ids and shared numeric prefixes are not box indices. Only trust a complete
+      // sequential run starting at 0 or 1, allowing restarts after the sequence has advanced.
+      const numbers = fields.slice(from, to + 1).map(numberOf);
+      const start = numbers[0];
+      if ((start === 0 || start === 1) && numbers.every((number, i) => i === 0
+          || (number !== null && numbers[i - 1] !== null
+            && (number === numbers[i - 1] + 1 || (number === start && numbers[i - 1] > start))))) {
+        const target = fields.indexOf(el);
+        const runFrom = from;
+        for (let i = 1; i < numbers.length; i++) {
+          if (numbers[i] !== start) continue;
+          const boundary = runFrom + i;
+          if (boundary <= target) from = boundary;
+          else { to = boundary - 1; break; }
+        }
+      }
       if (to - from >= 12) break;
       boxes = fields.slice(from, to + 1);
       // A six-box or longer code stays in its container; smaller subgroups can grow.

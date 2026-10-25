@@ -378,10 +378,60 @@ describe("live page helper code fields", () => {
   });
 
   it.each([
+    ["shared id prefix", (i: number) => `id="otp-1-${i}"`],
+    ["shared name prefix", (i: number) => `name="code1_digit${i}"`],
+    ["React ids", (i: number) => `id=":r${i + 1}:"`],
+    ["shared React id", (_: number) => 'id=":r1:"'],
+    ["React ids with suffix", (i: number) => `id=":r5:-input${i}"`],
+    ["generated ids", (i: number) => `id="input-${[17, 23, 19, 31, 28, 42][i]}"`],
+    ["labels with total", (i: number) => `aria-label="Digit ${i + 1} of 6"`],
+  ])("keeps a single code together with %s", (_, attributes) => {
+    const { domWindow, browser } = installPageHelper(
+      "https://code.example.test/",
+      `<div>${Array.from(
+        { length: 6 },
+        (_, i) =>
+          `<input ${attributes(i)} maxlength="1" value="${i}" data-rect="${i * 20},0,10,10" />`,
+      ).join("")}</div>`,
+    );
+    browser.focusForKeys(browser.snapshot().elements[3]!.ref);
+    const inputs = Array.from(domWindow.document.querySelectorAll("input"));
+    expect(inputs.map((box) => box.value)).toEqual(Array(6).fill(""));
+    expect(domWindow.document.activeElement).toBe(inputs[0]);
+    for (const input of inputs) {
+      input.focus();
+      expect(browser.focusHolds()).toBe(true);
+    }
+  });
+
+  it("keeps a code together across a dash with a two-box-wide separator", () => {
+    const boxes = Array.from(
+      { length: 6 },
+      (_, i) =>
+        `${i === 3 ? "<span>-</span>" : ""}<input maxlength="1" value="${i}" data-rect="${i * 20 + (i >= 3 ? 10 : 0)},0,10,10" />`,
+    ).join("");
+    const { domWindow, browser } = installPageHelper(
+      "https://code.example.test/",
+      `<div>${boxes}</div>`,
+    );
+    browser.focusForKeys(browser.snapshot().elements[4]!.ref);
+    expect(Array.from(domWindow.document.querySelectorAll("input"), (box) => box.value)).toEqual(
+      Array(6).fill(""),
+    );
+  });
+
+  it.each([
     // Named "Digit 1" to "Digit 6" twice, side by side.
     [
       "box numbers start again",
       `${row("Digit", 0)}${row("Digit", 0).replace(/data-rect="(\d+)/g, (_, x) => `data-rect="${Number(x) + 120}`)}`,
+    ],
+    [
+      "zero-based box numbers start again",
+      `${row("Digit", 0)}${row("Digit", 0).replace(/data-rect="(\d+)/g, (_, x) => `data-rect="${Number(x) + 120}`)}`.replace(
+        /aria-label="Digit (\d)"/g,
+        (_, digit) => `aria-label="Digit ${Number(digit) - 1}"`,
+      ),
     ],
     // Unnamed, with a wide gap between the two codes.
     [
