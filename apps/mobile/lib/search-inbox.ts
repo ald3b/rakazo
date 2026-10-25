@@ -17,6 +17,8 @@ type InboxAddition = { kind: "bot"; bot: MobileBot } | { kind: "group"; group: M
 let additions: InboxAddition[] = [];
 
 const additionId = (item: InboxAddition) => (item.kind === "bot" ? item.bot.id : item.group.id);
+const additionSpaceId = (item: InboxAddition) =>
+  item.kind === "bot" ? item.bot.spaceId : item.group.spaceId;
 
 // Share the home roster without another request or navigation payload.
 export function setSearchInbox(spaces: readonly InboxSpace[]): void {
@@ -29,9 +31,14 @@ export function setSearchInbox(spaces: readonly InboxSpace[]): void {
       ...space.groups.map((group) => group.id),
     ]),
   );
+  // An addition goes once the inbox lists it, or once its space is gone (a deleted space).
+  const spaceIds = new Set(spaces.map((space) => space.id));
   additions =
     sameSession && spaces.length > 0
-      ? additions.filter((item) => !listed.has(additionId(item)))
+      ? additions.filter((item) => {
+          const spaceId = additionSpaceId(item);
+          return !listed.has(additionId(item)) && (!spaceId || spaceIds.has(spaceId));
+        })
       : [];
   snapshot = additions.reduce(withAddition, spaces);
   for (const listener of listeners) listener();
@@ -101,7 +108,7 @@ export function removeFromSearchInbox(id: string | undefined): void {
 }
 
 function withAddition(spaces: readonly InboxSpace[], item: InboxAddition): readonly InboxSpace[] {
-  const spaceId = item.kind === "bot" ? item.bot.spaceId : item.group.spaceId;
+  const spaceId = additionSpaceId(item);
   const target =
     spaces.find((space) => space.id === spaceId) ??
     spaces.find((space) => space.isDefault) ??

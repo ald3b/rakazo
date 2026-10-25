@@ -142,6 +142,16 @@ it("keeps an added bot through inbox refreshes that don't list it, as an archive
   expect(avatar()?.getAttribute("data-color")).toBe(helper.color);
 });
 
+it("drops an added bot once a refresh no longer lists its space", () => {
+  setSearchInbox([space("space-1", [], true), space("space-2", [])]);
+  addToSearchInbox({ kind: "bot", bot: { ...helper, spaceId: "space-2" } });
+  render();
+  expect(avatar()).not.toBeNull();
+  // Its space was deleted: the bot must not fall back into the default space.
+  act(() => setSearchInbox([space("space-1", [], true)]));
+  expect(avatar()).toBeNull();
+});
+
 it("takes the inbox's own copy once it lists an added bot", () => {
   setSearchInbox([space("space-1", [], true)]);
   addToSearchInbox({ kind: "bot", bot: helper });
