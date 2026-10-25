@@ -142,6 +142,193 @@ describe("live page helper saved-login fill", () => {
     expect(JSON.stringify(browser.snapshot())).not.toContain("fake-password");
   });
 
+  it("starts no selection in a field holding a saved login, by mouse or keyboard", () => {
+    const { domWindow, browser } = installPageHelper(`${origin}/signin`, html);
+    const field = domWindow.document.querySelector('[aria-label="Password"]') as HTMLInputElement;
+    browser.fill(
+      refFor("Password", browser.snapshot().elements),
+      "fake-password",
+      origin,
+      "password",
+    );
+    const dispatch = (event: Event) => {
+      field.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    // A press, a double or triple click's included, only puts the caret at the end.
+    for (const detail of [1, 2, 3]) {
+      expect(
+        dispatch(new domWindow.MouseEvent("mousedown", { button: 0, detail, cancelable: true })),
+      ).toBe(true);
+      expect(domWindow.document.activeElement).toBe(field);
+      expect([field.selectionStart, field.selectionEnd]).toEqual([13, 13]);
+    }
+    // A middle click pastes into the field; that stays.
+    expect(dispatch(new domWindow.MouseEvent("mousedown", { button: 1, cancelable: true }))).toBe(
+      false,
+    );
+    // Select all by key position, so a Hebrew or Russian layout's letter is caught too.
+    for (const key of [
+      { key: "a", code: "KeyA", ctrlKey: true },
+      { key: "ש", code: "KeyA", ctrlKey: true },
+      { key: "ф", code: "KeyA", metaKey: true },
+      { key: "ArrowLeft", code: "ArrowLeft", shiftKey: true },
+      { key: "Home", code: "Home", shiftKey: true },
+    ]) {
+      expect(
+        dispatch(new domWindow.KeyboardEvent("keydown", { ...key, cancelable: true })),
+        key.key,
+      ).toBe(true);
+    }
+    // Moving the caret and typing still work.
+    expect(
+      dispatch(new domWindow.KeyboardEvent("keydown", { key: "ArrowLeft", cancelable: true })),
+    ).toBe(false);
+    expect(
+      dispatch(
+        new domWindow.KeyboardEvent("keydown", { key: "x", code: "KeyX", cancelable: true }),
+      ),
+    ).toBe(false);
+    for (const type of ["selectstart", "contextmenu"]) {
+      expect(dispatch(new domWindow.Event(type, { bubbles: true, cancelable: true })), type).toBe(
+        true,
+      );
+    }
+    // A selection made anyway is collapsed at once.
+    field.select();
+    field.dispatchEvent(new domWindow.Event("select", { bubbles: true }));
+    expect([field.selectionStart, field.selectionEnd]).toEqual([13, 13]);
+  });
+
+  it("guards a saved username too, and lets go once the field is filled with something else", () => {
+    const { domWindow, browser } = installPageHelper(`${origin}/signin`, html);
+    const field = domWindow.document.querySelector('[aria-label="Email"]') as HTMLInputElement;
+    const press = () => {
+      const event = new domWindow.MouseEvent("mousedown", { button: 0, cancelable: true });
+      field.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    expect(press()).toBe(false);
+    browser.fill(refFor("Email", browser.snapshot().elements), "fake-user", origin, "username");
+    expect(press()).toBe(true);
+    // Filled with ordinary text, or typed over, the field is the page's again.
+    browser.fill(refFor("Email", browser.snapshot().elements), "someone else");
+    expect(press()).toBe(false);
+    browser.fill(refFor("Email", browser.snapshot().elements), "fake-user", origin, "username");
+    browser.focusForKeys(refFor("Email", browser.snapshot().elements), false);
+    expect(press()).toBe(false);
+  });
+
+  it("keeps keyboard focus off a guarded field and undo off the page, and gives focus back after", () => {
+    const { domWindow, browser } = installPageHelper(
+      `${origin}/signin`,
+      '<input aria-label="Email" tabindex="2" /><input aria-label="Password" type="password" />',
+    );
+    const email = domWindow.document.querySelector('[aria-label="Email"]') as HTMLInputElement;
+    const password = domWindow.document.querySelector(
+      '[aria-label="Password"]',
+    ) as HTMLInputElement;
+    const ref = (name: string) => refFor(name, browser.snapshot().elements);
+    browser.fill(ref("Email"), "fake-user", origin, "username");
+    browser.fill(ref("Password"), "fake-password", origin, "password");
+    // Focusing a field by keyboard selects all of it, so Tab skips both.
+    expect([email.getAttribute("tabindex"), password.getAttribute("tabindex")]).toEqual([
+      "-1",
+      "-1",
+    ]);
+    const undo = (field: HTMLInputElement, inputType: string) => {
+      const event = new domWindow.InputEvent("beforeinput", {
+        inputType,
+        cancelable: true,
+        bubbles: true,
+      });
+      field.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    expect(undo(password, "historyUndo")).toBe(true);
+    expect(undo(password, "historyRedo")).toBe(true);
+    expect(undo(password, "insertText")).toBe(false);
+    // Once the field is emptied, the person's own text there is theirs again, but undo, which
+    // would bring the login back, stays turned down on the whole page, in every field.
+    password.value = "";
+    password.dispatchEvent(new domWindow.Event("input", { bubbles: true }));
+    expect(password.hasAttribute("tabindex")).toBe(false);
+    const press = new domWindow.MouseEvent("mousedown", { button: 0, cancelable: true });
+    password.dispatchEvent(press);
+    expect(press.defaultPrevented).toBe(false);
+    expect(undo(password, "historyUndo")).toBe(true);
+    browser.fill(ref("Password"), "ordinary text");
+    expect(undo(password, "historyUndo")).toBe(true);
+    expect(undo(email, "historyRedo")).toBe(true);
+    for (const key of [
+      { key: "z", code: "KeyZ", ctrlKey: true },
+      { key: "ז", code: "KeyZ", ctrlKey: true },
+      { key: "y", code: "KeyY", ctrlKey: true },
+      { key: "z", code: "KeyZ", metaKey: true, shiftKey: true },
+    ]) {
+      const event = new domWindow.KeyboardEvent("keydown", {
+        ...key,
+        cancelable: true,
+        bubbles: true,
+      });
+      email.dispatchEvent(event);
+      expect(event.defaultPrevented, key.key).toBe(true);
+    }
+    // The context menu of any field, which offers undo, stays shut too.
+    const menu = new domWindow.MouseEvent("contextmenu", { cancelable: true, bubbles: true });
+    email.dispatchEvent(menu);
+    expect(menu.defaultPrevented).toBe(true);
+    // A refill gives the field's own tab order back, unless the page has set its own since.
+    browser.fill(ref("Email"), "someone else");
+    expect(email.getAttribute("tabindex")).toBe("2");
+    browser.fill(ref("Email"), "fake-user", origin, "username");
+    email.setAttribute("tabindex", "5");
+    browser.fill(ref("Email"), "someone else");
+    expect(email.getAttribute("tabindex")).toBe("5");
+  });
+
+  it("lets go of a field the page empties without telling, at the next press or key", () => {
+    const { domWindow, browser } = installPageHelper(`${origin}/signin`, html);
+    const field = domWindow.document.querySelector('[aria-label="Password"]') as HTMLInputElement;
+    browser.fill(
+      refFor("Password", browser.snapshot().elements),
+      "fake-password",
+      origin,
+      "password",
+    );
+    field.value = "";
+    const key = new domWindow.KeyboardEvent("keydown", {
+      key: "a",
+      code: "KeyA",
+      ctrlKey: true,
+      cancelable: true,
+    });
+    field.dispatchEvent(key);
+    expect(key.defaultPrevented).toBe(false);
+    expect(field.hasAttribute("tabindex")).toBe(false);
+  });
+
+  it("turns down a selection start even when the page stops it before the field", () => {
+    const { domWindow, browser } = installPageHelper(
+      `${origin}/signin`,
+      '<div id="wrap"><input aria-label="Password" type="password" /></div>',
+    );
+    const field = domWindow.document.querySelector('[aria-label="Password"]') as HTMLInputElement;
+    browser.fill(
+      refFor("Password", browser.snapshot().elements),
+      "fake-password",
+      origin,
+      "password",
+    );
+    // A drag library on the field's container that swallows the event on its way down.
+    domWindow.document
+      .getElementById("wrap")!
+      .addEventListener("selectstart", (event) => event.stopImmediatePropagation(), true);
+    const start = new domWindow.Event("selectstart", { bubbles: true, cancelable: true });
+    field.dispatchEvent(start);
+    expect(start.defaultPrevented).toBe(true);
+  });
+
   it("refuses a password field that the page turns into text when it is focused", () => {
     const { domWindow, browser } = installPageHelper(`${origin}/signin`, html);
     const field = passwordField(domWindow);

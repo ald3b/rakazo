@@ -172,6 +172,130 @@ test("live page helper preserves identity, masks passwords, and reports partial 
   }
 });
 
+test("live page helper keeps a filled saved login from being selected", async () => {
+  const profile = await mkdtemp(path.join(os.tmpdir(), "page-browser-selection-"));
+  let context: Awaited<ReturnType<typeof chromium.launchPersistentContext>> | undefined;
+  try {
+    context = await chromium.launchPersistentContext(profile, {
+      headless: true,
+      args: ["--remote-debugging-port=0"],
+    });
+    let port = "";
+    await expect(async () => {
+      port = (await readFile(path.join(profile, "DevToolsActivePort"), "utf8")).split("\n")[0];
+      expect(port).toMatch(/^\d+$/);
+    }).toPass({ timeout: 5_000 });
+    async function command(name: string, args: Record<string, unknown> = {}) {
+      const { stdout } = await execute("python3", [helper, name, JSON.stringify(args)], {
+        env: { ...process.env, RAKAZO_CDP_PORT: port },
+        timeout: 30_000,
+      });
+      return JSON.parse(stdout);
+    }
+    const ref = (snapshot: { elements: { name: string; ref: string }[] }, name: string) =>
+      snapshot.elements.find((element) => element.name === name)!.ref;
+    const page = context.pages()[0]!;
+    await page.route("https://login.example.test/", (route) =>
+      route.fulfill({
+        contentType: "text/html",
+        // The widest selection made in the field, read as the button or key comes up, before the
+        // helper could collapse it: a selection that existed even for a moment reached the desktop.
+        // Undo is sampled the moment the browser applies it, before the helper's own listener on
+        // the field runs: what it restored, if anything, and whether it was selected.
+        body: `<title>Sign in</title><input id="email" aria-label="Email">
+          <label for="password">Password</label><input id="password" type="password">
+          <input id="after" aria-label="Notes">
+          <script>
+            window.widest = 0;
+            window.restored = 0;
+            const fields = () => ["email", "password"].map((id) => document.getElementById(id));
+            const sample = () => {
+              for (const field of fields())
+                window.widest = Math.max(window.widest, field.selectionEnd - field.selectionStart);
+            };
+            for (const type of ["mouseup", "keyup", "dblclick", "focusin"]) {
+              document.addEventListener(type, sample, true);
+            }
+            document.addEventListener("input", (event) => {
+              if (!/^history/.test(event.inputType)) return;
+              for (const field of fields()) window.restored = Math.max(window.restored, field.value.length);
+              sample();
+            }, true);
+          </script>`,
+      }),
+    );
+    await page.goto("https://login.example.test/");
+    const signIn = await command("snapshot");
+    const filled = await command("act", {
+      actions: [
+        {
+          kind: "fill",
+          ref: ref(signIn, "Email"),
+          text: "fake-test-user",
+          origin: "https://login.example.test",
+          field: "username",
+        },
+        {
+          kind: "fill",
+          ref: ref(signIn, "Password"),
+          text: "fake-test-password",
+          origin: "https://login.example.test",
+          field: "password",
+        },
+      ],
+    });
+    expect(filled).toMatchObject({ ok: true, completed: 2 });
+    const field = page.locator("#password");
+    await field.dblclick();
+    await field.click({ clickCount: 3 });
+    const box = (await field.boundingBox())!;
+    await page.mouse.move(box.x + 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width - 2, box.y + box.height / 2, { steps: 5 });
+    await page.mouse.up();
+    await field.focus();
+    await page.keyboard.press("ControlOrMeta+A");
+    await page.keyboard.press("Shift+Home");
+    // The username field too, and a click on the password field's label.
+    await page.locator("#email").dblclick();
+    await page.locator("label").click();
+    expect(await page.evaluate(() => (window as { widest?: number }).widest)).toBe(0);
+    // Keyboard focus would select all of it, so Tab skips it, both ways.
+    await page.locator("#email").focus();
+    await page.keyboard.press("Tab");
+    expect(await page.evaluate(() => document.activeElement?.id)).not.toBe("password");
+    await page.locator("#after").focus();
+    await page.keyboard.press("Shift+Tab");
+    expect(await page.evaluate(() => document.activeElement?.id)).not.toBe("password");
+    expect(await page.evaluate(() => (window as { widest?: number }).widest)).toBe(0);
+    // A click still puts the caret in the field, and the person can still type.
+    await field.click();
+    await page.keyboard.press("End");
+    await page.keyboard.type("!");
+    await expect(field).toHaveValue("fake-test-password!");
+    // Emptied by the person, it is theirs again, but undo doesn't bring the login back.
+    for (let i = 0; i < "fake-test-password!".length; i += 1)
+      await page.keyboard.press("Backspace");
+    await expect(field).toHaveValue("");
+    await page.keyboard.press("ControlOrMeta+Z");
+    await page.keyboard.press("ControlOrMeta+Z");
+    await expect(field).toHaveValue("");
+    // Nor does undo started from another field, which shares the page's undo history.
+    await page.locator("#after").click();
+    await page.keyboard.type("note");
+    for (let i = 0; i < 6; i += 1) await page.keyboard.press("ControlOrMeta+Z");
+    await expect(field).toHaveValue("");
+    // Undo is off on the whole page now, so the person's own note there stays as typed.
+    await expect(page.locator("#after")).toHaveValue("note");
+    // At no point did undo put any of the login back, even for a moment.
+    expect(await page.evaluate(() => (window as { restored?: number }).restored)).toBe(0);
+    expect(await page.evaluate(() => (window as { widest?: number }).widest)).toBe(0);
+  } finally {
+    await context?.close();
+    await rm(profile, { recursive: true, force: true });
+  }
+});
+
 test("live page helper waits for a site's sign-in check, or says the page is still loading", async () => {
   const profile = await mkdtemp(path.join(os.tmpdir(), "page-browser-settle-"));
   // Like many web apps, the page draws a signed-out shell and asks its server who is signed in.

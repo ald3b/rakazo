@@ -384,6 +384,101 @@ EVAL_HELPERS = r"""
   const refused = (message) => new Error(`Refused: ${message}`);
   // Fields holding a saved login: snapshots never report their values, whatever their type.
   const loginFilled = new WeakSet();
+  // Selecting text in a field, a password field too, hands it to the desktop's selection, which a
+  // middle click pastes anywhere visible. So the page browser keeps a field it filled with a saved
+  // login from starting a selection: a press only focuses it with the caret at the end, keyboard
+  // focus skips it (focusing a field by keyboard selects all of it), and keyboard selection, the
+  // context menu and the start of a selection are turned down. A selection made some other way is
+  // collapsed, but by then the desktop may have it, so that is a backstop, not the guard. Undo and
+  // redo are turned down too, since they would bring the value back. All of it lasts until the
+  // page browser fills the field again or types into it. When the field is emptied, by the person
+  // or the page, the person's own text in it can be selected again; undo stays turned down.
+  const selectionGuards = new WeakMap();
+  const guardedFields = new WeakSet();
+  function unguardSelection(el) {
+    selectionGuards.get(el)?.();
+    selectionGuards.delete(el);
+  }
+  // A page listener that stops these events on the field can't stop this one, on the document.
+  document.addEventListener("selectstart", (event) => {
+    if (event.composedPath().some((node) => guardedFields.has(node))) event.preventDefault();
+  }, true);
+  // The page's undo history is shared by its fields and keeps a login the person erased, even after
+  // the field is filled with something else, and the page browser's own fills. So once the page
+  // browser has typed a login into this page, undo and redo are turned down on the whole page until
+  // it is left: cancelled as edits, which the computer's browser honours, and also by key and in
+  // the context menu of any field, since some browser builds don't honour that and put the value
+  // back selected, which reaches the desktop's selection.
+  let undoGuarded = false;
+  const undoKey = (event) => (event.ctrlKey || event.metaKey) &&
+    (event.code === "KeyZ" || event.code === "KeyY" || event.keyCode === 90 || event.keyCode === 89);
+  const editable = (node) => node instanceof HTMLInputElement || node instanceof HTMLTextAreaElement ||
+    Boolean(node?.isContentEditable);
+  document.addEventListener("keydown", (event) => {
+    if (undoGuarded && undoKey(event)) event.preventDefault();
+  }, true);
+  document.addEventListener("contextmenu", (event) => {
+    if (undoGuarded && event.composedPath().some(editable)) event.preventDefault();
+  }, true);
+  document.addEventListener("beforeinput", (event) => {
+    if (undoGuarded && /^history/.test(event.inputType)) event.preventDefault();
+  }, true);
+  const SELECT_KEYS = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End", "PageUp", "PageDown"];
+  function guardSelection(el) {
+    unguardSelection(el);
+    const tabIndex = el.getAttribute("tabindex");
+    undoGuarded = true;
+    const end = () => el.setSelectionRange?.(el.value.length, el.value.length);
+    let selectable = false;
+    // Once the field is empty, what the person types in it is theirs to select.
+    const release = () => {
+      if (selectable) return;
+      selectable = true;
+      guardedFields.delete(el);
+      // Unless the page has set its own tab index since.
+      if (el.getAttribute("tabindex") !== "-1") return;
+      if (tabIndex === null) el.removeAttribute("tabindex");
+      else el.setAttribute("tabindex", tabIndex);
+    };
+    const press = (event) => {
+      if (selectable || event.button !== 0) return;
+      if (!el.value) return release();
+      event.preventDefault();
+      el.focus();
+      end();
+    };
+    // By key position, so select all is caught on every keyboard layout.
+    const keys = (event) => {
+      if (selectable) return;
+      if (!el.value) return release();
+      if (((event.ctrlKey || event.metaKey) && (event.code === "KeyA" || event.keyCode === 65)) ||
+          (event.shiftKey && SELECT_KEYS.includes(event.key))) event.preventDefault();
+    };
+    const block = (event) => {
+      if (!selectable) event.preventDefault();
+    };
+    const collapse = () => {
+      if (!selectable && el.selectionStart !== el.selectionEnd) end();
+    };
+    // A fallback: a value undo or redo brings back anyway, from a path not turned down, is emptied.
+    const undone = (event) => {
+      if (/^history/.test(event.inputType)) {
+        Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), "value").set.call(el, "");
+      }
+    };
+    const emptied = () => {
+      if (!el.value) release();
+    };
+    const listeners = [["mousedown", press], ["keydown", keys], ["selectstart", block],
+      ["contextmenu", block], ["select", collapse], ["input", undone], ["input", emptied]];
+    for (const [type, listener] of listeners) el.addEventListener(type, listener, true);
+    guardedFields.add(el);
+    el.setAttribute("tabindex", "-1");
+    selectionGuards.set(el, () => {
+      for (const [type, listener] of listeners) el.removeEventListener(type, listener, true);
+      release();
+    });
+  }
   // New snapshots/documents never recycle references. Retain exact nodes, not selectors.
   function newRef() {
     return `e${Array.from(crypto.getRandomValues(new Uint32Array(4)), n => n.toString(16).padStart(8, "0")).join("")}`;
@@ -632,6 +727,7 @@ EVAL_HELPERS = r"""
         }
         const prototype = el instanceof HTMLInputElement ? HTMLInputElement.prototype
           : el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLSelectElement.prototype;
+        unguardSelection(el);
         Object.getOwnPropertyDescriptor(prototype, "value").set.call(el, String(value));
         if (el.value !== String(value)) {
           // A partly accepted login (an email field trimming a username) is not left on the page,
@@ -644,6 +740,7 @@ EVAL_HELPERS = r"""
         }
         if (origin) loginFilled.add(el);
         else loginFilled.delete(el);
+        if (origin) guardSelection(el);
         el.dispatchEvent(new Event("input", { bubbles: true }));
         el.dispatchEvent(new Event("change", { bubbles: true }));
       } else if (el.isContentEditable) {
@@ -686,6 +783,7 @@ EVAL_HELPERS = r"""
       for (let i = 0; i < boxes.length; i++) {
         const box = targetBoxes()[i];
         loginFilled.delete(box);
+        unguardSelection(box);
         if (!(box.isContentEditable ? box.textContent : box.value)) continue;
         if (box.isContentEditable) box.textContent = "";
         else Object.getOwnPropertyDescriptor(Object.getPrototypeOf(box), "value").set.call(box, "");
