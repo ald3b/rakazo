@@ -427,8 +427,11 @@ EVAL_HELPERS = r"""
       const number = /\d+/.exec(field.getAttribute("aria-label") || field.name || field.id || "");
       return number ? Number(number[0]) : null;
     };
-    // A gap of more than two boxes on the same row separates codes.
+    // A gap of more than two boxes on the same row separates codes unless box numbers continue.
     const follows = (a, b) => {
+      const previous = numberOf(a);
+      const next = numberOf(b);
+      if (previous !== null && next === previous + 1) return true;
       const [ra, rb] = [a.getBoundingClientRect(), b.getBoundingClientRect()];
       const sameRow = Math.abs(rb.top + rb.height / 2 - (ra.top + ra.height / 2)) < ra.height / 2;
       return !sameRow || rb.left - ra.right <= 2 * ra.width;

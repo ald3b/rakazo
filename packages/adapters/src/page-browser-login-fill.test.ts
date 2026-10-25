@@ -385,6 +385,7 @@ describe("live page helper code fields", () => {
     ["React ids with suffix", (i: number) => `id=":r5:-input${i}"`],
     ["generated ids", (i: number) => `id="input-${[17, 23, 19, 31, 28, 42][i]}"`],
     ["labels with total", (i: number) => `aria-label="Digit ${i + 1} of 6"`],
+    ["labels with shared total first", (i: number) => `aria-label="6-digit code, digit ${i + 1}"`],
   ])("keeps a single code together with %s", (_, attributes) => {
     const { domWindow, browser } = installPageHelper(
       "https://code.example.test/",
@@ -397,6 +398,24 @@ describe("live page helper code fields", () => {
     browser.focusForKeys(browser.snapshot().elements[3]!.ref);
     const inputs = Array.from(domWindow.document.querySelectorAll("input"));
     expect(inputs.map((box) => box.value)).toEqual(Array(6).fill(""));
+    expect(domWindow.document.activeElement).toBe(inputs[0]);
+    for (const input of inputs) {
+      input.focus();
+      expect(browser.focusHolds()).toBe(true);
+    }
+  });
+
+  it("joins consecutively numbered boxes across a wide gap", () => {
+    const { domWindow, browser, values } = typeInto(
+      `<div>${Array.from(
+        { length: 6 },
+        (_, i) =>
+          `<input aria-label="Digit ${i + 1}" maxlength="1" value="${i}" data-rect="${i * 40 + (i >= 3 ? 96 : 0)},0,40,40" />`,
+      ).join("")}</div>`,
+      "Digit 4",
+    );
+    expect(values("Digit")).toBe("");
+    const inputs = Array.from(domWindow.document.querySelectorAll("input"));
     expect(domWindow.document.activeElement).toBe(inputs[0]);
     for (const input of inputs) {
       input.focus();
