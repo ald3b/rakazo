@@ -372,6 +372,18 @@ export const RU_MESSAGES: Record<string, string> = {
   "Could not load model settings": "Не удалось загрузить настройки модели.",
   "Could not load routine": "Не удалось загрузить программу",
   "Could not load routines": "Не удалось загрузить задачи",
+  "{count} on": "Вкл.: {count}",
+  "Routines are recurring tasks this Bot runs on a schedule. Ask it in chat to set one up.":
+    "Задачи — это повторяющиеся дела, которые этот бот выполняет по расписанию. Попросите его в чате настроить задачу.",
+  "{name}, On": "{name}, вкл.",
+  "{name}, Off": "{name}, выкл.",
+  "Active: {name}": "Активна: {name}",
+  "Delete {name}": "Удалить {name}",
+  "Delete this routine?": "Удалить эту задачу?",
+  "This permanently deletes the routine and its run history.":
+    "Задача и история её запусков будут удалены безвозвратно.",
+  "Could not delete routine": "Не удалось удалить задачу",
+  "Could not update routine": "Не удалось обновить задачу",
   "Get notified when this Bot finishes or needs input":
     "Получать уведомления, когда этот бот завершает работу или ждёт ввода",
   "Could not load the desktop. This device cannot reach the screen URL.":
@@ -1085,6 +1097,7 @@ export const RU_MESSAGES: Record<string, string> = {
   "on the 1st at {time}": "1-го числа в {time}",
   "on day {day} at {time}": "{day}-го числа в {time}",
   "Every hour at :{minute}": "Каждый час на {minute}-й минуте",
+  "Every {n} hours at :{minute}": "Раз в {n} ч, на {minute}-й минуте",
   "{from} to {to}": "{from} — {to}",
   "Every {day}": "Каждую неделю: {day}",
   "Every {days} and {last}": "Каждую неделю: {days} и {last}",

@@ -346,6 +346,18 @@ export const ZH_MESSAGES: Record<string, string> = {
   "Could not load model settings": "无法加载模型设置",
   "Could not load routine": "无法加载例行任务",
   "Could not load routines": "无法加载例行任务",
+  "{count} on": "{count} 个已开启",
+  "Routines are recurring tasks this Bot runs on a schedule. Ask it in chat to set one up.":
+    "例行任务是此 Bot 按计划重复执行的任务。在聊天中让它帮你设置一个。",
+  "{name}, On": "{name}，开启",
+  "{name}, Off": "{name}，关闭",
+  "Active: {name}": "启用：{name}",
+  "Delete {name}": "删除 {name}",
+  "Delete this routine?": "要删除此例行任务吗？",
+  "This permanently deletes the routine and its run history.":
+    "这将永久删除该例行任务及其运行记录。",
+  "Could not delete routine": "无法删除例行任务",
+  "Could not update routine": "无法更新例行任务",
   "Get notified when this Bot finishes or needs input": "在此机器人完成或需要输入时收到通知",
   "Could not load the desktop. This device cannot reach the screen URL.":
     "无法加载桌面。此设备无法访问屏幕地址。",
@@ -1045,6 +1057,7 @@ export const ZH_MESSAGES: Record<string, string> = {
   "on the 1st at {time}": "1日 {time}",
   "on day {day} at {time}": "{day}日 {time}",
   "Every hour at :{minute}": "每小时{minute}分",
+  "Every {n} hours at :{minute}": "每{n}小时{minute}分",
   "{from} to {to}": "{from}至{to}",
   "Every {day}": "每{day}",
   "Every {days} and {last}": "每{days}和{last}",

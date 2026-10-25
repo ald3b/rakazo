@@ -438,6 +438,18 @@ export const DE_MESSAGES: Record<string, string> = {
   Profile: "Profil",
   Routines: "Routinen",
   "Could not load routines": "Routinen konnten nicht geladen werden",
+  "{count} on": "{count} aktiv",
+  "Routines are recurring tasks this Bot runs on a schedule. Ask it in chat to set one up.":
+    "Routinen sind wiederkehrende Aufgaben, die dieser Bot nach Zeitplan ausführt. Bitte ihn im Chat, eine einzurichten.",
+  "{name}, On": "{name}, Ein",
+  "{name}, Off": "{name}, Aus",
+  "Active: {name}": "Aktiv: {name}",
+  "Delete {name}": "{name} löschen",
+  "Delete this routine?": "Diese Routine löschen?",
+  "This permanently deletes the routine and its run history.":
+    "Die Routine und ihr Ausführungsverlauf werden endgültig gelöscht.",
+  "Could not delete routine": "Routine konnte nicht gelöscht werden",
+  "Could not update routine": "Routine konnte nicht aktualisiert werden",
   "Get notified when this Bot finishes or needs input":
     "Benachrichtigung, wenn dieser Bot fertig ist oder Eingabe braucht",
   // app/computer.tsx
@@ -1088,6 +1100,7 @@ export const DE_MESSAGES: Record<string, string> = {
   "on the 1st at {time}": "am 1. um {time}",
   "on day {day} at {time}": "am {day}. um {time}",
   "Every hour at :{minute}": "Jede Stunde um :{minute}",
+  "Every {n} hours at :{minute}": "Alle {n} Stunden um :{minute}",
   "{from} to {to}": "{from} bis {to}",
   "Every {day}": "Jeden {day}",
   "Every {days} and {last}": "Jeden {days} und {last}",
