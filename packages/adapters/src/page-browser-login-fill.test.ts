@@ -423,6 +423,25 @@ describe("live page helper code fields", () => {
     }
   });
 
+  it("joins name-only numbered boxes across a wide gap", () => {
+    const { domWindow, browser } = installPageHelper(
+      "https://code.example.test/",
+      `<div>${Array.from(
+        { length: 6 },
+        (_, i) =>
+          `<input name="otp-${i + 1}" maxlength="1" value="${i}" data-rect="${i * 40 + (i >= 3 ? 96 : 0)},0,40,40" />`,
+      ).join("")}</div>`,
+    );
+    browser.focusForKeys(browser.snapshot().elements[3]!.ref);
+    const inputs = Array.from(domWindow.document.querySelectorAll("input"));
+    expect(inputs.map((box) => box.value)).toEqual(Array(6).fill(""));
+    expect(domWindow.document.activeElement).toBe(inputs[0]);
+    for (const input of inputs) {
+      input.focus();
+      expect(browser.focusHolds()).toBe(true);
+    }
+  });
+
   it("keeps a code together across a dash with a two-box-wide separator", () => {
     const boxes = Array.from(
       { length: 6 },
@@ -455,7 +474,7 @@ describe("live page helper code fields", () => {
     ...(
       [
         ["consecutive generated ids", (i: number) => `id="input-${i + 17}"`],
-        ["numbered names", (i: number) => `name="otp-${i + 1}"`],
+        ["numbered names", (i: number) => `name="otp-${(i % 6) + 1}"`],
         ["labels starting above one", (i: number) => `aria-label="Digit ${i + 17}"`],
       ] as const
     ).map(([description, attributes]) => [

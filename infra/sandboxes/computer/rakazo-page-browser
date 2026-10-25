@@ -422,13 +422,13 @@ EVAL_HELPERS = r"""
       if (!near(rect.width, own.width) || !near(rect.height, own.height)) return false;
       return input.maxLength === 1 || (input.maxLength <= 2 && rect.width <= rect.height * 2);
     };
-    // Only human-facing labels identify positions; names and ids may be generated identifiers.
+    // Prefer human-facing label numbers, falling back to names; ids are generated identifiers.
     const numberOf = (field) => {
       const labelledBy = (field.getAttribute("aria-labelledby") || "").split(/\s+/)
         .map((id) => document.getElementById(id)?.textContent || "").join(" ").trim();
       const label = labelledBy || field.getAttribute("aria-label")
         || Array.from(field.labels || [], (label) => label.textContent).join(" ");
-      const number = /\d+/.exec(label);
+      const number = /\d+/.exec(label) || /\d+/.exec(field.name);
       return number ? Number(number[0]) : null;
     };
     // A gap of more than two boxes on the same row separates codes unless box numbers continue.
@@ -452,7 +452,7 @@ EVAL_HELPERS = r"""
       let runTo = to;
       while (runFrom > 0 && isBox(fields[runFrom - 1])) runFrom--;
       while (runTo < fields.length - 1 && isBox(fields[runTo + 1])) runTo++;
-      // Trust only a complete labelled sequence starting at 0 or 1, allowing restarts.
+      // Trust only a complete numbered sequence starting at 0 or 1, allowing restarts.
       const runNumbers = fields.slice(runFrom, runTo + 1).map(numberOf);
       const start = runNumbers[0];
       const numbered = (start === 0 || start === 1) && runNumbers.every((number, i) => i === 0
