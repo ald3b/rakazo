@@ -732,7 +732,14 @@ describe("inbox swipe handlers", () => {
   it("hides an archived chat at the tap and keeps it hidden from a reload until it settles", async () => {
     let finish!: (value: unknown) => void;
     const h = handlers(() => new Promise((resolve) => (finish = resolve)));
+    let finishReload!: () => void;
+    const reload = new Promise<void>((resolve) => (finishReload = resolve));
+    h.loadBots.mockImplementation(async () => {
+      await reload;
+      h.state.bots = h.state.bots.filter((bot) => bot.id !== "b1");
+    });
     h.state.bots = [{ id: "b0", unread: false }, ...h.state.bots, { id: "b2", unread: false }];
+    const polledBots = [...h.state.bots];
     const pending = h.runRowAction("bot", { id: "b1" }, "archive");
     expect(h.state.archiving).toEqual(new Set(["bot:b1"]));
     // A poll that still lists the chat doesn't bring the row back while the archive runs.
@@ -742,6 +749,16 @@ describe("inbox swipe handlers", () => {
     ]);
     await vi.waitFor(() => expect(h.rpc).toHaveBeenCalledTimes(1));
     finish({ ok: true });
+    await vi.waitFor(() => expect(h.loadBots).toHaveBeenCalledTimes(1));
+    expect(h.state.bots.map((bot) => bot.id)).toEqual(["b0", "b2"]);
+    // A poll replaces the stored list while the post-archive reload is still pending.
+    h.state.bots = polledBots;
+    expect(h.state.archiving).toEqual(new Set(["bot:b1"]));
+    expect(withoutArchiving("bot", h.state.bots, h.state.archiving).map((bot) => bot.id)).toEqual([
+      "b0",
+      "b2",
+    ]);
+    finishReload();
     await pending;
     expect(h.state.bots.map((bot) => bot.id)).toEqual(["b0", "b2"]);
     expect(h.state.spaces[0]!.bots).toEqual([]);
