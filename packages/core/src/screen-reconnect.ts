@@ -40,7 +40,7 @@ export type ScreenReconnect = {
   report(state: ScreenPageState, now?: number): "reconnect" | "error" | "none";
 };
 
-/** Reconnects a screen that dropped after connecting, once in a while, never one that failed. */
+/** Reconnects a screen that dropped after connecting, once in a while, never one that never connected. */
 export function createScreenReconnect(): ScreenReconnect {
   let connected = false;
   let lastReconnectAt: number | undefined;
@@ -53,8 +53,9 @@ export function createScreenReconnect(): ScreenReconnect {
         connected = true;
         return "none";
       }
-      if (state === "failed") return "error";
-      if (state !== "disconnected") return "none";
+      if (state !== "disconnected" && state !== "failed") return "none";
+      // A screen that had connected and then dropped may report it as a failure: the computer's
+      // embed page marks an unclean disconnect, such as the proxy closing the socket, as an error.
       if (
         !connected ||
         (lastReconnectAt !== undefined && now - lastReconnectAt < SCREEN_RECONNECT_EVERY_MS)

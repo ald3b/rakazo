@@ -16,12 +16,22 @@ describe("screen reconnect", () => {
     expect(screen.report("disconnected", 1_000)).toBe("reconnect");
   });
 
-  it("shows the error for a screen that never connected or failed", () => {
+  it("shows the error for a screen that never connected", () => {
     const screen = createScreenReconnect();
     expect(screen.report("connecting", 0)).toBe("none");
     expect(screen.report("disconnected", 0)).toBe("error");
-    expect(screen.report("connected", 0)).toBe("none");
     expect(screen.report("failed", 0)).toBe("error");
+  });
+
+  it("reconnects a screen that reports its drop as a failure", () => {
+    // The computer's embed page marks an unclean disconnect, such as the proxy closing the
+    // socket, as an error.
+    const screen = createScreenReconnect();
+    screen.report("connected", 0);
+    expect(screen.report("failed", 1_000)).toBe("reconnect");
+    screen.loaded();
+    screen.report("connected", 2_000);
+    expect(screen.report("failed", 3_000)).toBe("error");
   });
 
   it("reconnects by itself at most once in thirty seconds", () => {
