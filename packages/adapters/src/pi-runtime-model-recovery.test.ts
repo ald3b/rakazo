@@ -313,6 +313,41 @@ describe("a call that spends its whole output budget on thinking", () => {
     ]);
   });
 
+  it("gives a backup model its own budget, not the raised one", async () => {
+    providerState.stream
+      .mockImplementationOnce(() => thinkingOnly(plain, "length"))
+      .mockImplementationOnce(() => thinkingOnly(plain, "error", "HTTP 503 unavailable"))
+      .mockImplementation(() => reply(backup, "From the backup."));
+    const events = await run(
+      request(plain, {}, [{ provider: backup.provider, id: backup.id, apiKey: "backup-key" }]),
+    );
+    expect(
+      providerState.stream.mock.calls.map(([target, , options]) => [
+        target.id,
+        (options as StreamOptions).maxTokens,
+      ]),
+    ).toEqual([
+      [plain.id, 4_096],
+      [plain.id, 8_192],
+      [backup.id, 4_096],
+    ]);
+    expect(texts(events)).toContain("From the backup.");
+  });
+
+  it("takes a smaller output reservation the provider can afford after the raise", async () => {
+    const router = model("openrouter", "router", { reasoning: false, maxTokens: 65_536 });
+    providerState.models.set("openrouter/router", router as unknown as Record<string, unknown>);
+    const credits =
+      '402: {"message":"This request requires more credits, or fewer max_tokens. You requested up to 8192 tokens, but can only afford 6000.","metadata":{"limit_source":"openrouter_credits"}}';
+    providerState.stream
+      .mockImplementationOnce(() => thinkingOnly(router, "length"))
+      .mockImplementationOnce(() => thinkingOnly(router, "error", credits))
+      .mockImplementation(() => reply(router));
+    const events = await run(request(router));
+    expect(sentOptions().map((options) => options.maxTokens)).toEqual([4_096, 8_192, 6_000]);
+    expect(events.at(-1)).toEqual({ type: "done", text: "Recovered." });
+  });
+
   it("delivers a reply cut at the limit instead of repeating it", async () => {
     providerState.stream.mockImplementation(() =>
       stream(message(plain, [{ type: "text", text: "A long reply that" }], "length")),
@@ -371,6 +406,17 @@ describe("a reply cut off by a dropped connection", () => {
     providerState.stream
       .mockImplementationOnce(() => cutReply(plain, "Part one. Part tw"))
       .mockImplementation(() => reply(plain, "Part two."));
+    const events = await run(request(plain));
+    expect(texts(events).join("")).toBe("Part one. Part two.");
+    expect(events.at(-1)).toEqual({ type: "done", text: "Part one. Part two." });
+  });
+
+  it("drops the repeat when only the start of the continuation streams", async () => {
+    providerState.stream
+      .mockImplementationOnce(() => cutReply(plain, "Part one. Part tw"))
+      .mockImplementation(() =>
+        stream(message(plain, [{ type: "text", text: "Part two." }], "stop"), undefined, "Part "),
+      );
     const events = await run(request(plain));
     expect(texts(events).join("")).toBe("Part one. Part two.");
     expect(events.at(-1)).toEqual({ type: "done", text: "Part one. Part two." });

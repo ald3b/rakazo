@@ -719,18 +719,23 @@ export class PiAgentRuntime implements AgentRuntime {
             }
           }
           if (event.type === "message_end" && event.message.role === "assistant") {
-            const joinTail = joinCutReply?.tail;
-            releaseJoin();
             const text = assistantText(event.message);
+            // The completed text can hold more of a continuation than arrived as deltas, so its
+            // repeat of the cut reply is judged on all of it.
+            if (
+              joinCutReply &&
+              !messageHasToolCall(event.message) &&
+              text.startsWith(joinCutReply.held)
+            ) {
+              joinCutReply.held = text;
+              currentMessageStreamed = text;
+            }
+            releaseJoin();
             const streamedThisMessage = currentMessageStreamed;
             currentMessageStreamed = "";
             const continued =
               streamedThisMessage.length > 0 && text.startsWith(streamedThisMessage);
-            let textToEmit = continued ? text.slice(streamedThisMessage.length) : text;
-            // A continuation that arrives only on the completed message loses its repeat too.
-            if (joinTail !== undefined && !streamedThisMessage) {
-              textToEmit = textToEmit.slice(continuationOverlap(joinTail, textToEmit));
-            }
+            const textToEmit = continued ? text.slice(streamedThisMessage.length) : text;
             const sincePendingFinal = streamed.slice(streamedBeforePendingFinal);
             const alreadyEmitted =
               !continued &&
@@ -3068,20 +3073,19 @@ function fallbackAwareModelStream(
                 state.request.model.thinkingLevel,
             )
           : "off");
-      const sentMaxTokens =
-        outputBudget ??
-        resolveCompletionMaxTokens(
-          target.model.maxTokens,
-          target.config.maxTokens,
-          attemptOptions.maxTokens,
-          target.model.reasoning,
-          target.model.contextWindow,
-        );
+      const sentTarget = outputBudget ? withOutputBudget(target, outputBudget) : target;
+      const sentMaxTokens = resolveCompletionMaxTokens(
+        sentTarget.model.maxTokens,
+        sentTarget.config.maxTokens,
+        attemptOptions.maxTokens,
+        sentTarget.model.reasoning,
+        sentTarget.model.contextWindow,
+      );
       try {
         const apiKey = target.credentials?.accessToken ?? target.apiKey;
         const reasoning = thinkingLevel === "off" ? undefined : thinkingLevel;
         stream = state.stream(
-          outputBudget ? withOutputBudget(target, outputBudget) : target,
+          sentTarget,
           requestContext(),
           state.request.fallbackModels?.length
             ? { ...attemptOptions, apiKey, reasoning }
@@ -3125,17 +3129,10 @@ function fallbackAwareModelStream(
                 restart = true;
                 break;
               }
-              const currentLimit = resolveCompletionMaxTokens(
-                target.model.maxTokens,
-                target.config.maxTokens,
-                attemptOptions.maxTokens,
-                target.model.reasoning,
-                target.model.contextWindow,
-              );
               const affordable = affordableOpenRouterOutput(
                 target.config.provider,
                 event.error.errorMessage,
-                currentLimit,
+                sentMaxTokens,
               );
               if (affordable !== undefined && Date.now() - startedAt < timeoutMs) {
                 state.outputCaps ??= new Map();
@@ -3144,7 +3141,7 @@ function fallbackAwareModelStream(
                   runId: state.request.runId,
                   provider: target.config.provider,
                   model: target.config.id,
-                  requestedMaxTokens: currentLimit,
+                  requestedMaxTokens: sentMaxTokens,
                   effectiveMaxTokens: affordable,
                 });
                 sizingFailure = event;
@@ -3185,6 +3182,9 @@ function fallbackAwareModelStream(
                 state.messagesBeforeSwitch = context.messages.length;
                 await state.onSwitch(next);
                 if (failIfAborted(target)) return;
+                // A raised budget or lower thinking level fitted the failed model, not this one.
+                outputBudget = undefined;
+                thinkingOverride = undefined;
                 buffered = [];
                 restart = true;
                 break;
