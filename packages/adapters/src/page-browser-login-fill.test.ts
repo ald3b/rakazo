@@ -442,6 +442,47 @@ describe("live page helper code fields", () => {
     }
   });
 
+  it.each([
+    ["labels", (i: number) => `aria-label="Digit ${(i % 6) + 1}"`],
+    ["names", (i: number) => `name="otp-${(i % 6) + 1}"`],
+  ] as const)("types both codes across wide gaps with restarting %s", (_, attributes) => {
+    const { domWindow, browser } = installPageHelper(
+      "https://code.example.test/",
+      `<div>${Array.from(
+        { length: 12 },
+        (_, i) =>
+          `<input ${attributes(i)} maxlength="1" value="${i % 6}" data-rect="${Math.floor(i / 6) * 400 + (i % 6) * 40 + (i % 6 >= 3 ? 96 : 0)},0,40,40" />`,
+      ).join("")}</div>`,
+    );
+    const inputs = Array.from(domWindow.document.querySelectorAll("input"));
+    const refs = browser.snapshot().elements.map((element) => element.ref);
+    const values = () => [
+      inputs
+        .slice(0, 6)
+        .map((box) => box.value)
+        .join(""),
+      inputs
+        .slice(6)
+        .map((box) => box.value)
+        .join(""),
+    ];
+    for (const offset of [6, 0]) {
+      const ref = refs[offset + 3]!;
+      expect(browser.focusForKeys(ref).focused).toBe(true);
+      expect(values()).toEqual(offset === 6 ? ["012345", ""] : ["", "482913"]);
+      expect(domWindow.document.activeElement).toBe(inputs[offset]);
+      for (const [i, digit] of Array.from("482913").entries()) {
+        const box = inputs[offset + i]!;
+        box.focus();
+        expect(browser.focusHolds()).toBe(true);
+        box.value = digit;
+        box.dispatchEvent(new domWindow.Event("input", { bubbles: true }));
+      }
+      expect(browser.typed(ref, "482913")).toBe(true);
+      expect(values()).toEqual(offset === 6 ? ["012345", "482913"] : ["482913", "482913"]);
+    }
+  });
+
   it("keeps a code together across a dash with a two-box-wide separator", () => {
     const boxes = Array.from(
       { length: 6 },
