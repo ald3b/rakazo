@@ -431,7 +431,7 @@ EVAL_HELPERS = r"""
       const number = /\d+/.exec(label) || /\d+/.exec(field.name);
       return number ? Number(number[0]) : null;
     };
-    // A gap of more than two boxes on the same row separates codes unless box numbers continue.
+    // A gap of more than two boxes separates codes; numbering can bridge it for runs up to eight boxes.
     const follows = (a, b, numbered) => {
       const previous = numberOf(a);
       const next = numberOf(b);
@@ -458,8 +458,10 @@ EVAL_HELPERS = r"""
       const numbered = (start === 0 || start === 1) && runNumbers.every((number, i) => i === 0
         || (number !== null && runNumbers[i - 1] !== null
           && (number === runNumbers[i - 1] + 1 || (number === start && runNumbers[i - 1] > start))));
-      while (from > 0 && isBox(fields[from - 1]) && follows(fields[from - 1], fields[from], numbered)) from--;
-      while (to < fields.length - 1 && isBox(fields[to + 1]) && follows(fields[to], fields[to + 1], numbered)) to++;
+      // Codes have at most eight boxes. Longer numbered runs must respect gaps between widgets.
+      const bridgeGaps = numbered && runNumbers.length <= 8;
+      while (from > 0 && isBox(fields[from - 1]) && follows(fields[from - 1], fields[from], bridgeGaps)) from--;
+      while (to < fields.length - 1 && isBox(fields[to + 1]) && follows(fields[to], fields[to + 1], bridgeGaps)) to++;
       const numbers = fields.slice(from, to + 1).map(numberOf);
       if (numbered) {
         const target = fields.indexOf(el);

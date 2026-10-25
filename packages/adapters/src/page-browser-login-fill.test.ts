@@ -475,6 +475,8 @@ describe("live page helper code fields", () => {
       [
         ["consecutive generated ids", (i: number) => `id="input-${i + 17}"`],
         ["numbered names", (i: number) => `name="otp-${(i % 6) + 1}"`],
+        ["names continue across a wide gap", (i: number) => `name="otp-${i + 1}"`],
+        ["labels continue across a wide gap", (i: number) => `aria-label="Digit ${i + 1}"`],
         ["labels starting above one", (i: number) => `aria-label="Digit ${i + 17}"`],
       ] as const
     ).map(([description, attributes]) => [
