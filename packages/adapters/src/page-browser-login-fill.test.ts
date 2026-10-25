@@ -452,6 +452,20 @@ describe("live page helper code fields", () => {
         (_, digit) => `aria-label="Digit ${Number(digit) - 1}"`,
       ),
     ],
+    ...(
+      [
+        ["consecutive generated ids", (i: number) => `id="input-${i + 17}"`],
+        ["numbered names", (i: number) => `name="otp-${i + 1}"`],
+        ["labels starting above one", (i: number) => `aria-label="Digit ${i + 17}"`],
+      ] as const
+    ).map(([description, attributes]) => [
+      description,
+      Array.from(
+        { length: 12 },
+        (_, i) =>
+          `<input ${attributes(i)} maxlength="1" value="${i % 6}" data-rect="${i < 6 ? i * 20 : 300 + (i - 6) * 20},0,10,10" />`,
+      ).join(""),
+    ]),
     // Unnamed, with a wide gap between the two codes.
     [
       "a wide gap follows",
@@ -470,6 +484,20 @@ describe("live page helper code fields", () => {
     const inputs = Array.from(domWindow.document.querySelectorAll("input"));
     expect(inputs.map((box) => box.value).join("")).toBe("012345");
     expect(domWindow.document.activeElement).toBe(inputs[6]);
+    inputs[6]!.value = "9";
+    inputs[6]!.dispatchEvent(new domWindow.Event("input", { bubbles: true }));
+    expect(
+      inputs
+        .slice(0, 6)
+        .map((box) => box.value)
+        .join(""),
+    ).toBe("012345");
+    expect(
+      inputs
+        .slice(6)
+        .map((box) => box.value)
+        .join(""),
+    ).toBe("9");
   });
 
   it.each([false, true])(

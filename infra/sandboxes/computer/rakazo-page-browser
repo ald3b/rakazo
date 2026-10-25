@@ -422,16 +422,20 @@ EVAL_HELPERS = r"""
       if (!near(rect.width, own.width) || !near(rect.height, own.height)) return false;
       return input.maxLength === 1 || (input.maxLength <= 2 && rect.width <= rect.height * 2);
     };
-    // The number in a box's name, such as 3 in "Digit 3" or "otp-3".
+    // Only human-facing labels identify positions; names and ids may be generated identifiers.
     const numberOf = (field) => {
-      const number = /\d+/.exec(field.getAttribute("aria-label") || field.name || field.id || "");
+      const labelledBy = (field.getAttribute("aria-labelledby") || "").split(/\s+/)
+        .map((id) => document.getElementById(id)?.textContent || "").join(" ").trim();
+      const label = labelledBy || field.getAttribute("aria-label")
+        || Array.from(field.labels || [], (label) => label.textContent).join(" ");
+      const number = /\d+/.exec(label);
       return number ? Number(number[0]) : null;
     };
     // A gap of more than two boxes on the same row separates codes unless box numbers continue.
-    const follows = (a, b) => {
+    const follows = (a, b, numbered) => {
       const previous = numberOf(a);
       const next = numberOf(b);
-      if (previous !== null && next === previous + 1) return true;
+      if (numbered && previous !== null && next === previous + 1) return true;
       const [ra, rb] = [a.getBoundingClientRect(), b.getBoundingClientRect()];
       const sameRow = Math.abs(rb.top + rb.height / 2 - (ra.top + ra.height / 2)) < ra.height / 2;
       return !sameRow || rb.left - ra.right <= 2 * ra.width;
@@ -444,15 +448,20 @@ EVAL_HELPERS = r"""
       let from = fields.indexOf(el);
       let to = from;
       if (from < 0) break;
-      while (from > 0 && isBox(fields[from - 1]) && follows(fields[from - 1], fields[from])) from--;
-      while (to < fields.length - 1 && isBox(fields[to + 1]) && follows(fields[to], fields[to + 1])) to++;
-      // Generated ids and shared numeric prefixes are not box indices. Only trust a complete
-      // sequential run starting at 0 or 1, allowing restarts after the sequence has advanced.
+      let runFrom = from;
+      let runTo = to;
+      while (runFrom > 0 && isBox(fields[runFrom - 1])) runFrom--;
+      while (runTo < fields.length - 1 && isBox(fields[runTo + 1])) runTo++;
+      // Trust only a complete labelled sequence starting at 0 or 1, allowing restarts.
+      const runNumbers = fields.slice(runFrom, runTo + 1).map(numberOf);
+      const start = runNumbers[0];
+      const numbered = (start === 0 || start === 1) && runNumbers.every((number, i) => i === 0
+        || (number !== null && runNumbers[i - 1] !== null
+          && (number === runNumbers[i - 1] + 1 || (number === start && runNumbers[i - 1] > start))));
+      while (from > 0 && isBox(fields[from - 1]) && follows(fields[from - 1], fields[from], numbered)) from--;
+      while (to < fields.length - 1 && isBox(fields[to + 1]) && follows(fields[to], fields[to + 1], numbered)) to++;
       const numbers = fields.slice(from, to + 1).map(numberOf);
-      const start = numbers[0];
-      if ((start === 0 || start === 1) && numbers.every((number, i) => i === 0
-          || (number !== null && numbers[i - 1] !== null
-            && (number === numbers[i - 1] + 1 || (number === start && numbers[i - 1] > start))))) {
+      if (numbered) {
         const target = fields.indexOf(el);
         const runFrom = from;
         for (let i = 1; i < numbers.length; i++) {
