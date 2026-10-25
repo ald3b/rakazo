@@ -2140,9 +2140,6 @@ export function createRouter(deps: RouterDeps) {
             ...(input.fleetManagement !== undefined
               ? { fleetManagement: input.fleetManagement }
               : {}),
-            ...(input.clearRevealedPasswords !== undefined
-              ? { clearRevealedPasswords: input.clearRevealedPasswords }
-              : {}),
             ...(input.disabledBuiltinTools !== undefined
               ? { disabledBuiltinTools: input.disabledBuiltinTools }
               : {}),

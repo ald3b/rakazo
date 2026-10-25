@@ -179,7 +179,6 @@ it("sends a saved-login fill only over stdin, never in the helper's arguments", 
       text: "fake-password-1",
       origin: "https://login.example.test",
       field: "password",
-      clearOnReveal: true,
     },
   ];
   const response = await supervisorApp.request("/computers/computer-login/browser", {

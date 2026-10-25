@@ -129,7 +129,6 @@ function bot(description = "Billing", overrides: Partial<Bot> = {}): Bot {
     teamChatAmbientEnabled: false,
     teamChatRules: "",
     fleetManagement: false,
-    clearRevealedPasswords: false,
     disabledBuiltinTools: [],
     webhookConfigured: false,
     spawnKey: null,
@@ -417,41 +416,6 @@ describe("BotSettings bot management saves", () => {
     expect(onSave).toHaveBeenCalledExactlyOnceWith({ fleetManagement: !enabled });
     await clickSave();
     expect(onSave.mock.lastCall?.[0]).not.toHaveProperty("fleetManagement");
-  });
-});
-
-describe("BotSettings clear revealed passwords", () => {
-  it("is off by default and saves only that toggle", async () => {
-    await render();
-    await expandAdvanced();
-    const toggle = container.querySelector<HTMLButtonElement>(
-      'button[id$="-clear-revealed-passwords"]',
-    );
-    if (!toggle) throw new Error("Missing switch");
-    expect(toggle.getAttribute("aria-checked")).toBe("false");
-    expect(container.querySelector('label[for$="-clear-revealed-passwords"]')?.textContent).toBe(
-      "Clear revealed passwords",
-    );
-    await act(async () => {
-      toggle.click();
-    });
-    expect(onSave).toHaveBeenCalledExactlyOnceWith({ clearRevealedPasswords: true });
-    await clickSave();
-    expect(onSave.mock.lastCall?.[0]).not.toHaveProperty("clearRevealedPasswords");
-  });
-
-  it("restores the toggle when the save fails", async () => {
-    await render();
-    await expandAdvanced();
-    onSave.mockRejectedValueOnce(new Error("offline"));
-    const toggle = container.querySelector<HTMLButtonElement>(
-      'button[id$="-clear-revealed-passwords"]',
-    );
-    if (!toggle) throw new Error("Missing switch");
-    await act(async () => {
-      toggle.click();
-    });
-    expect(toggle.getAttribute("aria-checked")).toBe("false");
   });
 });
 

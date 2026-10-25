@@ -93,8 +93,7 @@ test("live page helper preserves identity, masks passwords, and reports partial 
     expect(await page.evaluate(() => window.isSecureContext)).toBe(false);
     expect(await command("snapshot")).toMatchObject({ ok: true, title: "Insecure fixture" });
 
-    // A saved password goes only into a password field and, when the bot opts in, is cleared
-    // before a reveal is drawn.
+    // Saved passwords go only into password fields. A site can still reveal them normally.
     await page.route("https://login.example.test/", (route) =>
       route.fulfill({
         contentType: "text/html",
@@ -121,14 +120,12 @@ test("live page helper preserves identity, masks passwords, and reports partial 
       error: "A saved password can only be typed into a password field.",
     });
     await expect(page.getByLabel("Email")).toHaveValue("");
-    // Clearing a revealed password is the bot's opt-in.
     const filled = await command("act", {
       actions: [
         {
           kind: "fill",
           ref: ref(await command("snapshot"), "Password"),
           ...login,
-          clearOnReveal: true,
         },
       ],
     });
@@ -138,9 +135,11 @@ test("live page helper preserves identity, masks passwords, and reports partial 
       actions: [{ kind: "click", ref: ref(filled, "Show") }],
     });
     expect(shown).toMatchObject({ ok: true, completed: 1 });
-    await expect.poll(() => page.evaluate(() => (window as { drawn?: string }).drawn)).toBe("");
+    await expect
+      .poll(() => page.evaluate(() => (window as { drawn?: string }).drawn))
+      .toBe(login.text);
     await expect(page.locator("#password")).toHaveAttribute("type", "text");
-    await expect(page.locator("#password")).toHaveValue("");
+    await expect(page.locator("#password")).toHaveValue(login.text);
     expect(JSON.stringify([refused, filled, shown])).not.toContain(login.text);
     await page.goto(`http://127.0.0.1:${address.port}`);
     const elsewhere = await command("act", {

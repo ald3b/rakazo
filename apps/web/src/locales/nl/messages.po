@@ -1203,10 +1203,6 @@ msgstr "Gesprek wissen"
 msgid "Clear filter {label}"
 msgstr "Filter {label} wissen"
 
-#: src/pages/shell/bot-panel.tsx
-msgid "Clear revealed passwords"
-msgstr "Getoonde wachtwoorden wissen"
-
 #: src/pages/shell/dialogs.tsx
 msgid "Clearing…"
 msgstr "Bezig met wissen…"

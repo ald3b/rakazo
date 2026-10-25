@@ -52,13 +52,7 @@ function installPageHelper(url: string, html: string) {
         snapshot: () => {
           elements: Array<{ ref: string; name: string; role: string; value?: string }>;
         };
-        fill: (
-          ref: string,
-          value: string,
-          origin?: string,
-          field?: string,
-          clearOnReveal?: boolean,
-        ) => { url: string };
+        fill: (ref: string, value: string, origin?: string, field?: string) => { url: string };
         focusForKeys: (ref: string, whole?: boolean) => { focused: boolean };
         focusHolds: () => boolean;
         typed: (ref: string, text: string) => boolean;
@@ -135,112 +129,7 @@ describe("live page helper saved-login fill", () => {
     return domWindow.document.querySelector('[aria-label="Password"]') as HTMLInputElement;
   }
 
-  it.each([
-    ["property", (field: HTMLInputElement) => (field.type = "text")],
-    ["attribute", (field: HTMLInputElement) => field.setAttribute("type", "text")],
-  ])("clears a filled password when the page sets its type %s to text", async (_, reveal) => {
-    const { domWindow, browser } = installPageHelper(`${origin}/signin`, html);
-    const field = passwordField(domWindow);
-    const events: string[] = [];
-    field.addEventListener("input", () => events.push(field.value));
-    browser.fill(
-      refFor("Password", browser.snapshot().elements),
-      "fake-password",
-      origin,
-      "password",
-      true,
-    );
-    // Other attribute changes leave the login in place, and the field stays watched.
-    field.setAttribute("aria-invalid", "true");
-    field.setAttribute("type", "password");
-    await Promise.resolve();
-    expect(field.value).toBe("fake-password");
-    // A "show password" toggle: the page changes the type of the same field.
-    reveal(field);
-    await Promise.resolve();
-    expect(field.value).toBe("");
-    expect(events).toEqual(["fake-password", ""]);
-    expect(JSON.stringify(browser.snapshot())).not.toContain("fake-password");
-  });
-
-  it("keeps a revealed field empty when the page puts the password back", async () => {
-    const { domWindow, browser } = installPageHelper(`${origin}/signin`, html);
-    const field = passwordField(domWindow);
-    // A form library that keeps the value in its own state and writes it back.
-    let saved = "";
-    field.addEventListener("input", () => {
-      if (field.value) saved = field.value;
-      else field.value = saved;
-    });
-    browser.fill(
-      refFor("Password", browser.snapshot().elements),
-      "fake-password",
-      origin,
-      "password",
-      true,
-    );
-    field.type = "text";
-    await Promise.resolve();
-    expect(field.value).toBe("");
-    // Written back later, outside any event: emptied again before the next frame.
-    field.value = "fake-password";
-    await new Promise((resolve) => domWindow.requestAnimationFrame(resolve));
-    await new Promise((resolve) => domWindow.requestAnimationFrame(resolve));
-    expect(field.value).toBe("");
-    expect(JSON.stringify(browser.snapshot())).not.toContain("fake-password");
-    // What a person types into the shown field is theirs and stays.
-    field.value = "typed-by-hand";
-    await new Promise((resolve) => domWindow.requestAnimationFrame(resolve));
-    expect(field.value).toBe("typed-by-hand");
-  });
-
-  it("keeps a replacement a person typed when the field is shown again", async () => {
-    const { domWindow, browser } = installPageHelper(`${origin}/signin`, html);
-    const field = passwordField(domWindow);
-    const events: string[] = [];
-    field.addEventListener("input", () => events.push(field.value));
-    const toggle = async (type: string) => {
-      field.type = type;
-      await Promise.resolve();
-    };
-    browser.fill(
-      refFor("Password", browser.snapshot().elements),
-      "fake-password",
-      origin,
-      "password",
-      true,
-    );
-    await toggle("text");
-    expect(field.value).toBe("");
-    // The page puts the saved password back while hidden: showing it again clears it, and says so.
-    await toggle("password");
-    field.value = "fake-password";
-    await toggle("text");
-    expect(field.value).toBe("");
-    expect(events).toEqual(["fake-password", "", ""]);
-    // A person types a replacement, hides it and shows it again: it stays.
-    await toggle("password");
-    field.value = "typed-by-hand";
-    await toggle("text");
-    await new Promise((resolve) => domWindow.requestAnimationFrame(resolve));
-    expect(field.value).toBe("typed-by-hand");
-    expect(events).toEqual(["fake-password", "", ""]);
-  });
-
-  it("drops an earlier fill's reveal watcher when the field is filled again", async () => {
-    const { domWindow, browser } = installPageHelper(`${origin}/signin`, html);
-    const field = passwordField(domWindow);
-    const ref = refFor("Password", browser.snapshot().elements);
-    browser.fill(ref, "fake-password-1", origin, "password", true);
-    // The next run fills it with the setting off: showing it must not clear it.
-    browser.fill(ref, "fake-password-2", origin, "password");
-    field.type = "text";
-    await Promise.resolve();
-    await new Promise((resolve) => domWindow.requestAnimationFrame(resolve));
-    expect(field.value).toBe("fake-password-2");
-  });
-
-  it("leaves a revealed password in place unless the bot opted in", async () => {
+  it("preserves a revealed password while keeping its value out of snapshots", async () => {
     const { domWindow, browser } = installPageHelper(`${origin}/signin`, html);
     const field = passwordField(domWindow);
     field.addEventListener("input", () => (field.type = "text"), { once: true });
@@ -260,17 +149,6 @@ describe("live page helper saved-login fill", () => {
     const ref = refFor("Password", browser.snapshot().elements);
     expect(() => browser.fill(ref, "fake-password", origin, "password")).toThrow(/password field/);
     expect(field.value).toBe("");
-  });
-
-  it("clears a password that the page's input handler turns into text", () => {
-    const { domWindow, browser } = installPageHelper(`${origin}/signin`, html);
-    const field = passwordField(domWindow);
-    field.addEventListener("input", () => (field.type = "text"), { once: true });
-    const ref = refFor("Password", browser.snapshot().elements);
-    expect(() => browser.fill(ref, "fake-password", origin, "password", true)).toThrow(/cleared/);
-    expect(field.type).toBe("text");
-    expect(field.value).toBe("");
-    expect(JSON.stringify(browser.snapshot())).not.toContain("fake-password");
   });
 
   it("leaves nothing of a login that the field only partly accepts", () => {

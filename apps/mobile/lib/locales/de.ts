@@ -946,7 +946,6 @@ export const DE_MESSAGES: Record<string, string> = {
   "Remove photo": "Foto entfernen",
   Shape: "Form",
   "Shape {number}": "Form {number}",
-  "Clear revealed passwords": "Angezeigte Passwörter löschen",
   "Try again": "Erneut versuchen",
   "Your session expired": "Deine Sitzung ist abgelaufen",
   "The server had a problem": "Auf dem Server ist ein Problem aufgetreten",

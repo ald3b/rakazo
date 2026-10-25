@@ -526,7 +526,6 @@ app.post("/computers/:id/browser", async (c) => {
                   text: z.string().max(32_000),
                   origin: z.string().url().max(2048).optional(),
                   field: z.enum(["username", "password"]).optional(),
-                  clearOnReveal: z.boolean().optional(),
                 })
                 // The field decides which input types the helper accepts for a saved login.
                 .refine((step) => !step.origin || step.field, "A saved login fill needs its field"),

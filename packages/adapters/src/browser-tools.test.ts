@@ -291,31 +291,6 @@ describe("browser tools", () => {
       }
     });
 
-    it.each([
-      [true, [undefined, true]],
-      [false, [undefined, undefined]],
-      [undefined, [undefined, undefined]],
-    ])("asks to clear revealed passwords only when the bot opted in (%s)", async (optIn, flags) => {
-      const browser = new FakeBrowserProvider();
-      const act = vi
-        .spyOn(browser, "act")
-        .mockResolvedValue({ ok: true, completed: 2, url: "", title: "" });
-      await browserActFromTool(
-        browser,
-        computer,
-        context,
-        {
-          actions: [
-            { kind: "fill_secret", ref: "e1", secret: "site_login", field: "username" },
-            { kind: "fill_secret", ref: "e2", secret: "site_login", field: "password" },
-          ],
-        },
-        { resolveSecretFill, clearRevealedPasswords: optIn },
-      );
-      const sent = act.mock.calls[0]?.[1].actions as Array<{ clearOnReveal?: boolean }>;
-      expect(sent.map((step) => step.clearOnReveal)).toEqual(flags);
-    });
-
     it("never reports a login-filled field's value, even when too short to redact", async () => {
       const browser = loginPage("https://login.example.test/signin");
       const { email } = await refs(browser, "https://login.example.test/signin");

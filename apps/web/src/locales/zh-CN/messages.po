@@ -1203,10 +1203,6 @@ msgstr "清空对话"
 msgid "Clear filter {label}"
 msgstr ""
 
-#: src/pages/shell/bot-panel.tsx
-msgid "Clear revealed passwords"
-msgstr "清除已显示的密码"
-
 #: src/pages/shell/dialogs.tsx
 msgid "Clearing…"
 msgstr "正在清空…"

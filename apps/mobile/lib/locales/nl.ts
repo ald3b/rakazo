@@ -901,7 +901,6 @@ export const NL_MESSAGES: Record<string, string> = {
   "Remove photo": "Foto verwijderen",
   Shape: "Vorm",
   "Shape {number}": "Vorm {number}",
-  "Clear revealed passwords": "Getoonde wachtwoorden wissen",
   "Try again": "Opnieuw proberen",
   "Your session expired": "Je sessie is verlopen",
   "The server had a problem": "Er is een probleem met de server",

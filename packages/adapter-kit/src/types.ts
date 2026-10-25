@@ -992,8 +992,6 @@ export type BrowserActStep =
       origin?: string;
       /** Which part of a saved login `text` is; a password is typed only into a password field. */
       field?: "username" | "password";
-      /** Empty the filled password if the page turns its field into plain text. */
-      clearOnReveal?: boolean;
     };
 
 export interface BrowserActRequest {

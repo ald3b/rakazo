@@ -190,19 +190,6 @@ class PageBrowserTest(unittest.TestCase):
             'window.__rakazoPageBrowser.fill("e1", "fake-password", "https://login.example.test", "password")',
         )
 
-    def test_passes_the_clear_on_reveal_opt_in_only_when_set(self):
-        for flag, suffix in ((True, ', "password", true)'), (None, ', "password")'), (False, ', "password")')):
-            with self.subTest(flag=flag), patch.object(helper, "ensure_helpers"), \
-                    patch.object(helper, "snapshot", return_value={"ok": True}), \
-                    patch.object(helper, "eval_json") as evaluate:
-                evaluate.side_effect = [True, {}]
-                step = {"kind": "fill", "ref": "e1", "text": "fake-password",
-                        "origin": "https://login.example.test", "field": "password"}
-                if flag is not None:
-                    step["clearOnReveal"] = flag
-                helper.act(Mock(), "session", [step])
-                self.assertTrue(evaluate.call_args_list[1].args[2].endswith(suffix))
-
     def test_reports_a_refused_fill_as_settled_with_its_reason(self):
         client = Mock()
         client.call.side_effect = [

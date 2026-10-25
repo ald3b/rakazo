@@ -942,7 +942,6 @@ export const RU_MESSAGES: Record<string, string> = {
   "Remove photo": "Удалить фото",
   Shape: "Форма",
   "Shape {number}": "Форма {number}",
-  "Clear revealed passwords": "Очищать показанные пароли",
   "Try again": "Повторить",
   "Your session expired": "Сеанс истёк",
   "The server had a problem": "На сервере произошла ошибка",

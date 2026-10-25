@@ -1203,10 +1203,6 @@ msgstr "Limpar conversa"
 msgid "Clear filter {label}"
 msgstr ""
 
-#: src/pages/shell/bot-panel.tsx
-msgid "Clear revealed passwords"
-msgstr "Limpar senhas exibidas"
-
 #: src/pages/shell/dialogs.tsx
 msgid "Clearing…"
 msgstr "Limpeza"

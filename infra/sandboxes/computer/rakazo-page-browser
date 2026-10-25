@@ -535,50 +535,6 @@ EVAL_HELPERS = r"""
     walk(document);
     return found;
   }
-  // A bot's opt-in. A "show password" control turns the field into plain text. Mutation records
-  // arrive before the next paint, so the saved password is cleared before it can be drawn on
-  // screen. Returns the same check, for changes made synchronously by the page's own handlers.
-  // At most one reveal watcher per field: a later fill of the field replaces it.
-  const revealWatchers = new WeakMap();
-  function stopWatchingReveal(el) {
-    revealWatchers.get(el)?.();
-    revealWatchers.delete(el);
-  }
-  function clearWhenRevealed(el, password) {
-    stopWatchingReveal(el);
-    const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set;
-    let frame = 0;
-    // Only the saved password is emptied: what a person typed in its place stays. The page is told,
-    // and if its handlers put the password back from their own state, it is emptied once more.
-    const empty = () => {
-      if (el.value !== password) return;
-      setValue.call(el, "");
-      el.dispatchEvent(new Event("input", { bubbles: true }));
-      el.dispatchEvent(new Event("change", { bubbles: true }));
-      if (el.value === password) setValue.call(el, "");
-    };
-    // While the field shows plain text, a page that puts the password back later finds it
-    // emptied again before the next frame is drawn.
-    const guard = () => {
-      frame = 0;
-      if (!el.isConnected || el.type === "password") return;
-      empty();
-      frame = requestAnimationFrame(guard);
-    };
-    const clear = () => {
-      if (el.type === "password") return false;
-      empty();
-      if (!frame) frame = requestAnimationFrame(guard);
-      return true;
-    };
-    const observer = new MutationObserver(clear);
-    observer.observe(el, { attributes: true, attributeFilter: ["type"] });
-    revealWatchers.set(el, () => {
-      observer.disconnect();
-      if (frame) cancelAnimationFrame(frame);
-    });
-    return clear;
-  }
   function formatTree(elements) {
     if (!elements.length) return "(no interactive elements)";
     return elements
@@ -643,7 +599,7 @@ EVAL_HELPERS = r"""
       el.click();
       return { url: location.href, title: (document.title || "").slice(0, 200) };
     },
-    fill(ref, value, origin, field, clearOnReveal) {
+    fill(ref, value, origin, field) {
       // Checked in the same evaluation as the fill, so a navigation cannot slip in between.
       // Private-LAN plain HTTP is not a login target, even when the page origin matches.
       if (origin) {
@@ -676,11 +632,6 @@ EVAL_HELPERS = r"""
         }
         const prototype = el instanceof HTMLInputElement ? HTMLInputElement.prototype
           : el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLSelectElement.prototype;
-        // Any fill replaces an earlier fill's reveal watcher, so a login filled without the
-        // setting is never cleared by a watcher a previous run left on the field.
-        stopWatchingReveal(el);
-        const revealed =
-          password && clearOnReveal === true ? clearWhenRevealed(el, String(value)) : null;
         Object.getOwnPropertyDescriptor(prototype, "value").set.call(el, String(value));
         if (el.value !== String(value)) {
           // A partly accepted login (an email field trimming a username) is not left on the page,
@@ -695,7 +646,6 @@ EVAL_HELPERS = r"""
         else loginFilled.delete(el);
         el.dispatchEvent(new Event("input", { bubbles: true }));
         el.dispatchEvent(new Event("change", { bubbles: true }));
-        if (revealed?.()) throw refused("The page turned the password field into plain text, so it was cleared.");
       } else if (el.isContentEditable) {
         el.textContent = String(value);
         el.dispatchEvent(new Event("input", { bubbles: true }));
@@ -1126,8 +1076,6 @@ def act(client: CdpClient, session_id: str, actions: list[dict[str, Any]]) -> di
                 arguments += ", " + json.dumps(step["text"])
             if step.get("origin"):
                 arguments += ", " + json.dumps(step["origin"]) + ", " + json.dumps(step.get("field"))
-                if step.get("clearOnReveal") is True:
-                    arguments += ", true"
             uncertain = True
             data = eval_json(client, session_id, f"window.__rakazoPageBrowser.{kind}({arguments})")
             if not isinstance(data, dict):

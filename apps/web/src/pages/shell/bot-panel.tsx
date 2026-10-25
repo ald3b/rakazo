@@ -116,7 +116,6 @@ export function BotSettings({
     autoSpeak?: boolean;
     fleetManagement?: boolean;
     crossSpaceCommunication?: boolean;
-    clearRevealedPasswords?: boolean;
     voiceId?: string | null;
     modelProvider?: string | null;
     modelId?: string | null;
@@ -168,11 +167,6 @@ export function BotSettings({
   );
   const [fleetManagement, setFleetManagement] = useState(bot.fleetManagement);
   useEffect(() => setFleetManagement(bot.fleetManagement), [bot.fleetManagement]);
-  const [clearRevealedPasswords, setClearRevealedPasswords] = useState(bot.clearRevealedPasswords);
-  useEffect(
-    () => setClearRevealedPasswords(bot.clearRevealedPasswords),
-    [bot.clearRevealedPasswords],
-  );
   const [voiceId, setVoiceId] = useState(bot.voiceId ?? "");
   const [voices, setVoices] = useState<VoiceInfo[]>([]);
   const [modelKey, setModelKey] = useState(
@@ -234,7 +228,6 @@ export function BotSettings({
         notifyOnFinish?: boolean;
         fleetManagement?: boolean;
         crossSpaceCommunication?: boolean;
-        clearRevealedPasswords?: boolean;
         disabledBuiltinTools?: string[];
         baseDisabledBuiltinTools?: string[];
       },
@@ -307,7 +300,6 @@ export function BotSettings({
       notifyOnFinish?: boolean;
       fleetManagement?: boolean;
       crossSpaceCommunication?: boolean;
-      clearRevealedPasswords?: boolean;
       disabledBuiltinTools?: string[];
       baseDisabledBuiltinTools?: string[];
     },
@@ -322,10 +314,6 @@ export function BotSettings({
       }
       if (patchOverrides?.fleetManagement !== undefined) {
         await onSave({ fleetManagement: patchOverrides.fleetManagement });
-        return;
-      }
-      if (patchOverrides?.clearRevealedPasswords !== undefined) {
-        await onSave({ clearRevealedPasswords: patchOverrides.clearRevealedPasswords });
         return;
       }
       const selected = selectedModel;
@@ -422,8 +410,6 @@ export function BotSettings({
         setCrossSpaceCommunication(!patchOverrides.crossSpaceCommunication);
       if (patchOverrides?.fleetManagement !== undefined)
         setFleetManagement(!patchOverrides.fleetManagement);
-      if (patchOverrides?.clearRevealedPasswords !== undefined)
-        setClearRevealedPasswords(!patchOverrides.clearRevealedPasswords);
       setError(errorText(err, t`Could not save`));
     } finally {
       pendingSavesRef.current -= 1;
@@ -454,7 +440,6 @@ export function BotSettings({
     notifyOnFinish?: boolean;
     fleetManagement?: boolean;
     crossSpaceCommunication?: boolean;
-    clearRevealedPasswords?: boolean;
     disabledBuiltinTools?: string[];
   }) {
     // Serialize full-object auto-saves so an older in-flight request cannot
@@ -726,20 +711,6 @@ export function BotSettings({
                   onCheckedChange={(checked) => {
                     setFleetManagement(checked);
                     void enqueueSave({ fleetManagement: checked });
-                  }}
-                />
-              </div>
-              <div className="flex min-h-11 items-center justify-between gap-3 text-sm">
-                <label htmlFor={`${ids}-clear-revealed-passwords`} className={rowLabelClass}>
-                  <Trans>Clear revealed passwords</Trans>
-                </label>
-                <Switch
-                  id={`${ids}-clear-revealed-passwords`}
-                  checked={clearRevealedPasswords}
-                  disabled={saving}
-                  onCheckedChange={(checked) => {
-                    setClearRevealedPasswords(checked);
-                    void enqueueSave({ clearRevealedPasswords: checked });
                   }}
                 />
               </div>
