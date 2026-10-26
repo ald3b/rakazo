@@ -3,6 +3,7 @@ import type {
   ComputerAction,
   ComputerObservation,
 } from "@rakazo/adapter-kit";
+import { scrollDirection } from "@rakazo/core";
 
 /** Identical visual actions that leave the frame unchanged before computer_act stops repeating them. */
 export const MAX_CONSECUTIVE_UNCHANGED_VISUAL_ACTIONS = 3;
@@ -245,10 +246,6 @@ function finiteCoordinate(value: unknown, name: string) {
     throw new Error(`computer action ${name} must be a non-negative coordinate`);
   }
   return number;
-}
-
-function scrollDirection(value: unknown): "up" | "down" | "left" | "right" {
-  return value === "up" || value === "left" || value === "right" ? value : "down";
 }
 
 function boundedNumber(value: unknown, min: number, max: number, fallback: number) {

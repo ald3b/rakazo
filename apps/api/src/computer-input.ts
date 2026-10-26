@@ -1,8 +1,3 @@
-/** The way a scroll goes; anything else scrolls down, as before. */
-export function scrollDirection(value: unknown): "up" | "down" | "left" | "right" {
-  return value === "up" || value === "left" || value === "right" ? value : "down";
-}
-
 /** Where a scroll was made, when the screen sent both coordinates; else nothing. */
 export function scrollPoint(payload: Record<string, unknown>): { x?: number; y?: number } {
   if (payload.x === undefined || payload.y === undefined) return {};

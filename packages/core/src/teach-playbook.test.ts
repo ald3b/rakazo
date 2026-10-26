@@ -3,6 +3,7 @@ import {
   buildPlaybookFromRecording,
   promptInvokesSkill,
   sanitizeTeachRecordingEvent,
+  scrollDirection,
 } from "./teach-playbook.js";
 
 describe("promptInvokesSkill", () => {
@@ -197,5 +198,18 @@ describe("sanitizeTeachRecordingEvent", () => {
       text: "weekly-export.csv",
     };
     expect(sanitizeTeachRecordingEvent(event)).toEqual(event);
+  });
+});
+
+describe("scrollDirection", () => {
+  it("scrolls up, down, left or right, and down for anything else", () => {
+    expect(["up", "down", "left", "right", "sideways", undefined].map(scrollDirection)).toEqual([
+      "up",
+      "down",
+      "left",
+      "right",
+      "down",
+      "down",
+    ]);
   });
 });

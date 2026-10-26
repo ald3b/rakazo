@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { scrollDirection, scrollPoint } from "./computer-input.js";
+import { scrollPoint } from "./computer-input.js";
 
 describe("scrollPoint", () => {
   it("keeps the point a scroll was made at, in whole screen pixels", () => {
@@ -15,18 +15,5 @@ describe("scrollPoint", () => {
     expect(scrollPoint({ x: "left", y: 420 })).toEqual({});
     expect(scrollPoint({ x: -5, y: 420 })).toEqual({});
     expect(scrollPoint({ x: Number.POSITIVE_INFINITY, y: 420 })).toEqual({});
-  });
-});
-
-describe("scrollDirection", () => {
-  it("scrolls up, down, left or right, and down for anything else", () => {
-    expect(["up", "down", "left", "right", "sideways", undefined].map(scrollDirection)).toEqual([
-      "up",
-      "down",
-      "left",
-      "right",
-      "down",
-      "down",
-    ]);
   });
 });

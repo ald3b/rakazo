@@ -41,12 +41,12 @@ import {
   ComputerCommandSchema,
   foldComputerCommands,
 } from "@rakazo/contracts";
-import { ACTIVE_RUN_STATUSES } from "@rakazo/core";
+import { ACTIVE_RUN_STATUSES, scrollDirection } from "@rakazo/core";
 import { addScreenProxyCapability } from "@rakazo/core/node/screen-capability";
 import type { ComputerRunEnd, PrismaClient } from "@rakazo/db";
 import { createRepos, IsolationError, parseComputerMode, recordComputerRunEnd } from "@rakazo/db";
 import { getLogger } from "@rakazo/logging";
-import { scrollDirection, scrollPoint } from "../computer-input.js";
+import { scrollPoint } from "../computer-input.js";
 import {
   executionBlocksUserTakeover,
   resolveBusyBotName,
