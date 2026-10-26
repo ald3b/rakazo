@@ -69,7 +69,10 @@ function recordingPrisma(models: Record<string, Record<string, unknown>>, calls:
   return prisma;
 }
 
-async function requestSecretWith(origin: string) {
+async function requestSecretWith(
+  origin: string,
+  options: { savedNotPassword?: boolean; extraArgs?: Record<string, unknown> } = {},
+) {
   const run = {
     id: "run-1",
     botId: "bot-1",
@@ -91,6 +94,7 @@ async function requestSecretWith(origin: string) {
       label: "Sign in",
       purpose: "password",
       credential: { name: "site_login", origin, auth: { type: "login" } },
+      ...options.extraArgs,
     });
     toolResults.push(await request.executeTool?.("request_secret", args, "exec-1"));
     yield { type: "done" as const, text: "" };
@@ -137,6 +141,21 @@ async function requestSecretWith(origin: string) {
       },
       task: { findUniqueOrThrow: async () => ({ id: run.taskId, prompt: "Sign in to the site" }) },
       computer: { updateMany: async () => ({ count: 1 }) },
+      ...(options.savedNotPassword === undefined
+        ? {}
+        : {
+            botSecret: {
+              // The saved login being replaced, with the person's mark as they left it.
+              findFirst: async ({ select }: { select?: Record<string, boolean> }) =>
+                select?.notPassword
+                  ? { notPassword: options.savedNotPassword }
+                  : {
+                      name: "site_login",
+                      origin: "https://www.example.test",
+                      auth: { type: "login" },
+                    },
+            },
+          }),
       deploymentSettings: {
         findUnique: async () => ({
           defaultModelProvider: "openrouter",
@@ -194,6 +213,8 @@ async function requestSecretWith(origin: string) {
   await executor.continueRun(run.id, "worker-1");
   return {
     toolResults,
+    asked: (events.pauseRunForInput.mock.calls as unknown as Array<[{ blocks: unknown[] }]>)[0]?.[0]
+      .blocks[0] as Record<string, unknown> | undefined,
     everything: JSON.stringify([calls, events, logged, toolResults], (_key, value) =>
       typeof value === "function" && "mock" in value ? value.mock.calls : value,
     ),
@@ -221,5 +242,28 @@ describe("request_secret with a page URL", () => {
     );
     expect(JSON.stringify(toolResults)).toMatch(/Invalid credential destination — origin:/);
     for (const canary of CANARIES) expect(everything).not.toContain(canary);
+  });
+});
+
+describe("the Not a password choice on a login card", () => {
+  const site = "https://www.example.test";
+
+  it("isn't on an ordinary login card, whatever the bot asks for", async () => {
+    const { asked } = await requestSecretWith(site, {
+      extraArgs: { notPassword: "on", secondValue: "text" },
+    });
+    expect(asked).toMatchObject({ kind: "ask", credential: { name: "site_login" } });
+    expect(asked).not.toHaveProperty("notPassword");
+  });
+
+  it.each([
+    [true, "on"],
+    [false, undefined],
+  ])("starts from the saved login the card replaces (marked: %s)", async (marked, expected) => {
+    const { asked } = await requestSecretWith(site, {
+      savedNotPassword: marked,
+      extraArgs: { replace: true },
+    });
+    expect(asked?.notPassword).toBe(expected);
   });
 });

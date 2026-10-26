@@ -155,6 +155,21 @@ describe("login credentials", () => {
   ])("rejects an incomplete login %j", (value) => {
     expect(() => encodeLoginSecret(value)).toThrow();
   });
+
+  it("keeps the person's mark on the value, never on the destination the bot sends", () => {
+    const marked = { username: "fake-id", password: "fake-phone", secondValue: "text" as const };
+    expect(decodeLoginSecret(encodeLoginSecret(marked))).toEqual(marked);
+    expect(() =>
+      encodeLoginSecret({ ...marked, secondValue: "number" as unknown as "text" }),
+    ).toThrow();
+    // A request_secret destination drops it, like any other key a login's auth doesn't have.
+    expect(
+      BotSecretDestination.parse({
+        ...destination,
+        auth: { type: "login", secondValue: "text", field: "tel" },
+      }).auth,
+    ).toEqual({ type: "login" });
+  });
 });
 
 describe("command variables", () => {

@@ -1,6 +1,6 @@
 import type { OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js";
 import type { AdapterContext } from "@rakazo/adapter-kit";
-import { BOT_SECRET_VALUE_MAX_LENGTH } from "@rakazo/contracts";
+import { BOT_SECRET_VALUE_MAX_LENGTH, encodeLoginSecret } from "@rakazo/contracts";
 import type { Prisma, PrismaClient } from "@rakazo/db";
 import { withTransactionRetry } from "@rakazo/db";
 import { describe, expect, it, vi } from "vitest";
@@ -607,6 +607,60 @@ describe("prepared run-secret writes", () => {
         slow.mockRestore();
         await store.close();
       }
+    },
+  );
+
+  it.each([
+    ["a login card that offers it", { type: "login" as const }, "offered", true],
+    ["a login card that doesn't offer it", { type: "login" as const }, undefined, false],
+    ["another credential card", { type: "bearer" as const }, "offered", false],
+  ])(
+    "encrypts the person's second-value mark only on %s",
+    async (_name, auth, offer, encrypted) => {
+      const store = new EncryptedSecretStore("fake-key");
+      const put = vi.spyOn(store, "put");
+      const credential = { name: "site_login", origin: "https://login.example.test", auth };
+      const prisma = {
+        run: { findFirst: async () => ({ botId: "bot", userId: "user" }) },
+        message: {
+          findFirst: async () => ({
+            blocks: [
+              {
+                kind: "ask",
+                text: "Sign in",
+                input: "secret",
+                status: "pending",
+                credential,
+                ...(offer ? { notPassword: offer } : {}),
+              },
+            ],
+          }),
+        },
+        botSecret: { findFirst: async () => null, count: async () => 0 },
+      } as unknown as PrismaClient;
+      const writer = createRunSecretWriter(store);
+      await writer.withPrepared!(
+        prisma,
+        {
+          spaceId: "space",
+          runId: "run",
+          threadId: "thread",
+          messageId: "message",
+          answeredByUserId: "user",
+          answer: "fake-phone-0501234",
+          ...(auth.type === "login" ? { username: "fake-id" } : {}),
+          secondValue: "text",
+        },
+        async () => false,
+      ).catch(() => false);
+      if (!encrypted) return expect(put).not.toHaveBeenCalled();
+      expect(put.mock.calls[0]![0]).toBe(
+        encodeLoginSecret({
+          username: "fake-id",
+          password: "fake-phone-0501234",
+          secondValue: "text",
+        }),
+      );
     },
   );
 

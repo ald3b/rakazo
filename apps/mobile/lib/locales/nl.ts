@@ -277,6 +277,7 @@ export const NL_MESSAGES: Record<string, string> = {
   "Open image {name}": "Afbeelding {name} openen",
   "Tap to open": "Tik om te openen",
   "Could not open message": "Bericht openen mislukt",
+  "Not a password": "Geen wachtwoord",
   "Could not send answer": "Antwoord verzenden mislukt",
   "Could not speak": "Spreken mislukt",
   "Could not update reaction": "Reactie bijwerken mislukt",

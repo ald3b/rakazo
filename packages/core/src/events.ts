@@ -464,6 +464,61 @@ export function subagentBlockFromPayload(
 }
 
 /**
+ * Redaction entries for a value made of digits and separators, such as a phone number marked as
+ * not a password. Pages show such a value reformatted ("050-123-4567", "+972 50 123 4567",
+ * URL-encoded in an address), so an entry matches its digits with up to nine non-alphanumeric
+ * characters or URL-encoded bytes between each ("%20" is one, "%E2%80%91" three). One entry is
+ * the digits without leading zeros; one more is the last nine, which is how a number saved in its international form is shown nationally. Only 6 to 20
+ * ASCII digits get entries: shorter would hide unrelated numbers, longer is no phone number. Six
+ * or seven digits allow only spaces and dashes between, as they would otherwise match too much.
+ * Digits in other scripts, such as Arabic-Indic, aren't matched this way.
+ */
+const DIGITS_SECRET = "\u0000digits:";
+/**
+ * One separator unit: an encoded byte, a "%" that starts none, or another non-alphanumeric
+ * character. Exactly one alternative fits any text, so a near miss fails in linear time instead
+ * of trying every way to split "%20%20%20".
+ */
+export const DIGIT_SEPARATOR_UNIT = "(?:%[0-9A-Fa-f]{2}|%(?![0-9A-Fa-f]{2})|[^\\p{L}\\p{N}%])";
+const DIGIT_SEPARATORS = `${DIGIT_SEPARATOR_UNIT}{0,9}`;
+/** The most text DIGIT_SEPARATORS matches: nine encoded bytes. */
+const DIGIT_SEPARATORS_SPAN = 27;
+const SHORT_DIGIT_SEPARATORS = "[\\s\\-]{0,3}";
+const NATIONAL_DIGITS = 9;
+
+export function digitsRedactions(value: string): string[] {
+  if (!/^[\p{N}\s\-().+/\u200e\u200f\u2011\u2013]+$/u.test(value)) return [];
+  const digits = value.replace(/\D/g, "").replace(/^0+/, "");
+  if (digits.length < 6 || digits.length > 20) return [];
+  const entries = [DIGITS_SECRET + digits];
+  if (digits.length > NATIONAL_DIGITS) entries.push(DIGITS_SECRET + digits.slice(-NATIONAL_DIGITS));
+  return entries;
+}
+
+/** The pattern a digits entry matches, or undefined for a plain value. */
+export function digitsRedactionPattern(secret: string): RegExp | undefined {
+  if (!secret.startsWith(DIGITS_SECRET)) return undefined;
+  const digits = secret.slice(DIGITS_SECRET.length);
+  // Six or seven digits match only with spaces or dashes between, not any punctuation.
+  const between = digits.length < 8 ? SHORT_DIGIT_SEPARATORS : DIGIT_SEPARATORS;
+  return new RegExp(digits.split("").join(between), "gu");
+}
+
+/** The longest text an entry can match, for holding back a streamed tail. */
+export function redactionSpan(secret: string): number {
+  const digits = secret.startsWith(DIGITS_SECRET) ? secret.length - DIGITS_SECRET.length : 0;
+  return digits ? digits + (digits - 1) * DIGIT_SEPARATORS_SPAN : secret.length;
+}
+
+const digitsPattern = digitsRedactionPattern;
+const secretSpan = redactionSpan;
+
+function holdsSecret(value: string, secret: string): boolean {
+  const pattern = digitsPattern(secret);
+  return pattern ? pattern.test(value) : value.includes(secret);
+}
+
+/**
  * The stretches protected values cover in `value`, in order, as [start, end). Matches that
  * overlap make one stretch, so a shorter value inside or across a longer one can't cut it and
  * leave the rest readable; matches that only touch stay separate.
@@ -473,13 +528,21 @@ function redactedRanges(value: string, secrets: Iterable<string>): Array<[number
   // that repeats or overlaps itself across a long text costs no more than two counters per offset.
   let starts: Int32Array | undefined;
   let ends: Int32Array | undefined;
+  const mark = (at: number, length: number) => {
+    starts ??= new Int32Array(value.length + 1);
+    ends ??= new Int32Array(value.length + 1);
+    starts[at] = starts[at]! + 1;
+    ends[at + length] = ends[at + length]! + 1;
+  };
   for (const secret of new Set(secrets)) {
     if (!secret) continue;
+    const pattern = digitsPattern(secret);
+    if (pattern) {
+      for (const match of value.matchAll(pattern)) mark(match.index, match[0].length);
+      continue;
+    }
     for (let at = value.indexOf(secret); at !== -1; at = value.indexOf(secret, at + 1)) {
-      starts ??= new Int32Array(value.length + 1);
-      ends ??= new Int32Array(value.length + 1);
-      starts[at] = starts[at]! + 1;
-      ends[at + secret.length] = ends[at + secret.length]! + 1;
+      mark(at, secret.length);
     }
   }
   if (!starts || !ends) return [];
@@ -517,12 +580,12 @@ export function containsSecret(value: unknown, secrets: string[]): boolean {
   while (pending.length > 0) {
     const current = pending.pop();
     if (typeof current === "string") {
-      if (active.some((secret) => current.includes(secret))) return true;
+      if (active.some((secret) => holdsSecret(current, secret))) return true;
       continue;
     }
     if (current === null || typeof current === "number" || typeof current === "boolean") {
       const primitive = String(current);
-      if (active.some((secret) => primitive.includes(secret))) return true;
+      if (active.some((secret) => holdsSecret(primitive, secret))) return true;
       continue;
     }
     if (Array.isArray(current)) {
@@ -531,7 +594,7 @@ export function containsSecret(value: unknown, secrets: string[]): boolean {
     }
     if (current && typeof current === "object") {
       for (const [key, nested] of Object.entries(current)) {
-        if (active.some((secret) => key.includes(secret))) return true;
+        if (active.some((secret) => holdsSecret(key, secret))) return true;
         pending.push(nested);
       }
     }
@@ -590,7 +653,7 @@ export function sanitizeJsonValue<T>(value: T): T {
 
 export function createStreamingRedactor(secrets: string[]) {
   const values = [...new Set(secrets.filter(Boolean))];
-  const maxLength = Math.max(0, ...values.map((value) => value.length));
+  const maxLength = Math.max(0, ...values.map(secretSpan));
   let buffer = "";
   let covered = 0;
 

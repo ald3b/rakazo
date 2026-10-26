@@ -266,6 +266,7 @@ export const JA_MESSAGES: Record<string, string> = {
   "Open image {name}": "画像{name}を開く",
   "Tap to open": "タップして開く",
   "Could not open message": "メッセージを開けませんでした",
+  "Not a password": "パスワードではない",
   "Could not send answer": "回答を送信できませんでした",
   "Could not speak": "読み上げできませんでした",
   "Could not update reaction": "リアクションを更新できませんでした",

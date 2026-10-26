@@ -5,6 +5,7 @@ import {
   appendToolStep,
   containsSecret,
   createStreamingRedactor,
+  digitsRedactions,
   endsSentence,
   humanizeToolName,
   isRunTerminalEvent,
@@ -779,6 +780,78 @@ describe("redactSecrets", () => {
     expect(redactSecrets("keyfake-keyfake-", ["fake-", "key"])).toBe(
       "[redacted][redacted][redacted][redacted]",
     );
+  });
+});
+
+describe("digitsRedactions", () => {
+  it("matches a phone number however it is formatted, and nothing shorter or unlike it", () => {
+    const entries = digitsRedactions("050-1234567");
+    for (const shown of [
+      "0501234567",
+      "050-123-4567",
+      "+972 50 123 4567",
+      "(050) 123.4567",
+      "972/50/1234567",
+      "%2B972%2050%20123%204567",
+      "050%E2%80%91123%E2%80%914567",
+      "%2B972%C2%A050%E2%80%93123%20%E2%80%93%204567",
+      "050\u20111234567",
+      "\u200e050\u2013123\u20134567",
+    ]) {
+      expect(redactSecrets(`call ${shown} now`, entries), shown).not.toMatch(/123.{0,3}4567/);
+      expect(containsSecret({ text: shown }, entries), shown).toBe(true);
+    }
+    expect(redactSecrets("order 1234567, 50 1 2 3", entries)).toBe("order 1234567, 50 1 2 3");
+    expect(containsSecret({ text: "50 12 34 56 8" }, entries)).toBe(false);
+  });
+
+  it("fails fast on text that stops one digit short, whatever the separators", () => {
+    for (const digits of ["98765432101234567890", "20202020202020202020", "22222222222222222222"]) {
+      const entries = digitsRedactions(digits);
+      for (const gap of ["%20%20%20", "%2F%2F%2F%2F", "%E2%80%91", " - ", "%%%"]) {
+        const text = `${digits.slice(0, 19).split("").join(gap)}x`;
+        const started = performance.now();
+        const redacted = redactSecrets(text, entries);
+        expect(performance.now() - started, `${digits} ${gap}`).toBeLessThan(100);
+        // Only a repeating number holds its own last nine digits.
+        if (digits.startsWith("9")) expect(redacted, gap).toBe(text);
+      }
+    }
+  });
+
+  it("finds a number saved internationally where it is shown nationally", () => {
+    const entries = digitsRedactions("+972501234567");
+    expect(redactSecrets("call 050-123-4567", entries)).toBe("call 0[redacted]");
+    expect(redactSecrets("call +972 50 123 4567", entries)).toBe("call +[redacted]");
+  });
+
+  it("makes entries only for 6 to 20 digits after leading zeros, made of digits and separators", () => {
+    for (const value of ["fake-phone-0501234", "12345", "000000", "000004567", "1".repeat(21)]) {
+      expect(digitsRedactions(value), value).toEqual([]);
+    }
+    // A long value never breaks redaction for everything else.
+    expect(() => redactSecrets("hello", ["1".repeat(4096)])).not.toThrow();
+    expect(containsSecret({ text: "hello" }, digitsRedactions("000000"))).toBe(false);
+  });
+
+  it("matches six or seven digits only with spaces or dashes between", () => {
+    const entries = digitsRedactions("123456");
+    expect(redactSecrets("code 123 456, v1.2.3.4.5.6, 12/34/56", entries)).toBe(
+      "code [redacted], v1.2.3.4.5.6, 12/34/56",
+    );
+  });
+
+  it("never lets a streamed number through split across chunks", () => {
+    const entries = digitsRedactions("0501234567");
+    const text = "sent to +972 50-123-4567 just now";
+    for (let size = 1; size <= text.length; size += 1) {
+      const redactor = createStreamingRedactor(entries);
+      let output = "";
+      for (let at = 0; at < text.length; at += size)
+        output += redactor.push(text.slice(at, at + size));
+      output += redactor.finish();
+      expect(output, `chunks of ${size}`).toBe("sent to +972 [redacted] just now");
+    }
   });
 });
 

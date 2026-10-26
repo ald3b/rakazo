@@ -18,6 +18,7 @@ export async function answerThreadMessage(
   answer: string,
   username?: string,
   dismiss?: boolean,
+  secondValue?: "text",
 ) {
   if (readOnly || (!botId && !groupId) || !message.runId) return;
   markRead();
@@ -27,6 +28,7 @@ export async function answerThreadMessage(
     messageId: message.id,
     answer,
     ...(username ? { username } : {}),
+    ...(secondValue ? { secondValue } : {}),
     ...(dismiss ? { dismiss: true as const } : {}),
   });
   // The answer is saved once the server accepts it; a failed refresh only delays the card.

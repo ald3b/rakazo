@@ -408,6 +408,7 @@ export const RU_MESSAGES: Record<string, string> = {
   "Could not save the default space": "Не удалось сохранить пространство по умолчанию.",
   "Could not save the server URL": "Не удалось сохранить URL-адрес сервера.",
   "Could not send reset email": "Не удалось отправить электронное письмо для сброса",
+  "Not a password": "Не пароль",
   "Could not send answer": "Не удалось отправить ответ",
   "Could not share file": "Не удалось поделиться файлом",
   "Could not sign out": "Не удалось выйти",

@@ -35,7 +35,12 @@ type ExecuteTool = (
  */
 async function runAfterFill(
   toolCalls: Array<{ name: string; args: Record<string, unknown> }>,
-  options: { savedLogin?: boolean; reply?: string } = {},
+  options: {
+    savedLogin?: boolean;
+    reply?: string;
+    /** Saves the login's second value marked as not a password, and prints this instead. */
+    marked?: { value: string; printed: string };
+  } = {},
 ) {
   const run = {
     id: "run-2",
@@ -57,7 +62,11 @@ async function runAfterFill(
     origin: "https://login.example.test",
     auth: { type: "login" },
     ...(await secretStore.put(
-      encodeLoginSecret({ username: USERNAME, password: PASSWORD }),
+      encodeLoginSecret(
+        options.marked
+          ? { username: USERNAME, password: options.marked.value, secondValue: "text" }
+          : { username: USERNAME, password: PASSWORD },
+      ),
       { ...scope, operationId: "test", traceId: "test", signal: new AbortController().signal },
       { recordId: "login-1" },
     )),
@@ -75,11 +84,13 @@ async function runAfterFill(
   };
   const botSecrets = options.savedLogin === false ? [commandRow] : [loginRow, commandRow];
   const load = vi.spyOn(secretStore, "load");
-  const printed = [
-    `user=${USERNAME} pass=${PASSWORD}`,
-    `form=${new URLSearchParams({ username: USERNAME, password: PASSWORD })}`,
-    `base64=${Buffer.from(PASSWORD).toString("base64")}`,
-  ].join("\n");
+  const printed =
+    options.marked?.printed ??
+    [
+      `user=${USERNAME} pass=${PASSWORD}`,
+      `form=${new URLSearchParams({ username: USERNAME, password: PASSWORD })}`,
+      `base64=${Buffer.from(PASSWORD).toString("base64")}`,
+    ].join("\n");
   const toolResults: unknown[] = [];
   const runtimeRun = vi.fn(async function* (request: { executeTool?: ExecuteTool }) {
     for (const [index, call] of toolCalls.entries()) {
@@ -247,6 +258,22 @@ describe("saved logins in a later run", () => {
     expect(text).not.toContain(encodeURIComponent(PASSWORD));
     expect(text).toContain(`notes/${USERNAME}.txt`);
     expect(loginLoads).toBe(1);
+  });
+
+  it("hides a marked phone number a page address shows with encoded Unicode dashes", async () => {
+    const { toolResults } = await runAfterFill(
+      [{ name: "shell", args: { command: "read-page-address" } }],
+      {
+        marked: {
+          value: "0501234567",
+          // 050\u2011123\u20114567, as a page puts it in a query string.
+          printed: "https://login.example.test/sent?to=050%E2%80%91123%E2%80%914567&id=fake-id",
+        },
+      },
+    );
+    const text = JSON.stringify(toolResults);
+    expect(text).toContain("/sent?to=0[redacted]&id=fake-id");
+    expect(text).not.toMatch(/123.{0,9}4567/);
   });
 
   it("hides a password the browser window title echoes", async () => {

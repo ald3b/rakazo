@@ -929,9 +929,24 @@ describe("secret request dismissal", () => {
       answer: "",
       clientNonce: undefined,
       username: undefined,
+      secondValue: undefined,
       dismiss: true,
     });
     expect(h.enqueue).toHaveBeenCalledOnce();
+  });
+
+  it("passes the person's mark on a login answer through", async () => {
+    const h = setup(true);
+    const { response } = await h.send({
+      answer: "fake-phone-0501234",
+      username: "fake-id",
+      secondValue: "text",
+    });
+
+    expect(response.status).toBe(200);
+    expect(h.answerRunInput).toHaveBeenCalledWith(
+      expect.objectContaining({ username: "fake-id", secondValue: "text" }),
+    );
   });
 
   it("reports a dismissal the card no longer accepts as a conflict", async () => {
@@ -947,6 +962,8 @@ describe("secret request dismissal", () => {
     ["a dismissal with a username", { answer: "", username: "ada", dismiss: true }],
     ["a dismissal during a call", { answer: "", clientNonce: "call:call-1:x", dismiss: true }],
     ["an empty answer", { answer: "" }],
+    ["a mark without a login answer", { answer: "fake-token", secondValue: "text" }],
+    ["a mark that isn't text", { answer: "fake-phone", username: "fake-id", secondValue: "tel" }],
   ])("rejects %s before it reaches the run", async (_name, json) => {
     const h = setup(true);
     const { response } = await h.send(json);

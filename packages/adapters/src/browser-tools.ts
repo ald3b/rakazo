@@ -14,6 +14,9 @@ const MAX_BROWSER_ACTIONS = 24;
 /** The action kinds `browser_act` takes, as its tool schema lists them. */
 export const BROWSER_ACT_KINDS = ["click", "fill", "type", "upload", "fill_secret"] as const;
 const NAVIGATE_URL_REQUIRED = "An HTTP(S) URL without embedded credentials is required";
+/** The page helper's refusal for a saved password on a page that has no password field. */
+export const NO_PASSWORD_FIELD_REFUSAL =
+  "This page has no password field. If this login's second value isn't a password, such as a phone number, ask for the login again with request_secret and replace: true, so the person can mark it.";
 
 /** Fills a saved website login by name; the model never supplies or sees the value. */
 export type SecretFillStep = {
@@ -27,7 +30,7 @@ export type BrowserActInput = BrowserActStep | SecretFillStep;
 export type PageToolOptions = { desktopTools?: boolean };
 export type ResolveSecretFill = (
   step: SecretFillStep,
-) => Promise<{ text: string; origin: string } | { error: string }>;
+) => Promise<{ text: string; origin: string; secondValue?: "text" } | { error: string }>;
 
 /**
  * A browser tool call turned down before anything ran, such as a missing argument. It is settled:
@@ -96,12 +99,15 @@ export async function browserActFromTool(
     resolveUploadPath?: (path: string) => string;
     /** Trusted upload roots relative to the computer home, set by the executor. */
     uploadRoots?: string[];
+    /** A saved login's password was refused because the page has no password field. */
+    onNoPasswordField?: (login: string) => void;
   } = {},
 ) {
   try {
     const actions: BrowserActStep[] = [];
+    const steps = parseBrowserActions(args.actions);
     // Resolve every saved login before acting, so a missing one cannot leave a half-filled form.
-    for (const step of parseBrowserActions(args.actions)) {
+    for (const step of steps) {
       if (step.kind === "upload") {
         const resolve = options.resolveUploadPath ?? ((path: string) => path);
         let paths: string[];
@@ -143,9 +149,19 @@ export async function browserActFromTool(
         text: resolved.text,
         origin: resolved.origin,
         field: step.field,
+        login: step.secret,
+        ...(resolved.secondValue === "text" ? { secondValue: "text" as const } : {}),
       });
     }
     const result = await browser.act(computer, { actions, signal: context.signal }, context);
+    const refusedStep = steps[result.completed];
+    if (
+      !result.ok &&
+      result.error === NO_PASSWORD_FIELD_REFUSAL &&
+      refusedStep?.kind === "fill_secret" &&
+      refusedStep.field === "password"
+    )
+      options.onNoPasswordField?.(refusedStep.secret);
     return redactConnectorPayload(
       formatBrowserResult(result, options),
       options.redactions?.() ?? [],

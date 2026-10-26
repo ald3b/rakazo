@@ -151,6 +151,7 @@ export function createRunSecretWriter(secretStore: SecretStore): RunSecretWriter
           input.answer.length > BOT_SECRET_VALUE_MAX_LENGTH ||
           (ask.credential && run.userId !== input.answeredByUserId) ||
           (ask.credential?.auth.type === "login") !== Boolean(input.username?.trim()) ||
+          (input.secondValue && (ask.credential?.auth.type !== "login" || !ask.notPassword)) ||
           (ask.credential?.auth.type === "login" &&
             !LoginSecretValue.safeParse({
               username: input.username?.trim(),
@@ -164,7 +165,11 @@ export function createRunSecretWriter(secretStore: SecretStore): RunSecretWriter
           });
         const plaintext =
           ask.credential?.auth.type === "login"
-            ? encodeLoginSecret({ username: input.username?.trim() ?? "", password: input.answer })
+            ? encodeLoginSecret({
+                username: input.username?.trim() ?? "",
+                password: input.answer,
+                ...(input.secondValue === "text" ? { secondValue: "text" as const } : {}),
+              })
             : input.answer;
         const scope = { userId: run.userId, spaceId: input.spaceId, botId: run.botId };
         const prepared = ask.credential

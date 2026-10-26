@@ -3,6 +3,7 @@ import vm from "node:vm";
 import { JSDOM } from "jsdom";
 import { describe, expect, it } from "vitest";
 import { resolveRequestSecretDestination } from "./bot-secrets.js";
+import { NO_PASSWORD_FIELD_REFUSAL } from "./browser-tools.js";
 
 /** The live page helper's isolated-world script, executed here rather than reimplemented. */
 function installPageHelper(url: string, html: string) {
@@ -45,14 +46,31 @@ function installPageHelper(url: string, html: string) {
       },
     };
   };
+  // jsdom has no layout, so no innerText: page text is its text content here.
+  if (!("innerText" in domWindow.HTMLElement.prototype)) {
+    Object.defineProperty(domWindow.HTMLElement.prototype, "innerText", {
+      configurable: true,
+      get(this: HTMLElement) {
+        return this.textContent;
+      },
+    });
+  }
   vm.runInContext(match[1], dom.getInternalVMContext());
   const browser = (
     domWindow as unknown as {
       __rakazoPageBrowser: {
         snapshot: () => {
           elements: Array<{ ref: string; name: string; role: string; value?: string }>;
+          tree: string;
         };
-        fill: (ref: string, value: string, origin?: string, field?: string) => { url: string };
+        fill: (
+          ref: string,
+          value: string,
+          origin?: string,
+          field?: string,
+          secondValue?: "text",
+          login?: string,
+        ) => { url: string };
         focusForKeys: (ref: string, whole?: boolean) => { focused: boolean };
         focusHolds: () => boolean;
         typed: (ref: string, text: string) => boolean;
@@ -140,6 +158,469 @@ describe("live page helper saved-login fill", () => {
     expect(field.value).toBe("fake-password");
     // Snapshots still never report it.
     expect(JSON.stringify(browser.snapshot())).not.toContain("fake-password");
+  });
+
+  describe("a second value the person marked as not a password", () => {
+    // A sign-in without a form, as single-page apps often have, next to other fields.
+    const idPage = `
+      <div><input aria-label="ID number" /><input aria-label="Phone" type="tel" /></div>
+      <input aria-label="Email" type="email" />
+      <input aria-label="Query" type="search" />
+      <textarea aria-label="Notes"></textarea>
+    `;
+    const phoneField = (domWindow: JSDOM["window"], label = "Phone") =>
+      domWindow.document.querySelector(`[aria-label="${label}"]`) as HTMLInputElement;
+    type Browser = ReturnType<typeof installPageHelper>["browser"];
+    const fillId = (browser: Browser, label = "ID number", login = "site_login") =>
+      browser.fill(
+        refFor(label, browser.snapshot().elements),
+        "fake-id",
+        origin,
+        "username",
+        undefined,
+        login,
+      );
+    const marked = (
+      browser: Browser,
+      label = "Phone",
+      value = "fake-phone-0501234",
+      login = "site_login",
+    ) =>
+      browser.fill(
+        refFor(label, browser.snapshot().elements),
+        value,
+        origin,
+        "password",
+        "text",
+        login,
+      );
+    // The login's username goes first, as on a real sign-in: the second value follows it.
+    const fillPhone = (browser: Browser, label = "Phone", value = "fake-phone-0501234") => {
+      fillId(browser);
+      return marked(browser, label, value);
+    };
+    const nextFrame = (domWindow: JSDOM["window"]) =>
+      new Promise((resolve) => domWindow.requestAnimationFrame(resolve));
+
+    it.each(["Phone", "Code"])(
+      "holds it in a password field in place of the %s field, on a page without one",
+      (label) => {
+        // A text field in place of the telephone one works the same.
+        const page = idPage.replace(
+          'aria-label="Phone" type="tel"',
+          `aria-label="${label}" type="${label === "Phone" ? "tel" : "text"}"`,
+        );
+        const { domWindow, browser } = installPageHelper(`${origin}/signin`, page);
+        const field = phoneField(domWindow, label);
+        const types: string[] = [];
+        field.addEventListener("input", () => types.push(field.type));
+        fillPhone(browser, label);
+        // The browser draws dots and keeps a password field's text out of copying, the desktop's
+        // selection and form history, whatever the page's listeners do.
+        expect(field.type).toBe("password");
+        expect(field.value).toBe("fake-phone-0501234");
+        // It was a password field before the value was set.
+        expect(types).toEqual(["password"]);
+        expect(JSON.stringify(browser.snapshot())).not.toContain("fake-phone");
+        // Only fills of this helper's own make the page "have" a password field: a later fill of
+        // the same login still finds none.
+        fillPhone(browser, label);
+        expect(field.value).toBe("fake-phone-0501234");
+      },
+    );
+
+    it("goes only into the form its own login's username was typed into, never a search field", () => {
+      const page = `
+        <form id="signin"><input aria-label="ID number" /><input aria-label="Phone" type="tel" /></form>
+        <form id="comment"><input aria-label="Comment" /></form>
+        <div role="search"><input aria-label="Find" /></div>
+        <form action="/results"><input aria-label="Lookup" name="q" /><input aria-label="Area" /></form>
+      `;
+      const { domWindow, browser } = installPageHelper(`${origin}/signin`, page);
+      // Before its username is typed, nothing.
+      expect(() => marked(browser)).toThrow(/form its username was typed into/);
+      // Another login's username doesn't open the form for this one.
+      fillId(browser, "ID number", "other_login");
+      expect(() => marked(browser)).toThrow(/form its username was typed into/);
+      fillId(browser);
+      for (const label of ["Comment", "Find", "Lookup"]) {
+        expect(() => marked(browser, label), label).toThrow(/form its username was typed into/);
+      }
+      // A search form is refused whole: with the username in its query box, another of its
+      // fields would still send the value into a results address.
+      fillId(browser, "Lookup");
+      expect(() => marked(browser, "Area")).toThrow(/not into a search field/);
+      expect(domWindow.document.body.innerHTML).not.toContain("fake-phone");
+      fillId(browser);
+      marked(browser);
+      expect(phoneField(domWindow).value).toBe("fake-phone-0501234");
+    });
+
+    it("never goes into a field or form labelled as a search", () => {
+      const page = `
+        <form id="a"><input aria-label="ID number" /><label for="b">Search</label><input id="b" type="tel" /></form>
+        <form id="c"><input aria-label="Member ID" /><span id="d">Search the site</span><input name="lookup" aria-labelledby="d" type="tel" /></form>
+        <form id="e"><input aria-label="Account" /><input aria-label="Mobile" type="tel" /><button>Search</button></form>
+      `;
+      const { domWindow, browser } = installPageHelper(`${origin}/signin`, page);
+      for (const [username, phone] of [
+        ["ID number", "Search"],
+        ["Member ID", "lookup"],
+        ["Account", "Mobile"],
+      ] as const) {
+        fillId(browser, username);
+        expect(() => marked(browser, phone), phone).toThrow(/not into a search field/);
+      }
+      expect(domWindow.document.body.innerHTML).not.toContain("fake-phone");
+      for (const field of domWindow.document.querySelectorAll("input[type=tel]")) {
+        expect((field as HTMLInputElement).value).toBe("");
+      }
+    });
+
+    it("goes only into a small sign-in form or container, on the address the username went in", () => {
+      const page = `
+        <div id="signin"><input aria-label="ID number" /><input aria-label="Phone" type="tel" /></div>
+        <footer><input aria-label="Feedback" /></footer>
+        <form><input aria-label="Name" /><input aria-label="Email" /><input aria-label="Mobile" type="tel" /><textarea aria-label="Message"></textarea></form>
+        <form><input aria-label="First" /><input aria-label="Last" /><input aria-label="Street" /><input aria-label="Cell" type="tel" /></form>
+      `;
+      const { domWindow, browser } = installPageHelper(`${origin}/signin`, page);
+      // A field elsewhere on the page, outside the container both would share.
+      fillId(browser);
+      expect(() => marked(browser, "Feedback")).toThrow(/form its username was typed into/);
+      // A contact form, with a free-text box, and a long address form are no sign-in forms.
+      for (const [username, phone] of [
+        ["Name", "Mobile"],
+        ["First", "Cell"],
+      ] as const) {
+        fillId(browser, username);
+        expect(() => marked(browser, phone), phone).toThrow(/form its username was typed into/);
+      }
+      // After the page moves to another address, the username is typed again first, also when
+      // only its query or fragment changed, as a single-page app's screens do.
+      for (const address of ["/account/reviews", "/signin?step=feedback", "/signin#/feedback"]) {
+        domWindow.history.pushState({}, "", "/signin");
+        fillId(browser);
+        domWindow.history.pushState({}, "", address);
+        expect(() => marked(browser), address).toThrow(/form its username was typed into/);
+      }
+      domWindow.history.pushState({}, "", "/signin");
+      marked(browser);
+      expect(phoneField(domWindow).value).toBe("fake-phone-0501234");
+    });
+
+    it("counts a message box placed outside its form with form= as part of it", () => {
+      const { browser } = installPageHelper(
+        `${origin}/signin`,
+        '<form id="contact"><input aria-label="ID number" /><input aria-label="Phone" type="tel" /></form><textarea form="contact" aria-label="Message"></textarea>',
+      );
+      fillId(browser);
+      expect(() => marked(browser)).toThrow(/form its username was typed into/);
+    });
+
+    it("doesn't take a page's other box for part of a formless sign-in", () => {
+      const { browser } = installPageHelper(
+        `${origin}/signin`,
+        '<div id="app"><main><input aria-label="ID number" /><input aria-label="Phone" type="tel" /></main><footer><input aria-label="Feedback" /></footer></div>',
+      );
+      fillId(browser);
+      expect(() => marked(browser, "Feedback")).toThrow(/form its username was typed into/);
+      marked(browser);
+    });
+
+    it("doesn't take a re-rendered form for the same one without a name to tell", () => {
+      const { domWindow, browser } = installPageHelper(
+        `${origin}/signin`,
+        '<form><input aria-label="ID number" /></form>',
+      );
+      fillId(browser);
+      domWindow.document.body.innerHTML =
+        '<form><input aria-label="Rating" /><input aria-label="Phone" type="tel" /></form>';
+      expect(() => marked(browser)).toThrow(/form its username was typed into/);
+    });
+
+    it("keeps an unmarked password out of a field it made a password field, and leaves it as it was", () => {
+      const { domWindow, browser } = installPageHelper(`${origin}/signin`, idPage);
+      fillPhone(browser);
+      const field = phoneField(domWindow);
+      // Another login's real password, into the same field: judged by the field's own type.
+      expect(() =>
+        browser.fill(
+          refFor("Phone", browser.snapshot().elements),
+          "real-Passw0rd!",
+          origin,
+          "password",
+          undefined,
+          "other_login",
+        ),
+      ).toThrow(`Refused: ${NO_PASSWORD_FIELD_REFUSAL}`);
+      // Refused, it changes nothing: the marked value stays, held as before.
+      expect(field.type).toBe("password");
+      expect(field.value).toBe("fake-phone-0501234");
+    });
+
+    it("starts no selection in the field it holds, by mouse or keyboard", () => {
+      const { domWindow, browser } = installPageHelper(`${origin}/signin`, idPage);
+      fillPhone(browser);
+      const field = phoneField(domWindow);
+      const dispatch = (event: Event) => {
+        field.dispatchEvent(event);
+        return event.defaultPrevented;
+      };
+      for (const detail of [1, 2, 3]) {
+        expect(
+          dispatch(new domWindow.MouseEvent("mousedown", { button: 0, detail, cancelable: true })),
+        ).toBe(true);
+        expect([field.selectionStart, field.selectionEnd]).toEqual([18, 18]);
+      }
+      expect(dispatch(new domWindow.MouseEvent("mousedown", { button: 1, cancelable: true }))).toBe(
+        false,
+      );
+      for (const key of [
+        { key: "ש", code: "KeyA", ctrlKey: true },
+        { key: "ф", code: "KeyA", metaKey: true },
+        { key: "End", code: "End", shiftKey: true },
+      ]) {
+        expect(
+          dispatch(new domWindow.KeyboardEvent("keydown", { ...key, cancelable: true })),
+          key.key,
+        ).toBe(true);
+      }
+      expect(
+        dispatch(new domWindow.KeyboardEvent("keydown", { key: "ArrowLeft", cancelable: true })),
+      ).toBe(false);
+      for (const type of ["selectstart", "contextmenu"]) {
+        expect(dispatch(new domWindow.Event(type, { bubbles: true, cancelable: true })), type).toBe(
+          true,
+        );
+      }
+      field.select();
+      field.dispatchEvent(new domWindow.Event("select", { bubbles: true }));
+      expect([field.selectionStart, field.selectionEnd]).toEqual([18, 18]);
+      // Keyboard focus would select it all, so Tab skips it; undo can't bring the value back.
+      expect(field.getAttribute("tabindex")).toBe("-1");
+      const undo = new domWindow.InputEvent("beforeinput", {
+        inputType: "historyUndo",
+        cancelable: true,
+      });
+      field.dispatchEvent(undo);
+      expect(undo.defaultPrevented).toBe(true);
+      // Filled with something else, it is the page's again.
+      browser.fill(refFor("Phone", browser.snapshot().elements), "0501234567");
+      expect(field.hasAttribute("tabindex")).toBe(false);
+    });
+
+    it("hides a number saved internationally where the page shows it nationally, within bounds", () => {
+      const { domWindow, browser } = installPageHelper(`${origin}/signin`, idPage);
+      fillPhone(browser, "Phone", "+972501234567");
+      const echo = domWindow.document.createElement("p");
+      echo.textContent = "Sent to 050\u2011123\u20114567, ref 000000.";
+      domWindow.document.body.append(echo);
+      const shown = JSON.stringify(browser.snapshot());
+      expect(shown).not.toMatch(/123.{0,3}4567/);
+      expect(shown).toContain("ref 000000");
+      // A run of zeros, or a value too long to be a number, is matched only as it is.
+      const zeros = installPageHelper(`${origin}/signin`, idPage);
+      fillPhone(zeros.browser, "Phone", "000000");
+      const text = zeros.domWindow.document.createElement("p");
+      text.textContent = "Order 4567, page 2";
+      zeros.domWindow.document.body.append(text);
+      expect(JSON.stringify(zeros.browser.snapshot())).toContain("Order 4567, page 2");
+      // Six or seven digits are matched only with spaces or dashes between.
+      const short = installPageHelper(`${origin}/signin`, idPage);
+      fillPhone(short.browser, "Phone", "123456");
+      const note = short.domWindow.document.createElement("p");
+      note.textContent = "Code 123-456. Version 1.2.3.4.5.6, date 12/34/56.";
+      short.domWindow.document.body.append(note);
+      expect(JSON.stringify(short.browser.snapshot())).toContain(
+        "Code [redacted]. Version 1.2.3.4.5.6, date 12/34/56.",
+      );
+    });
+
+    it("follows a sign-in form the page re-renders after the username", () => {
+      const page = '<form id="signin" action="/signin"><input aria-label="ID number" /></form>';
+      const { domWindow, browser } = installPageHelper(`${origin}/signin`, page);
+      fillId(browser);
+      domWindow.document.body.innerHTML =
+        '<form id="signin" action="/signin"><input aria-label="ID number" /><input aria-label="Phone" type="tel" /></form>';
+      marked(browser);
+      expect(phoneField(domWindow).value).toBe("fake-phone-0501234");
+    });
+
+    it("hides a phone number the page shows reformatted, in fields and text", async () => {
+      const { domWindow, browser } = installPageHelper(`${origin}/signin`, idPage);
+      fillPhone(browser, "Phone", "0501234567");
+      // A phone widget that re-renders the field reformatted, unmasked, and echoes the number.
+      phoneField(domWindow).outerHTML =
+        '<input aria-label="Phone" type="tel" value="050-123-4567">';
+      const echo = domWindow.document.createElement("p");
+      echo.textContent = "We sent a code to +972 50-123 4567.";
+      domWindow.document.body.append(echo);
+      const shown = JSON.stringify(browser.snapshot());
+      expect(shown).not.toMatch(/123.?4567/);
+      expect(shown).toContain("We sent a code to +972 [redacted].");
+      // So does every page-browser result, which carries the same snapshot.
+      expect(JSON.stringify(browser.snapshot().tree)).not.toMatch(/4567/);
+      // Also in the page's title and address, beside the tree, URL-encoded or not.
+      domWindow.document.title = "Code sent to 050-123-4567";
+      domWindow.history.pushState({}, "", "/sent?to=%2B972%2050%20123%204567&id=fake-id");
+      const result = browser.snapshot() as unknown as { url: string; title: string };
+      expect(result.title).toBe("Code sent to 0[redacted]");
+      expect(result.url).toBe(`${origin}/sent?to=%2B972%20[redacted]&id=fake-id`);
+      // Encoded Unicode dashes too: 050\u2011123\u20114567.
+      domWindow.history.pushState({}, "", "/sent?to=050%E2%80%91123%E2%80%914567&id=fake-id");
+      expect((browser.snapshot() as unknown as { url: string }).url).toBe(
+        `${origin}/sent?to=0[redacted]&id=fake-id`,
+      );
+      // Other numbers stay readable.
+      echo.textContent = "Order 4471";
+      expect(JSON.stringify(browser.snapshot())).toContain("Order 4471");
+    });
+
+    it("passes over page text that stops one digit short quickly, whatever its separators", () => {
+      const { domWindow, browser } = installPageHelper(`${origin}/signin`, idPage);
+      fillPhone(browser, "Phone", "98765432101234567890");
+      for (const gap of ["%20%20%20", "%2F%2F%2F%2F", " - "]) {
+        const nearMiss = `${"9876543210123456789".split("").join(gap)}x`;
+        domWindow.document.title = nearMiss;
+        const started = performance.now();
+        const { title } = browser.snapshot() as unknown as { title: string };
+        expect(nearMiss.startsWith(title), gap).toBe(true);
+        expect(performance.now() - started, gap).toBeLessThan(100);
+      }
+    });
+
+    it("empties it when the page shows it as text, reformatted or not", async () => {
+      const { domWindow, browser } = installPageHelper(`${origin}/signin`, idPage);
+      const field = phoneField(domWindow);
+      const events: string[] = [];
+      field.addEventListener("input", () => events.push(field.value));
+      fillPhone(browser, "Phone", "0501234567");
+      // The page reformats it, then turns the field back into a telephone field.
+      field.value = "050-123-4567";
+      field.type = "tel";
+      await Promise.resolve();
+      expect(field.value).toBe("");
+      expect(events).toEqual(["0501234567", ""]);
+      // A page's own input events don't count as the person's edit: it still holds the login.
+      fillPhone(browser, "Phone", "0501234567");
+      field.value = "+972 50 123 4567";
+      field.dispatchEvent(new domWindow.Event("input", { bubbles: true }));
+      field.type = "text";
+      await nextFrame(domWindow);
+      expect(field.value).toBe("");
+    });
+
+    it("leaves a field the page turned back into text to whoever types next", async () => {
+      const { domWindow, browser } = installPageHelper(`${origin}/signin`, idPage);
+      const field = phoneField(domWindow);
+      fillPhone(browser, "Phone", "0501234567");
+      field.type = "tel";
+      await Promise.resolve();
+      expect(field.value).toBe("");
+      const emptied: string[] = [];
+      field.addEventListener("input", () => emptied.push(field.value));
+      // Someone taking over types into the cleared field: it stays, with no more events.
+      field.value = "my own text";
+      await nextFrame(domWindow);
+      await nextFrame(domWindow);
+      expect(field.value).toBe("my own text");
+      expect(emptied).toEqual([]);
+      // The page putting the login back, reformatted, is still emptied.
+      field.value = "050-123-4567";
+      await nextFrame(domWindow);
+      expect(field.value).toBe("");
+    });
+
+    it("lets go of a field the page removes, emptied and with its own type", async () => {
+      const { domWindow, browser } = installPageHelper(`${origin}/signin`, idPage);
+      const field = phoneField(domWindow);
+      fillPhone(browser);
+      expect(field.type).toBe("password");
+      field.remove();
+      await nextFrame(domWindow);
+      await nextFrame(domWindow);
+      expect(field.value).toBe("");
+      expect(field.getAttribute("type")).toBe("tel");
+      // Nothing watches it any more: put back and given a value, it keeps it.
+      domWindow.document.body.append(field);
+      field.value = "typed later";
+      await nextFrame(domWindow);
+      expect(field.value).toBe("typed later");
+    });
+
+    it("reports a field the page replaced as the value went in as uncertain, not cleared", () => {
+      const { domWindow, browser } = installPageHelper(`${origin}/signin`, idPage);
+      fillId(browser);
+      const field = phoneField(domWindow);
+      field.addEventListener("input", () => field.replaceWith(field.cloneNode()), { once: true });
+      expect(() => marked(browser)).toThrow(
+        /^The page replaced this field as the login was typed\./,
+      );
+    });
+
+    it("gives the field back its own type when it is typed over or refused", () => {
+      const { domWindow, browser } = installPageHelper(`${origin}/signin`, idPage);
+      const field = phoneField(domWindow);
+      fillPhone(browser);
+      // An SPA reusing the input for the code step: typing into it empties it and unmasks it.
+      browser.focusForKeys(refFor("Phone", browser.snapshot().elements), false);
+      expect(field.value).toBe("");
+      expect(field.type).toBe("tel");
+      // A field that only partly accepts the value is emptied and given back too.
+      fillId(browser);
+      field.maxLength = 4;
+      Object.defineProperty(field, "value", {
+        configurable: true,
+        get: () => "trunc",
+        set: () => undefined,
+      });
+      expect(() => marked(browser)).toThrow(/didn't accept the saved login/);
+      expect(field.getAttribute("type")).toBe("tel");
+    });
+
+    it("refuses other fields, and a page that has a password field of its own", () => {
+      const { domWindow, browser } = installPageHelper(`${origin}/signin`, idPage);
+      for (const label of ["Email", "Query", "Notes"]) {
+        expect(() => fillPhone(browser, label)).toThrow(
+          /text or telephone field on a page without one/,
+        );
+      }
+      // A real password belongs in the page's password field, also inside an open shadow root.
+      const host = domWindow.document.createElement("div");
+      host.attachShadow({ mode: "open" }).innerHTML = '<input type="password" />';
+      domWindow.document.body.append(host);
+      expect(() => fillPhone(browser)).toThrow(/on a page without one/);
+      host.remove();
+      domWindow.document.body.insertAdjacentHTML("beforeend", '<input type="password" />');
+      expect(() => fillPhone(browser)).toThrow(/on a page without one/);
+      expect(domWindow.document.body.innerHTML).not.toContain("fake-phone");
+      expect(phoneField(domWindow).value).toBe("");
+    });
+
+    it("tells the bot how to ask for an unmarked password a page has nowhere to put", () => {
+      const { domWindow, browser } = installPageHelper(`${origin}/signin`, idPage);
+      const ref = refFor("Phone", browser.snapshot().elements);
+      expect(() => browser.fill(ref, "fake-phone-0501234", origin, "password")).toThrow(
+        `Refused: ${NO_PASSWORD_FIELD_REFUSAL}`,
+      );
+      expect(phoneField(domWindow).value).toBe("");
+      // With a password field on the page, the usual refusal.
+      domWindow.document.body.insertAdjacentHTML("beforeend", '<input type="password" />');
+      expect(() => browser.fill(ref, "fake-phone-0501234", origin, "password")).toThrow(
+        "Refused: A saved password can only be typed into a password field.",
+      );
+    });
+
+    it("gives the field back its own type when it is filled again with something else", async () => {
+      const { domWindow, browser } = installPageHelper(`${origin}/signin`, idPage);
+      const field = phoneField(domWindow);
+      fillPhone(browser);
+      browser.fill(refFor("Phone", browser.snapshot().elements), "0501234567");
+      await nextFrame(domWindow);
+      expect(field.value).toBe("0501234567");
+      expect(field.type).toBe("tel");
+    });
   });
 
   it("refuses a password field that the page turns into text when it is focused", () => {

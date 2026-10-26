@@ -3820,6 +3820,11 @@ msgstr "Нет триггера"
 msgid "Normal"
 msgstr ""
 
+#: src/components/AskCard.tsx
+#: src/pages/shell/bot-credentials.tsx
+msgid "Not a password"
+msgstr "Не пароль"
+
 #: src/pages/shell/agent-import.tsx
 msgid "Not a valid skill"
 msgstr "Недопустимый навык"

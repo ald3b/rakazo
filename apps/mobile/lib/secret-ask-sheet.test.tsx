@@ -111,10 +111,31 @@ vi.mock("../components/native-action-button", () => ({
   ),
 }));
 
+vi.mock("../components/native-switch", () => ({
+  NativeSwitch: ({
+    value,
+    onValueChange,
+    accessibilityLabel,
+  }: {
+    value: boolean;
+    onValueChange: (value: boolean) => void;
+    accessibilityLabel?: string;
+  }) => (
+    <input
+      type="checkbox"
+      role="switch"
+      aria-checked={value}
+      aria-label={accessibilityLabel}
+      checked={value}
+      onChange={() => onValueChange(!value)}
+    />
+  ),
+}));
+
 import { SecretAskSheet } from "../components/secret-ask-sheet";
 
 const onClose = vi.fn();
-const onSave = vi.fn<(password: string, username: string) => Promise<void>>();
+const onSave = vi.fn<(password: string, username: string, secondValue?: "text") => Promise<void>>();
 let root: Root;
 let container: HTMLDivElement;
 
@@ -135,7 +156,7 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
-async function render(pending = true) {
+async function render(pending = true, notPasswordOffer?: "offered" | "on") {
   await act(async () =>
     root.render(
       <SecretAskSheet
@@ -144,6 +165,7 @@ async function render(pending = true) {
         pending={pending}
         onClose={onClose}
         onSave={onSave}
+        notPasswordOffer={notPasswordOffer}
       />,
     ),
   );
@@ -246,7 +268,7 @@ it("saves the password and trimmed username, then clears both fields", async () 
   await act(async () => button("Save").click());
 
   expect(onSave).toHaveBeenCalledTimes(1);
-  expect(onSave).toHaveBeenCalledWith(" example-password ", "ada@example.test");
+  expect(onSave).toHaveBeenCalledWith(" example-password ", "ada@example.test", undefined);
   expect(field("Username").value).toBe("");
   expect(field("Password").value).toBe("");
 });
@@ -358,4 +380,39 @@ it("keeps Cancel and Save as the only sheet actions", async () => {
     "Cancel",
     "Save",
   ]);
+});
+
+it.each([false, true])(
+  "marks the second value as not a password only when the person turns it on: %s",
+  async (markOn) => {
+    await render(true, "offered");
+    const toggle = container.querySelector<HTMLInputElement>('[role="switch"]')!;
+    expect(toggle.getAttribute("aria-label")).toBe("Not a password");
+    expect(toggle.getAttribute("aria-checked")).toBe("false");
+    if (markOn) await act(async () => toggle.click());
+    await type("Username", "fake-id");
+    await type("Password", "fake-phone-0501234");
+    await act(async () => button("Save").click());
+
+    expect(onSave).toHaveBeenCalledWith(
+      "fake-phone-0501234",
+      "fake-id",
+      markOn ? "text" : undefined,
+    );
+  },
+);
+
+it("starts the switch on for a login the person already marked", async () => {
+  await render(true, "on");
+  expect(container.querySelector('[role="switch"]')!.getAttribute("aria-checked")).toBe("true");
+});
+
+it("shows no switch and sends no mark on an ordinary login sheet", async () => {
+  onSave.mockResolvedValue();
+  await render();
+  expect(container.querySelector('[role="switch"]')).toBeNull();
+  await type("Username", "fake-user");
+  await type("Password", "fake-password-1");
+  await act(async () => button("Save").click());
+  expect(onSave).toHaveBeenCalledWith("fake-password-1", "fake-user", undefined);
 });

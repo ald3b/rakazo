@@ -3820,6 +3820,11 @@ msgstr "Sin disparador"
 msgid "Normal"
 msgstr ""
 
+#: src/components/AskCard.tsx
+#: src/pages/shell/bot-credentials.tsx
+msgid "Not a password"
+msgstr "No es una contraseña"
+
 #: src/pages/shell/agent-import.tsx
 msgid "Not a valid skill"
 msgstr "No es una habilidad válida"

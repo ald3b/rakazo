@@ -2889,7 +2889,7 @@ describe("answerRunInput", () => {
       origin: "https://login.example.test",
       auth: { type: "login" },
     };
-    function loginFixture(credential: object = login) {
+    function loginFixture(credential: object = login, notPassword?: "offered" | "on") {
       const store = vi.fn().mockResolvedValue(undefined);
       const tx = {
         $queryRaw: vi.fn().mockResolvedValue([{ id: "thread-1" }]),
@@ -2904,6 +2904,7 @@ describe("answerRunInput", () => {
                 purpose: "password",
                 credential,
                 status: "pending",
+                ...(notPassword ? { notPassword } : {}),
               },
             ],
           }),
@@ -2927,7 +2928,7 @@ describe("answerRunInput", () => {
       const prisma = {
         $transaction: vi.fn(async (callback: (client: typeof tx) => unknown) => callback(tx)),
       } as unknown as PrismaClient;
-      const answer = (username?: string, password = "fake-password-1") =>
+      const answer = (username?: string, password = "fake-password-1", secondValue?: "text") =>
         answerRunInput(
           prisma,
           {
@@ -2938,6 +2939,7 @@ describe("answerRunInput", () => {
             answeredByUserId: "user-1",
             answer: password,
             ...(username !== undefined ? { username } : {}),
+            ...(secondValue ? { secondValue } : {}),
           },
           new TestFanout(),
           { store },
@@ -2975,6 +2977,44 @@ describe("answerRunInput", () => {
       await expect(answer("fake-user", "x".repeat(4097))).resolves.toBe(false);
       expect(store).not.toHaveBeenCalled();
       expect(tx.run.updateMany).not.toHaveBeenCalled();
+    });
+
+    it("stores the person's mark that the second value is not a password", async () => {
+      const { store, answer } = loginFixture(login, "offered");
+      await expect(answer("fake-id-12345", "fake-phone-0501234", "text")).resolves.toBe(true);
+      expect(store).toHaveBeenCalledWith(
+        expect.objectContaining({
+          credential: login,
+          plaintext: encodeLoginSecret({
+            username: "fake-id-12345",
+            password: "fake-phone-0501234",
+            secondValue: "text",
+          }),
+        }),
+      );
+    });
+
+    it("rejects the mark on a login card the backend didn't offer it on", async () => {
+      const { store, answer } = loginFixture();
+      await expect(answer("fake-id-12345", "fake-phone-0501234", "text")).resolves.toBe(false);
+      expect(store).not.toHaveBeenCalled();
+    });
+
+    it("rejects the mark on a card that is not a login", async () => {
+      const { store, answer } = loginFixture({ ...login, auth: { type: "bearer" } });
+      await expect(answer(undefined, "fake-token", "text")).resolves.toBe(false);
+      expect(store).not.toHaveBeenCalled();
+    });
+
+    it("never takes the mark from the login the bot asked for", async () => {
+      const { store, answer } = loginFixture({
+        ...login,
+        auth: { type: "login", secondValue: "text" },
+      });
+      await expect(answer("fake-user", "fake-password-1")).resolves.toBe(true);
+      expect(store.mock.calls[0]![0].plaintext).toBe(
+        encodeLoginSecret({ username: "fake-user", password: "fake-password-1" }),
+      );
     });
 
     it("rejects a username on a card that is not a login", async () => {

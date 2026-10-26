@@ -34,6 +34,22 @@ vi.mock("@rakazo/ui-web", () => ({
   Input: (props: ComponentProps<"input">) => <input {...props} />,
   NativeSelect: (props: ComponentProps<"select">) => <select {...props} />,
   NativeSelectOption: (props: ComponentProps<"option">) => <option {...props} />,
+  Switch: ({
+    checked,
+    onCheckedChange,
+    ...props
+  }: Omit<ComponentProps<"button">, "onChange"> & {
+    checked: boolean;
+    onCheckedChange: (checked: boolean) => void;
+  }) => (
+    <button
+      {...props}
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      onClick={() => onCheckedChange(!checked)}
+    />
+  ),
 }));
 
 import { BotCredentialsSection } from "./bot-credentials";
@@ -233,6 +249,67 @@ describe("BotCredentialsSection", () => {
       },
       value: encodeLoginSecret({ username: "jamie", password: FAKE_VALUE }),
     });
+  });
+
+  it("saves a login's second value marked as not a password only when switched on", async () => {
+    botSecrets.put.mockResolvedValue(rows[3]);
+    await render();
+    await click("credential-add");
+    await type("credential-auth-type", "login");
+    expect(byTestId("credential-not-password").getAttribute("aria-checked")).toBe("false");
+    await type("credential-name", "portal2");
+    await type("credential-origin", "https://portal.example.com");
+    await type("credential-username", "fake-id");
+    await type("credential-value", FAKE_VALUE);
+    await click("credential-not-password");
+    await click("credential-add-save");
+
+    expect(botSecrets.put).toHaveBeenCalledWith(
+      expect.objectContaining({
+        value: encodeLoginSecret({
+          username: "fake-id",
+          password: FAKE_VALUE,
+          secondValue: "text",
+        }),
+      }),
+    );
+  });
+
+  it.each([true, false])(
+    "presets the switch from the saved login when replacing it (marked: %s)",
+    async (marked) => {
+      botSecrets.list.mockResolvedValue(
+        rows.map((row) =>
+          row.name === "portal" && marked ? { ...row, secondValue: "text" } : row,
+        ),
+      );
+      botSecrets.put.mockResolvedValue(rows[3]);
+      await render();
+      await click("credential-replace-portal");
+      const toggle = byTestId("credential-replace-not-password");
+      expect(toggle.getAttribute("aria-checked")).toBe(String(marked));
+      await type("credential-replace-username", "fake-id");
+      await type("credential-replace-value", FAKE_VALUE);
+      await click("credential-replace-save");
+
+      expect(botSecrets.put).toHaveBeenCalledWith(
+        expect.objectContaining({
+          value: encodeLoginSecret({
+            username: "fake-id",
+            password: FAKE_VALUE,
+            ...(marked ? { secondValue: "text" as const } : {}),
+          }),
+        }),
+      );
+    },
+  );
+
+  it("offers the not-a-password switch only for website logins", async () => {
+    await render();
+    await click("credential-add");
+    expect(container.querySelector('[data-testid="credential-not-password"]')).toBeNull();
+    await click("credential-replace-api");
+    expect(container.querySelector('[role="switch"]')).toBeNull();
   });
 
   it("replaces a value on the same destination", async () => {

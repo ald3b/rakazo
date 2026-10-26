@@ -3820,6 +3820,11 @@ msgstr "无触发器"
 msgid "Normal"
 msgstr ""
 
+#: src/components/AskCard.tsx
+#: src/pages/shell/bot-credentials.tsx
+msgid "Not a password"
+msgstr "不是密码"
+
 #: src/pages/shell/agent-import.tsx
 msgid "Not a valid skill"
 msgstr "不是有效的技能"

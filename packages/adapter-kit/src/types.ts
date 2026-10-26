@@ -1023,6 +1023,13 @@ export type BrowserActStep =
       origin?: string;
       /** Which part of a saved login `text` is; a password is typed only into a password field. */
       field?: "username" | "password";
+      /**
+       * The person marked the password as not one (a phone number, say): it may also go into a
+       * masked text or telephone field, on a page without a password field.
+       */
+      secondValue?: "text";
+      /** The saved login's name, so its second value follows its own username into one form. */
+      login?: string;
     };
 
 export interface BrowserActRequest {

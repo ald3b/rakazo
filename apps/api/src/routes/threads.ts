@@ -510,6 +510,7 @@ export function threadsRoutes(ctx: RouterContext) {
             answer: input.answer,
             clientNonce: input.clientNonce,
             username: input.username,
+            secondValue: input.secondValue,
             dismiss: input.dismiss,
           })
           .catch((error: unknown) => {

@@ -1036,6 +1036,7 @@ export function createRunExecutor(deps: ExecutorDeps) {
           toolCallStreak: { key: undefined, count: 0 },
           tainted: initiallyTainted,
           earlierAttempt: undefined,
+          noPasswordFieldLogins: new Set(),
           handedOff: false,
           terminalCheckpointComplete: false,
         };

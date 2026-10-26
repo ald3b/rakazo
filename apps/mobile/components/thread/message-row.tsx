@@ -49,6 +49,7 @@ export type MessageRowActions = {
     answer: string,
     username?: string,
     dismiss?: boolean,
+    secondValue?: "text",
   ) => Promise<void>;
   openBot: (id: string, name: string) => void;
   openComputer: (id: string, name: string) => void;

@@ -5,6 +5,7 @@ import {
   browserActFromTool,
   browserNavigateFromTool,
   browserSnapshotFromTool,
+  NO_PASSWORD_FIELD_REFUSAL,
   parseBrowserActions,
 } from "./browser-tools.js";
 import { FakeBrowserProvider } from "./fake-browser.js";
@@ -290,6 +291,97 @@ describe("browser tools", () => {
         expect(JSON.stringify(acted), field).toMatch(error);
         expect(JSON.stringify(acted), field).not.toContain(values[field]);
       }
+    });
+
+    it("sends the person's mark only from the resolved login, never from the bot's step", async () => {
+      const browser = new FakeBrowserProvider();
+      const act = vi
+        .spyOn(browser, "act")
+        .mockResolvedValue({ ok: true, completed: 2, url: "", title: "" });
+      const marked = async (step: { field: "username" | "password" }) => ({
+        ...(await resolveSecretFill(step)),
+        ...(step.field === "password" ? { secondValue: "text" as const } : {}),
+      });
+      for (const resolve of [marked, resolveSecretFill]) {
+        act.mockClear();
+        await browserActFromTool(
+          browser,
+          computer,
+          context,
+          {
+            actions: [
+              { kind: "fill_secret", ref: "e1", secret: "site_login", field: "username" },
+              {
+                kind: "fill_secret",
+                ref: "e2",
+                secret: "site_login",
+                field: "password",
+                secondValue: "text",
+              },
+            ],
+          },
+          { resolveSecretFill: resolve },
+        );
+        const sent = act.mock.calls[0]?.[1].actions as Array<{ secondValue?: string }>;
+        expect(sent.map((step) => step.secondValue)).toEqual(
+          resolve === marked ? [undefined, "text"] : [undefined, undefined],
+        );
+      }
+    });
+
+    it("names the login on each of its fills, so its second value follows its own username", async () => {
+      const browser = new FakeBrowserProvider();
+      const act = vi
+        .spyOn(browser, "act")
+        .mockResolvedValue({ ok: true, completed: 2, url: "", title: "" });
+      await browserActFromTool(
+        browser,
+        computer,
+        context,
+        {
+          actions: [
+            { kind: "fill_secret", ref: "e1", secret: "site_login", field: "username" },
+            { kind: "fill_secret", ref: "e2", secret: "site_login", field: "password" },
+          ],
+        },
+        { resolveSecretFill },
+      );
+      const sent = act.mock.calls[0]?.[1].actions as Array<{ login?: string }>;
+      expect(sent.map((step) => step.login)).toEqual(["site_login", "site_login"]);
+    });
+
+    it("reports a login whose password the page had nowhere to put", async () => {
+      const browser = new FakeBrowserProvider();
+      const onNoPasswordField = vi.fn();
+      const act = vi.spyOn(browser, "act");
+      const run = (error: string, completed: number) => {
+        act.mockResolvedValueOnce({
+          ok: false,
+          completed,
+          uncertain: false,
+          error,
+          url: "",
+          title: "",
+        });
+        return browserActFromTool(
+          browser,
+          computer,
+          context,
+          {
+            actions: [
+              { kind: "fill_secret", ref: "e1", secret: "site_login", field: "username" },
+              { kind: "fill_secret", ref: "e2", secret: "site_login", field: "password" },
+            ],
+          },
+          { resolveSecretFill, onNoPasswordField },
+        );
+      };
+      await run("A saved password can only be typed into a password field.", 1);
+      // A refusal of another step, or another kind, records nothing.
+      await run(NO_PASSWORD_FIELD_REFUSAL, 0);
+      expect(onNoPasswordField).not.toHaveBeenCalled();
+      await run(NO_PASSWORD_FIELD_REFUSAL, 1);
+      expect(onNoPasswordField).toHaveBeenCalledExactlyOnceWith("site_login");
     });
 
     it("never reports a login-filled field's value, even when too short to redact", async () => {

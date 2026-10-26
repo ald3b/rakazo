@@ -82,6 +82,7 @@ export const MessageView = memo(function MessageView({
     text: string,
     username?: string,
     dismiss?: boolean,
+    secondValue?: "text",
   ) => Promise<void>;
   onOpenBot: (botId: string) => void;
   onOpenPeerMessages: (peer: { peerBotId: string; peerBotName: string }) => void;
@@ -549,7 +550,9 @@ export const MessageView = memo(function MessageView({
                   block={block}
                   canAnswer={canAnswer}
                   canDismiss={canDismiss}
-                  onAnswer={(text, username) => onAnswer(message, text, username)}
+                  onAnswer={(text, username, secondValue) =>
+                    onAnswer(message, text, username, undefined, secondValue)
+                  }
                   onDismiss={() => onAnswer(message, "", undefined, true)}
                 />
                 {i === hoverAnchorIndex ? hoverActions : null}

@@ -188,7 +188,7 @@ it("keeps an accepted secret Save answered without a block update", async () => 
 
   await act(async () => button("Save")!.click());
 
-  expect(onAnswer).toHaveBeenCalledWith("example-key", undefined);
+  expect(onAnswer).toHaveBeenCalledWith("example-key", undefined, undefined);
   expect(container.textContent).toContain("Saved");
   expect(container.textContent).not.toContain("example-key");
   expect(container.querySelector("input")).toBeNull();
@@ -211,7 +211,7 @@ it("keeps an accepted question choice answered until the block updates", async (
 
   await act(async () => button("Paris")!.click());
 
-  expect(onAnswer).toHaveBeenCalledWith("paris", undefined);
+  expect(onAnswer).toHaveBeenCalledWith("paris", undefined, undefined);
   expect(container.textContent).toContain("Answered: Paris");
   expect(container.querySelector("input")).toBeNull();
   expect(container.querySelector("button")).toBeNull();
@@ -370,4 +370,67 @@ it("offers import on the unanswered first-run focus card only", async () => {
     );
     expect(link()).toBeUndefined();
   }
+});
+
+const loginCard: AskBlock = {
+  kind: "ask",
+  text: "Sign in",
+  input: "secret",
+  purpose: "password",
+  credential: {
+    name: "example_login",
+    origin: "https://login.example.test",
+    auth: { type: "login" },
+  },
+  status: "pending",
+};
+
+it.each([false, true])(
+  "marks a login's second value as not a password only when the person turns it on: %s",
+  async (markOn) => {
+    const onAnswer = vi.fn(async () => undefined);
+    await render({ ...loginCard, notPassword: "offered" }, async () => undefined, onAnswer);
+    const toggle = container.querySelector<HTMLElement>('[role="switch"]')!;
+    expect(toggle.getAttribute("aria-checked")).toBe("false");
+    // The switch is named by its visible label.
+    const label = toggle.getAttribute("aria-labelledby")!;
+    expect(container.querySelector(`[id="${label}"]`)?.textContent).toBe("Not a password");
+    if (markOn) await act(async () => toggle.click());
+    await type("Username", "fake-id");
+    await type("Password", "fake-phone-0501234");
+    await act(async () => button("Save")!.click());
+
+    expect(onAnswer).toHaveBeenCalledWith(
+      "fake-phone-0501234",
+      "fake-id",
+      markOn ? "text" : undefined,
+    );
+  },
+);
+
+it("starts the switch on for a login the person already marked", async () => {
+  const onAnswer = vi.fn(async () => undefined);
+  await render({ ...loginCard, notPassword: "on" }, async () => undefined, onAnswer);
+  const toggle = container.querySelector<HTMLElement>('[role="switch"]')!;
+  expect(toggle.getAttribute("aria-checked")).toBe("true");
+  await type("Username", "fake-id");
+  await type("Password", "fake-phone-0501234");
+  await act(async () => button("Save")!.click());
+  expect(onAnswer).toHaveBeenCalledWith("fake-phone-0501234", "fake-id", "text");
+});
+
+it("offers the not-a-password switch only where the backend offers it", async () => {
+  // An ordinary login card has no switch and never sends the mark.
+  const onAnswer = vi.fn(async () => undefined);
+  await render(loginCard, async () => undefined, onAnswer);
+  expect(container.querySelector('[role="switch"]')).toBeNull();
+  await type("Username", "fake-user");
+  await type("Password", "fake-password-1");
+  await act(async () => button("Save")!.click());
+  expect(onAnswer).toHaveBeenCalledWith("fake-password-1", "fake-user", undefined);
+  await render(secretCard);
+  expect(container.querySelector('[role="switch"]')).toBeNull();
+  await render({ kind: "ask", text: "Code", input: "secret", purpose: "otp", status: "pending" });
+  expect(container.querySelector('[role="switch"]')).toBeNull();
+  expect(container.textContent).not.toContain("Not a password");
 });

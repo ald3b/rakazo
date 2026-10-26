@@ -8,6 +8,7 @@ import {
   credentialArgument,
   loadLoginPasswordRedactions,
   normalizeSecretDestination,
+  notPasswordOffer,
   requestWithBotSecret,
   resolveLoginFill,
   resolveRequestSecretDestination,
@@ -804,8 +805,13 @@ describe("saved website logins", () => {
     auth: object = login.auth,
     origin = login.origin,
     password = "fake-password-1",
+    secondValue?: "text",
   ) {
-    const plaintext = encodeLoginSecret({ username, password });
+    const plaintext = encodeLoginSecret({
+      username,
+      password,
+      ...(secondValue ? { secondValue } : {}),
+    });
     const encrypted = await secretStore.put(
       plaintext,
       { ...scope, operationId: "test", traceId: "test", signal: new AbortController().signal },
@@ -917,6 +923,74 @@ describe("saved website logins", () => {
       text: "fake-user@example.test",
     });
   });
+
+  it("passes the person's mark only with the second value", async () => {
+    const { prisma } = await loginFixture(
+      "fake-id-12345",
+      login.auth,
+      login.origin,
+      "fake-phone-0501234",
+      "text",
+    );
+    const input = { prisma, secretStore, scope, name: "site_login" };
+    expect(await resolveLoginFill({ ...input, field: "password" })).toMatchObject({
+      text: "fake-phone-0501234",
+      secondValue: "text",
+    });
+    expect(await resolveLoginFill({ ...input, field: "username" })).not.toHaveProperty(
+      "secondValue",
+    );
+    const unmarked = await loginFixture("fake-user@example.test");
+    expect(
+      await resolveLoginFill({ ...input, prisma: unmarked.prisma, field: "password" }),
+    ).not.toHaveProperty("secondValue");
+  });
+
+  it("hides a marked phone number reformatted, in its run and every run", async () => {
+    const { prisma } = await loginFixture(
+      "fake-id-12345",
+      login.auth,
+      login.origin,
+      "0501234567",
+      "text",
+    );
+    const text = "Code sent to +972 50-123-4567, or call (050) 123 4567. Order 4471.";
+    // The national prefix and country code stay; the number's own digits don't.
+    const hidden = "Code sent to +972 [redacted], or call (0[redacted]. Order 4471.";
+    const fill = await resolveLoginFill({
+      prisma,
+      secretStore,
+      scope,
+      name: "site_login",
+      field: "password",
+    });
+    expect("redactions" in fill && redactSecrets(text, fill.redactions)).toBe(hidden);
+    expect(redactSecrets(text, await loadLoginPasswordRedactions(prisma, secretStore, scope))).toBe(
+      hidden,
+    );
+    // An unmarked password is hidden only as it is.
+    const unmarked = await loginFixture("fake-id-12345", login.auth, login.origin, "0501234567");
+    expect(
+      redactSecrets(text, await loadLoginPasswordRedactions(unmarked.prisma, secretStore, scope)),
+    ).toBe(text);
+  });
+
+  it.each([
+    [true, false, "on"],
+    [true, true, "on"],
+    [false, true, "offered"],
+    [false, false, undefined],
+  ])(
+    "offers Not a password from the saved mark (%s) and this run's refusal (%s)",
+    async (savedMark, refused, expected) => {
+      const findFirst = vi.fn(async () => ({ notPassword: savedMark }));
+      const prisma = { botSecret: { findFirst } } as unknown as PrismaClient;
+      expect(await notPasswordOffer(prisma, scope, "site_login", refused)).toBe(expected);
+      expect(findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ name: "site_login" }) }),
+      );
+    },
+  );
 
   it("does not redact a short username that would mangle unrelated text", async () => {
     const { prisma } = await loginFixture("ada");

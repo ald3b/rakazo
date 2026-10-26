@@ -254,13 +254,20 @@ export function useThreadSend({
   }
 
   const answer = useCallback(
-    (message: MobileMessage, answer: string, username?: string, dismiss?: boolean) =>
+    (
+      message: MobileMessage,
+      answer: string,
+      username?: string,
+      dismiss?: boolean,
+      secondValue?: "text",
+    ) =>
       answerThreadMessage(
         { botId, groupId, readOnly, rpc, isCurrentTarget, refresh, markRead: markCaughtUp },
         message,
         answer,
         username,
         dismiss,
+        secondValue,
       ),
     [botId, groupId, readOnly],
   );

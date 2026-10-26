@@ -247,6 +247,8 @@ export interface AnswerRunInput {
   clientNonce?: string;
   /** Only for a login card; `answer` carries its password. */
   username?: string;
+  /** Only with `username`: the person marked the password as not one (a phone number, say). */
+  secondValue?: "text";
   /** Turns down a pending secret request; only the run's user can, and nothing is stored. */
   dismiss?: boolean;
 }
@@ -765,8 +767,14 @@ async function commitAnswerRunInput(
   const loginAsk = secretAsk && !dismissed && pendingAsk.credential?.auth.type === "login";
   // A username belongs only to a login card, which cannot be saved without one.
   if (loginAsk !== Boolean(input.username?.trim())) return null;
+  // Only a card the backend offered the choice on takes it.
+  if (input.secondValue && !(loginAsk && pendingAsk.notPassword)) return null;
   const login = loginAsk
-    ? LoginSecretValue.safeParse({ username: input.username!.trim(), password: input.answer })
+    ? LoginSecretValue.safeParse({
+        username: input.username!.trim(),
+        password: input.answer,
+        ...(input.secondValue === "text" ? { secondValue: "text" } : {}),
+      })
     : undefined;
   if (login && !login.success) return null;
   if (secretAsk && input.answer.length > BOT_SECRET_VALUE_MAX_LENGTH)

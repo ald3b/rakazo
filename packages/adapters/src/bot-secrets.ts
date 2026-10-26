@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import type { SecretStore } from "@rakazo/adapter-kit";
-import type { BotSecretDestination } from "@rakazo/contracts";
+import type { BotSecretDestination, LoginSecretValue } from "@rakazo/contracts";
 import {
   BotSecretAuth,
   BotSecretName,
@@ -11,6 +11,7 @@ import {
   isPrivateNetworkHost,
   SecretHttpRequest,
 } from "@rakazo/contracts";
+import { digitsRedactions } from "@rakazo/core";
 import type { Prisma, PrismaClient } from "@rakazo/db";
 import { withTransactionRetry } from "@rakazo/db";
 import { getLogger } from "@rakazo/logging";
@@ -374,6 +375,25 @@ export function sameSecretDestination(
   );
 }
 
+/**
+ * Whether a login card offers "Not a password", decided here and never from the bot's request: on
+ * at the start for a saved login the person already marked, and offered, off, when a page refused
+ * this login's password for having no password field. Otherwise the card doesn't show it.
+ */
+export async function notPasswordOffer(
+  prisma: PrismaClient,
+  scope: BotSecretScope,
+  name: string,
+  refusedForNoPasswordField: boolean,
+): Promise<"on" | "offered" | undefined> {
+  const saved = await prisma.botSecret.findFirst({
+    where: { ...scopeFields(scope), name },
+    select: { notPassword: true },
+  });
+  if (saved?.notPassword) return "on";
+  return refusedForNoPasswordField ? "offered" : undefined;
+}
+
 export async function findBotSecret(prisma: PrismaClient, scope: BotSecretScope, name: string) {
   const row = await prisma.botSecret.findFirst({
     where: { ...scopeFields(scope), name },
@@ -392,7 +412,9 @@ export async function prepareBotSecret(input: {
   const { prisma, secretStore, scope, plaintext } = input;
   if (!plaintext || plaintext.length > 16_384) throw new Error("Invalid credential length");
   const destination = normalizeSecretDestination(input.destination);
-  if (destination.auth.type === "login") decodeLoginSecret(plaintext);
+  let notPassword = false;
+  if (destination.auth.type === "login")
+    notPassword = decodeLoginSecret(plaintext).secondValue === "text";
   else if (destination.auth.type === "command") {
     // NUL cannot be an environment value. An unpaired surrogate cannot be percent-encoded
     // later, and that throw would abort every subsequent shell command for this bot.
@@ -439,10 +461,19 @@ export async function prepareBotSecret(input: {
       if (current?.id !== existing?.id)
         throw Object.assign(new Error("Credential changed while saving; retry"), { code: "P2034" });
       if (current)
-        await tx.botSecret.update({ where: { id }, data: { ciphertext: stored.ciphertext } });
+        await tx.botSecret.update({
+          where: { id },
+          data: { ciphertext: stored.ciphertext, notPassword },
+        });
       else
         await tx.botSecret.create({
-          data: { id, ...scopeFields(scope), ...destination, ciphertext: stored.ciphertext },
+          data: {
+            id,
+            ...scopeFields(scope),
+            ...destination,
+            ciphertext: stored.ciphertext,
+            notPassword,
+          },
         });
     },
   };
@@ -471,7 +502,12 @@ export async function listBotSecrets(prisma: PrismaClient, scope: BotSecretScope
 }
 
 // Owner-facing view: destination and timestamps only, never the row id or ciphertext.
-const ownerMetadata = { ...metadata, createdAt: true, updatedAt: true } as const;
+const ownerMetadata = {
+  ...metadata,
+  notPassword: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
 
 export function listBotSecretMetadata(prisma: PrismaClient, scope: BotSecretScope) {
   return prisma.botSecret.findMany({
@@ -599,6 +635,15 @@ export type LoginField = "username" | "password";
 const MIN_REDACTED_USERNAME = 6;
 const MIN_REDACTED_PASSWORD_EVERY_RUN = MIN_REDACTED_USERNAME;
 
+/** A value marked as not a password is also hidden reformatted, matched by its digits. */
+function markedPasswordRedactions(login: LoginSecretValue): string[] {
+  return login.secondValue === "text" ? digitsRedactions(login.password) : [];
+}
+
+function loginPasswordRedactions(login: LoginSecretValue): string[] {
+  return [...passwordRedactionForms(login.password), ...markedPasswordRedactions(login)];
+}
+
 function passwordRedactionForms(password: string): string[] {
   return [
     ...new Set([
@@ -629,10 +674,10 @@ export async function loadLoginPasswordRedactions(
   for (const row of rows) {
     if (BotSecretAuth.safeParse(row.auth).data?.type !== "login") continue;
     try {
-      const { password } = decodeLoginSecret(await secretStore.load(row.ciphertext, row.id));
+      const login = decodeLoginSecret(await secretStore.load(row.ciphertext, row.id));
       // Every run would mangle each occurrence of a short password; the filling run still hides it.
-      if (password.length < MIN_REDACTED_PASSWORD_EVERY_RUN) continue;
-      for (const form of passwordRedactionForms(password)) forms.add(form);
+      if (login.password.length < MIN_REDACTED_PASSWORD_EVERY_RUN) continue;
+      for (const form of loginPasswordRedactions(login)) forms.add(form);
     } catch {
       // Like an unreadable command variable, it must not stop every computer tool. The id only:
       // an operator can see which login is no longer hidden. Not under a "secret" key, which
@@ -653,7 +698,9 @@ export async function resolveLoginFill(input: {
   scope: BotSecretScope;
   name: string;
   field: LoginField;
-}): Promise<{ text: string; origin: string; redactions: string[] } | { error: string }> {
+}): Promise<
+  { text: string; origin: string; secondValue?: "text"; redactions: string[] } | { error: string }
+> {
   const row = await input.prisma.botSecret.findFirst({
     where: { ...scopeFields(input.scope), name: input.name },
   });
@@ -684,14 +731,19 @@ export async function resolveLoginFill(input: {
   return {
     text: login[input.field],
     origin: destination.origin,
+    ...(input.field === "password" && login.secondValue === "text"
+      ? { secondValue: "text" as const }
+      : {}),
     // Redaction is substring replacement, so a short username would mangle unrelated text.
     redactions: [
       ...new Set(
-        [login.password, encodeURIComponent(login.password)].concat(
-          login.username.length >= MIN_REDACTED_USERNAME
-            ? [login.username, encodeURIComponent(login.username)]
-            : [],
-        ),
+        [login.password, encodeURIComponent(login.password)]
+          .concat(markedPasswordRedactions(login))
+          .concat(
+            login.username.length >= MIN_REDACTED_USERNAME
+              ? [login.username, encodeURIComponent(login.username)]
+              : [],
+          ),
       ),
     ],
   };

@@ -172,6 +172,139 @@ test("live page helper preserves identity, masks passwords, and reports partial 
   }
 });
 
+test("live page helper holds a second value marked as not a password in a password field", async () => {
+  const profile = await mkdtemp(path.join(os.tmpdir(), "page-browser-masked-"));
+  let context: Awaited<ReturnType<typeof chromium.launchPersistentContext>> | undefined;
+  try {
+    context = await chromium.launchPersistentContext(profile, {
+      headless: true,
+      args: ["--remote-debugging-port=0"],
+    });
+    let port = "";
+    await expect(async () => {
+      port = (await readFile(path.join(profile, "DevToolsActivePort"), "utf8")).split("\n")[0];
+      expect(port).toMatch(/^\d+$/);
+    }).toPass({ timeout: 5_000 });
+    async function command(name: string, args: Record<string, unknown> = {}) {
+      const { stdout } = await execute("python3", [helper, name, JSON.stringify(args)], {
+        env: { ...process.env, RAKAZO_CDP_PORT: port },
+        timeout: 30_000,
+      });
+      return JSON.parse(stdout);
+    }
+    const ref = (snapshot: { elements: { name: string; ref: string }[] }, name: string) =>
+      snapshot.elements.find((element) => element.name === name)!.ref;
+    const page = context.pages()[0]!;
+    // A sign-in with an ID number and a phone number, and no password field.
+    await page.route("https://login.example.test/", (route) =>
+      route.fulfill({
+        contentType: "text/html",
+        body: `<title>Sign in</title><form><input aria-label="ID number">
+          <input id="phone" aria-label="Phone" type="tel"></form>
+          <script>
+            // The widest selection made in the field, read as a button or key comes up.
+            window.widest = 0;
+            for (const type of ["mouseup", "keyup", "dblclick"]) {
+              document.addEventListener(type, () => {
+                const field = document.getElementById("phone");
+                window.widest = Math.max(window.widest, field.selectionEnd - field.selectionStart);
+              });
+            }
+            window.unmask = (change) => {
+              const field = document.getElementById("phone");
+              change(field);
+              requestAnimationFrame(() => { window.drawnValue = field.value; });
+            };
+          </script>`,
+      }),
+    );
+    await page.goto("https://login.example.test/");
+    const login = { origin: "https://login.example.test", login: "site_login" };
+    const phone = { ...login, text: "0501234567", field: "password" };
+    const refused = await command("act", {
+      actions: [{ kind: "fill", ref: ref(await command("snapshot"), "Phone"), ...phone }],
+    });
+    expect(refused).toMatchObject({ ok: false, uncertain: false });
+    expect(refused.error).toMatch(/^This page has no password field\./);
+    // The login's username goes first; the second value follows it into the same form.
+    const fill = async () => {
+      const signIn = await command("snapshot");
+      return command("act", {
+        actions: [
+          {
+            kind: "fill",
+            ref: ref(signIn, "ID number"),
+            ...login,
+            text: "fake-id",
+            field: "username",
+          },
+          { kind: "fill", ref: ref(signIn, "Phone"), ...phone, secondValue: "text" },
+        ],
+      });
+    };
+    const filled = await fill();
+    expect(filled).toMatchObject({ ok: true, completed: 2 });
+    expect(JSON.stringify(filled)).not.toContain("1234567");
+    const field = page.locator("#phone");
+    await expect(field).toHaveValue(phone.text);
+    // A password field: the browser itself draws dots and keeps the text out of copying and the
+    // desktop's selection, whatever the page's listeners do.
+    await expect(field).toHaveAttribute("type", "password");
+    // The page reformats the number and shows it as text again: it is emptied before it is drawn.
+    await page.evaluate(
+      "window.unmask((field) => { field.value = '050-123-4567'; field.type = 'tel'; })",
+    );
+    await expect
+      .poll(() => page.evaluate(() => (window as { drawnValue?: string }).drawnValue))
+      .toBe("");
+    // A password field still hands a selection to the desktop, so none starts in it.
+    expect(await fill()).toMatchObject({ ok: true, completed: 2 });
+    await field.dblclick();
+    await field.click({ clickCount: 3 });
+    await field.focus();
+    await page.keyboard.press("ControlOrMeta+A");
+    await page.keyboard.press("Shift+Home");
+    expect(await page.evaluate(() => (window as { widest?: number }).widest)).toBe(0);
+    // Keyboard focus would select it all, so Tab from the ID field skips it.
+    await page.getByLabel("ID number").focus();
+    await page.keyboard.press("Tab");
+    expect(await page.evaluate(() => document.activeElement?.id)).not.toBe("phone");
+    await field.click();
+    // A person's Backspace leaves nine digits of it: still the login, still emptied when shown.
+    await page.keyboard.press("End");
+    await page.keyboard.press("Backspace");
+    await page.evaluate("window.unmask((field) => { field.type = 'tel'; })");
+    await expect
+      .poll(() => page.evaluate(() => (window as { drawnValue?: string }).drawnValue))
+      .toBe("");
+    // A number the person types in its place, once they've emptied the field, is theirs.
+    expect(await fill()).toMatchObject({ ok: true, completed: 2 });
+    await field.click();
+    for (let i = 0; i < phone.text.length; i += 1) await page.keyboard.press("Backspace");
+    // Undo would put it back, selected: it is off on the page.
+    await page.keyboard.press("ControlOrMeta+Z");
+    await expect(field).toHaveValue("");
+    await page.keyboard.type("0529999999");
+    await page.evaluate("window.unmask((field) => { field.type = 'tel'; })");
+    await expect
+      .poll(() => page.evaluate(() => (window as { drawnValue?: string }).drawnValue))
+      .toBe("0529999999");
+    // A page with a password field keeps it for a real password.
+    await page.evaluate(() =>
+      document.body.insertAdjacentHTML(
+        "beforeend",
+        '<input type="password" aria-label="Password">',
+      ),
+    );
+    const withPassword = await fill();
+    expect(withPassword).toMatchObject({ ok: false, completed: 1, uncertain: false });
+    expect(withPassword.error).toMatch(/on a page without one/);
+  } finally {
+    await context?.close();
+    await rm(profile, { recursive: true, force: true });
+  }
+});
+
 test("live page helper waits for a site's sign-in check, or says the page is still loading", async () => {
   const profile = await mkdtemp(path.join(os.tmpdir(), "page-browser-settle-"));
   // Like many web apps, the page draws a signed-out shell and asks its server who is signed in.

@@ -269,7 +269,7 @@ export function inferScript(
       },
     ];
   }
-  if (lower.includes("show a login card")) {
+  if (lower.includes("show a login card") || lower.includes("replace the login card")) {
     return [
       {
         assistant: "i need that sign-in in a protected card.",
@@ -284,6 +284,8 @@ export function inferScript(
                 origin: "https://login.example.test",
                 auth: { type: "login" },
               },
+              // A saved login is asked for again only to replace it.
+              ...(lower.includes("replace the login card") ? { replace: true } : {}),
             },
           },
         ],

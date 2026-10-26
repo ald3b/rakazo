@@ -3820,6 +3820,11 @@ msgstr "トリガーなし"
 msgid "Normal"
 msgstr "通常"
 
+#: src/components/AskCard.tsx
+#: src/pages/shell/bot-credentials.tsx
+msgid "Not a password"
+msgstr "パスワードではない"
+
 #: src/pages/shell/agent-import.tsx
 msgid "Not a valid skill"
 msgstr "有効なスキルではありません"

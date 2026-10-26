@@ -1,3 +1,4 @@
+import { digitsRedactions } from "@rakazo/core";
 import { describe, expect, it } from "vitest";
 import {
   decryptAgentEnvironment,
@@ -102,6 +103,62 @@ describe("agent-environment", () => {
     expect(redactShellStreams({ stdout: "ABCDE", stderr: "FGH" }, [secret])).toEqual({
       stdout: "ABCDE",
       stderr: "FGH",
+    });
+  });
+});
+
+describe("a number hidden by its digits in the live shell view", () => {
+  const entries = digitsRedactions("0501234567");
+
+  it("holds back a number a later chunk may complete, and nothing once it can't", () => {
+    expect(
+      redactShellStreams({ stdout: "code sent to +972 50-12", stderr: "" }, entries, {
+        withholdPartial: true,
+      }),
+    ).toEqual({ stdout: "code sent to +", stderr: "" });
+    expect(
+      redactShellStreams({ stdout: "code sent to +972 50-123-4567 ok", stderr: "" }, entries, {
+        withholdPartial: true,
+      }),
+    ).toEqual({ stdout: "code sent to +972 [redacted] ok", stderr: "" });
+  });
+
+  it("holds back a URL-encoded number cut inside an encoded dash", () => {
+    expect(
+      redactShellStreams({ stdout: "GET /sent?to=050%E2%80%91123%E2%8", stderr: "" }, entries, {
+        withholdPartial: true,
+      }),
+    ).toEqual({ stdout: "GET /sent?to=", stderr: "" });
+    expect(
+      redactShellStreams({ stdout: "to=050%E2%80%91123%E2%8", stderr: "0%914567 done" }, entries),
+    ).toEqual({ stdout: "to=0[redacted]", stderr: " done" });
+  });
+
+  it("holds back a number cut just after the first hex letter of an encoded dash", () => {
+    for (const cut of ["%E", "%A", "%e"]) {
+      expect(
+        redactShellStreams({ stdout: `tel 050%E2%80%91123${cut}`, stderr: "" }, entries, {
+          withholdPartial: true,
+        }),
+        cut,
+      ).toEqual({ stdout: "tel ", stderr: "" });
+    }
+  });
+
+  it("reads a long run of encoded separators before a letter in linear time", () => {
+    const stdout = `1${"%20".repeat(177)}x`;
+    const started = performance.now();
+    expect(redactShellStreams({ stdout, stderr: "" }, entries, { withholdPartial: true })).toEqual({
+      stdout,
+      stderr: "",
+    });
+    expect(performance.now() - started).toBeLessThan(100);
+  });
+
+  it("hides a number split between stdout and stderr", () => {
+    expect(redactShellStreams({ stdout: "to 050-123", stderr: "-4567 done" }, entries)).toEqual({
+      stdout: "to 0[redacted]",
+      stderr: " done",
     });
   });
 });

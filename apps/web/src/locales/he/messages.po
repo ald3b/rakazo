@@ -3820,6 +3820,11 @@ msgstr "ללא טריגר"
 msgid "Normal"
 msgstr "רגיל"
 
+#: src/components/AskCard.tsx
+#: src/pages/shell/bot-credentials.tsx
+msgid "Not a password"
+msgstr "לא סיסמה"
+
 #: src/pages/shell/agent-import.tsx
 msgid "Not a valid skill"
 msgstr "מיומנות לא תקינה"

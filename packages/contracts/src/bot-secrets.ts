@@ -222,6 +222,12 @@ export type BotSecretDestination = z.infer<typeof BotSecretDestination>;
 export const LoginSecretValue = z.object({
   username: z.string().min(1).max(512),
   password: z.string().min(1).max(4096),
+  /**
+   * Set only by the person answering: the second value is not a password (a phone number, say),
+   * so it may also be typed into a masked text or telephone field on a page without a password
+   * field. Absent, it is a password and goes only into a password field.
+   */
+  secondValue: z.literal("text").optional(),
 });
 export type LoginSecretValue = z.infer<typeof LoginSecretValue>;
 
@@ -275,6 +281,8 @@ export const BotSecretMetadata = z.object({
   name: StoredBotSecretName,
   origin: z.string(),
   auth: BotSecretAuth.nullable(),
+  /** A login whose second value the person marked as not a password. */
+  secondValue: z.literal("text").optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });

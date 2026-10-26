@@ -549,6 +549,8 @@ export const appContract = {
             clientNonce: z.string().min(1).max(200).optional(),
             /** Only for a login card; `answer` carries its password. */
             username: z.string().min(1).max(512).optional(),
+            /** Only with `username`: the person marked the password as not one (a phone number, say). */
+            secondValue: z.literal("text").optional(),
             /** Turns down a pending secret request; `answer` is then empty. */
             dismiss: z.literal(true).optional(),
           })
@@ -558,6 +560,10 @@ export const appContract = {
                 ? input.answer === "" && !input.username && !input.clientNonce
                 : input.answer.length > 0,
             "Send either an answer or a dismissal",
+          )
+          .refine(
+            (input) => !input.secondValue || input.username,
+            "Only a login answer marks its second value",
           ),
       )
       .output(z.object({ ok: z.literal(true) })),

@@ -18,6 +18,7 @@ import {
   forgetBotSecret,
   listBotSecrets,
   normalizeSecretDestination,
+  notPasswordOffer,
   requestWithBotSecret,
   resolveRequestSecretDestination,
   sameSecretDestination,
@@ -250,6 +251,15 @@ export const secretTools: ToolHandlers = {
     await ctx.computer.checkpoint.flush();
     await persistTurnCheckpoint(ctx, executionId);
     await ctx.settleRunningHelpers();
+    const notPassword =
+      destination?.auth.type === "login"
+        ? await notPasswordOffer(
+            deps.prisma,
+            run,
+            destination.name,
+            ctx.state.noPasswordFieldLogins.has(destination.name),
+          )
+        : undefined;
     const paused = await deps.events.pauseRunForInput({
       spaceId: run.spaceId,
       threadId: run.threadId,
@@ -264,6 +274,7 @@ export const secretTools: ToolHandlers = {
           text: String(args.label ?? "Code"),
           input: "secret",
           ...(destination ? { credential: destination } : {}),
+          ...(notPassword ? { notPassword } : {}),
           purpose: normalizeSecretAskPurpose(args.purpose ? String(args.purpose) : undefined),
           status: "pending",
         },

@@ -181,7 +181,8 @@ export class PageBrowserSession {
           );
         }
         const inputType = el instanceof win.HTMLInputElement ? el.type : "";
-        // A password goes only into a password field, which never displays it.
+        // A password goes only into a password field, which never displays it. Nothing is drawn
+        // here to mask, so a second value marked as not a password stays in password fields too.
         if (action.field !== "username" && inputType !== "password") {
           throw new FillRefused("A saved password can only be typed into a password field.");
         }

@@ -190,6 +190,23 @@ class PageBrowserTest(unittest.TestCase):
             'window.__rakazoPageBrowser.fill("e1", "fake-password", "https://login.example.test", "password")',
         )
 
+    def test_passes_a_marked_second_value_only_when_set(self):
+        cases = (
+            ({"secondValue": "text"}, ', "password", "text")'),
+            ({"secondValue": "text", "login": "site_login"}, ', "password", "text", "site_login")'),
+            ({"login": "site_login"}, ', "password", null, "site_login")'),
+            ({"secondValue": "other"}, ', "password")'),
+        )
+        for extra, suffix in cases:
+            with self.subTest(extra=extra), patch.object(helper, "ensure_helpers"), \
+                    patch.object(helper, "snapshot", return_value={"ok": True}), \
+                    patch.object(helper, "eval_json") as evaluate:
+                evaluate.side_effect = [True, {}]
+                helper.act(Mock(), "session", [{"kind": "fill", "ref": "e1", "text": "fake-phone",
+                                                "origin": "https://login.example.test", "field": "password",
+                                                **extra}])
+                self.assertTrue(evaluate.call_args_list[1].args[2].endswith(suffix))
+
     def test_reports_a_refused_fill_as_settled_with_its_reason(self):
         client = Mock()
         client.call.side_effect = [

@@ -98,6 +98,7 @@ function botSecretMetadataDto(row: {
   name: string;
   origin: string;
   auth: unknown;
+  notPassword: boolean;
   createdAt: Date;
   updatedAt: Date;
 }): BotSecretMetadata {
@@ -116,6 +117,7 @@ function botSecretMetadataDto(row: {
     name: row.name,
     origin: row.origin,
     auth,
+    ...(auth?.type === "login" && row.notPassword ? { secondValue: "text" as const } : {}),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };

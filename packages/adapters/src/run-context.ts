@@ -148,6 +148,11 @@ export interface RunState {
    */
   tainted: boolean;
   earlierAttempt: Promise<boolean> | undefined;
+  /**
+   * Logins whose password a page refused for having no password field: asking for one again
+   * offers the person the "Not a password" choice.
+   */
+  noPasswordFieldLogins: Set<string>;
   handedOff: boolean;
   terminalCheckpointComplete: boolean;
 }

@@ -24,7 +24,7 @@ export function AskBlock({
   ask: Extract<MobileMessage["blocks"][number], { kind: "ask" }>;
   canAnswer: boolean;
   canDismiss: boolean;
-  onAnswer: (answer: string, username?: string) => Promise<void>;
+  onAnswer: (answer: string, username?: string, secondValue?: "text") => Promise<void>;
   /** Turns down a secret request without a value. */
   onDismiss: () => Promise<void>;
   actionProps: MessageActionProps;
@@ -205,14 +205,15 @@ export function AskBlock({
         <SecretAskSheet
           title={plainAskTitle(ask.text)}
           destination={secretDestinationLabel(ask.credential)}
+          notPasswordOffer={ask.notPassword}
           // Once any save is accepted, or the viewer is no longer the run's user, the open sheet
           // clears its own fields, then closes itself.
           pending={canAnswer && !answered && !ownerOnly}
           onClose={() => {
             if (session === sheetSession.current) setSheetOpen(false);
           }}
-          onSave={async (password, username) => {
-            await onAnswer(password, username);
+          onSave={async (password, username, secondValue) => {
+            await onAnswer(password, username, secondValue);
             setSaved(true);
             if (session === sheetSession.current) setSheetOpen(false);
           }}

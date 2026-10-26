@@ -3820,6 +3820,11 @@ msgstr "트리거 없음"
 msgid "Normal"
 msgstr ""
 
+#: src/components/AskCard.tsx
+#: src/pages/shell/bot-credentials.tsx
+msgid "Not a password"
+msgstr "비밀번호 아님"
+
 #: src/pages/shell/agent-import.tsx
 msgid "Not a valid skill"
 msgstr "올바른 스킬이 아닙니다"

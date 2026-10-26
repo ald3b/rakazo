@@ -7,7 +7,7 @@ import {
   encodeLoginSecret,
 } from "@rakazo/contracts";
 import { fetchFresh, writeSaved } from "@rakazo/core/query";
-import { Button, Input, NativeSelect, NativeSelectOption } from "@rakazo/ui-web";
+import { Button, Input, NativeSelect, NativeSelectOption, Switch } from "@rakazo/ui-web";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@rakazo/ui-web/components/ui/tooltip";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, RotateCcw, X } from "lucide-react";
@@ -23,8 +23,19 @@ type CredentialAuthType = ReadableCredentialAuth["type"];
 const fieldLabelClass = "mt-3 block text-[14px] text-muted-foreground";
 
 /** The stored value: a website login is saved as one encoded username and password pair. */
-function credentialPlaintext(type: CredentialAuthType, username: string, value: string) {
-  return type === "login" ? encodeLoginSecret({ username, password: value }) : value;
+function credentialPlaintext(
+  type: CredentialAuthType,
+  username: string,
+  value: string,
+  notPassword: boolean,
+) {
+  return type === "login"
+    ? encodeLoginSecret({
+        username,
+        password: value,
+        ...(notPassword ? { secondValue: "text" as const } : {}),
+      })
+    : value;
 }
 
 /** A command variable has no site, so its destination carries no origin. */
@@ -55,6 +66,7 @@ export function BotCredentialsSection({ botId }: { botId: string }) {
   // Protected fields: held only in component state and cleared on every submit or cancel.
   const [loginUsername, setLoginUsername] = useState("");
   const [value, setValue] = useState("");
+  const [notPassword, setNotPassword] = useState(false);
 
   async function refresh() {
     try {
@@ -68,6 +80,7 @@ export function BotCredentialsSection({ botId }: { botId: string }) {
   function clearProtectedFields() {
     setValue("");
     setLoginUsername("");
+    setNotPassword(false);
   }
 
   function authLabel(auth: ReadableCredentialAuth) {
@@ -99,11 +112,17 @@ export function BotCredentialsSection({ botId }: { botId: string }) {
   }) {
     const username = loginUsername.trim();
     const secretValue = value;
+    const secondValueNotPassword = notPassword;
     clearProtectedFields();
     setError(null);
     let plaintext: string;
     try {
-      plaintext = credentialPlaintext(destination.auth.type, username, secretValue);
+      plaintext = credentialPlaintext(
+        destination.auth.type,
+        username,
+        secretValue,
+        secondValueNotPassword,
+      );
     } catch {
       setError(t`Enter a username and password`);
       return false;
@@ -192,6 +211,19 @@ export function BotCredentialsSection({ botId }: { botId: string }) {
           className="mt-1.5"
         />
       </label>
+      {type === "login" ? (
+        <div className="mt-2 flex min-h-11 items-center justify-between gap-3 text-sm">
+          <label htmlFor={`${ids}-${testIdPrefix}-not-password`}>
+            <Trans>Not a password</Trans>
+          </label>
+          <Switch
+            id={`${ids}-${testIdPrefix}-not-password`}
+            data-testid={`${testIdPrefix}-not-password`}
+            checked={notPassword}
+            onCheckedChange={setNotPassword}
+          />
+        </div>
+      ) : null}
     </>
   );
 
@@ -281,6 +313,8 @@ export function BotCredentialsSection({ botId }: { botId: string }) {
                               disabled={busy}
                               onClick={() => {
                                 clearProtectedFields();
+                                // A replacement keeps the saved login's mark unless the owner changes it.
+                                setNotPassword(secret.secondValue === "text");
                                 setConfirmingRemove(null);
                                 setAdding(false);
                                 setReplacing(secret.name);

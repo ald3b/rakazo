@@ -1,5 +1,6 @@
 import { RPCHandler } from "@orpc/server/fetch";
 import type { Actor } from "@rakazo/contracts";
+import { encodeLoginSecret } from "@rakazo/contracts";
 import type { PrismaClient } from "@rakazo/db";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { RouterDeps } from "./router.js";
@@ -204,6 +205,7 @@ describe("botSecrets router", () => {
       "auth",
       "createdAt",
       "name",
+      "notPassword",
       "origin",
       "updatedAt",
     ]);
@@ -218,6 +220,32 @@ describe("botSecrets router", () => {
     ]);
     expect(result.text).not.toContain("enc:");
     expect(result.text).not.toContain("ciphertext");
+  });
+
+  it("records a login's not-a-password mark from its value and lists it without decrypting", async () => {
+    const { rows, secrets, call } = botSecretDeps();
+    const login = (secondValue?: "text") => ({
+      botId: "bot-1",
+      destination: {
+        name: "portal",
+        origin: "https://login.example.test",
+        auth: { type: "login" },
+      },
+      value: encodeLoginSecret({
+        username: "fake-id",
+        password: FAKE_VALUE,
+        ...(secondValue ? { secondValue } : {}),
+      }),
+    });
+    expect((await call("put", login("text"))).body.json).toMatchObject({ secondValue: "text" });
+    expect(rows[0]).toMatchObject({ notPassword: true });
+    expect((await call("list", { botId: "bot-1" })).body.json).toEqual([
+      expect.objectContaining({ name: "portal", secondValue: "text" }),
+    ]);
+    // Replacing it without the mark turns it back into a password.
+    expect((await call("put", login())).body.json).not.toHaveProperty("secondValue");
+    expect(rows[0]).toMatchObject({ notPassword: false });
+    expect(secrets.load).not.toHaveBeenCalled();
   });
 
   it("stores a LAN http origin only with the private-HTTP opt-in", async () => {

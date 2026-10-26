@@ -6,6 +6,7 @@ import { useI18n } from "../lib/i18n";
 import { useThemedStyles } from "../lib/native";
 import { secretFieldTraits } from "../lib/secret-field-traits";
 import { NativeActionButton } from "./native-action-button";
+import { NativeSwitch } from "./native-switch";
 
 /**
  * A website sign-in, typed or filled from saved passwords. The values live only in this sheet's
@@ -17,13 +18,16 @@ export function SecretAskSheet({
   pending,
   onClose,
   onSave,
+  notPasswordOffer,
 }: {
   title: string;
   destination: string;
   /** False once the card is answered or can no longer be answered; the sheet then closes. */
   pending: boolean;
   onClose: () => void;
-  onSave: (password: string, username: string) => Promise<void>;
+  onSave: (password: string, username: string, secondValue?: "text") => Promise<void>;
+  /** Set by the backend when the card offers "Not a password"; "on" for a login already marked. */
+  notPasswordOffer?: "offered" | "on";
 }) {
   const { t } = useI18n();
   const styles = useThemedStyles(createStyles);
@@ -32,6 +36,7 @@ export function SecretAskSheet({
   const passwordInput = useRef<TextInput>(null);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [notPassword, setNotPassword] = useState(notPasswordOffer === "on");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [closing, setClosing] = useState(false);
@@ -84,7 +89,11 @@ export function SecretAskSheet({
     setSubmitting(true);
     setError(null);
     try {
-      await onSave(submitPassword, submitUsername);
+      await onSave(
+        submitPassword,
+        submitUsername,
+        notPasswordOffer && notPassword ? "text" : undefined,
+      );
     } catch {
       setError(t("Could not send answer"));
     } finally {
@@ -169,6 +178,17 @@ export function SecretAskSheet({
             onEndEditing={(event) => endEditing(event.nativeEvent.text)}
             style={styles.field}
           />
+          {notPasswordOffer ? (
+            <View style={styles.row}>
+              <Text style={styles.rowLabel}>{t("Not a password")}</Text>
+              <NativeSwitch
+                accessibilityLabel={t("Not a password")}
+                disabled={submitting || closing}
+                onValueChange={setNotPassword}
+                value={notPassword}
+              />
+            </View>
+          ) : null}
           {error ? <Text style={styles.error}>{error}</Text> : null}
         </ScrollView>
       </View>
@@ -197,6 +217,14 @@ function createStyles() {
       color: tokens.foreground,
     },
     placeholder: { color: tokens.faintForeground },
+    row: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 12,
+      minHeight: 44,
+    },
+    rowLabel: { flex: 1, color: tokens.foreground, fontSize: 15 },
     error: { color: tokens.destructive, fontSize: 13 },
   });
 }

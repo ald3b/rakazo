@@ -286,6 +286,7 @@ export const DE_MESSAGES: Record<string, string> = {
   "Open image {name}": "Bild {name} öffnen",
   "Tap to open": "Zum Öffnen tippen",
   "Could not open message": "Nachricht konnte nicht geöffnet werden",
+  "Not a password": "Kein Passwort",
   "Could not send answer": "Antwort konnte nicht gesendet werden",
   "Could not speak": "Vorlesen fehlgeschlagen",
   "Could not update reaction": "Reaktion konnte nicht aktualisiert werden",

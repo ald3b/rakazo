@@ -1,6 +1,11 @@
 import type { SecretStore } from "@rakazo/adapter-kit";
 import { AgentSecretInputSchema } from "@rakazo/contracts";
-import { redactSecrets } from "@rakazo/core";
+import {
+  DIGIT_SEPARATOR_UNIT,
+  digitsRedactionPattern,
+  redactionSpan,
+  redactSecrets,
+} from "@rakazo/core";
 
 type EncryptedAgentSecret = {
   name: string;
@@ -65,6 +70,8 @@ function redactSpanningSecret(
   stderr: string,
   secret: string,
 ): { stdout: string; stderr: string } {
+  const digits = digitsRedactionPattern(secret);
+  if (digits) return redactSpanningDigits(stdout, stderr, secret, digits);
   if (secret.length < 2 || stdout.length === 0 || stderr.length === 0) return { stdout, stderr };
   const headLen = Math.min(secret.length - 1, stdout.length);
   const tailLen = Math.min(secret.length - 1, stderr.length);
@@ -79,6 +86,46 @@ function redactSpanningSecret(
     stdout: `${stdout.slice(0, start)}[redacted]`,
     stderr: stderr.slice(end - stdout.length),
   };
+}
+
+/** A number matched by its digits, cut by the boundary between the two streams. */
+function redactSpanningDigits(
+  stdout: string,
+  stderr: string,
+  secret: string,
+  pattern: RegExp,
+): { stdout: string; stderr: string } {
+  const span = redactionSpan(secret);
+  const head = stdout.slice(Math.max(0, stdout.length - span));
+  const joined = head + stderr.slice(0, span);
+  for (const match of joined.matchAll(pattern)) {
+    const end = match.index + match[0].length;
+    if (match.index >= head.length || end <= head.length) continue;
+    return {
+      stdout: `${stdout.slice(0, stdout.length - head.length + match.index)}[redacted]`,
+      stderr: stderr.slice(end - head.length),
+    };
+  }
+  return { stdout, stderr };
+}
+
+// A digits entry's start can be any digit, so a stream ending in digits and separators, some
+// URL-encoded and the last perhaps cut short ("%E2%8"), may be the start of a number the next
+// chunk completes. Separators are read one unambiguous unit at a time, so a long run of them
+// before a letter fails in linear time.
+const TRAILING_DIGITS = new RegExp(
+  `\\p{N}(?:${DIGIT_SEPARATOR_UNIT}|\\p{N})*(?:%[0-9A-Fa-f])?$`,
+  "u",
+);
+// The same from the start of a stream, which may begin inside an encoded separator ("80%91").
+const LEADING_DIGITS = new RegExp(
+  `^(?:[0-9A-Fa-f]{1,2}(?=%))?(?:${DIGIT_SEPARATOR_UNIT}|\\p{N})*`,
+  "u",
+);
+
+function digitsTailLength(text: string, secret: string): number {
+  const tail = TRAILING_DIGITS.exec(text.slice(Math.max(0, text.length - redactionSpan(secret))));
+  return tail ? tail[0].length : 0;
 }
 
 /** Longest suffix of `text` that is a proper prefix of `secret`. */
@@ -135,6 +182,17 @@ function withholdSecretPrefix(
   let stderrHoldEnd = 0;
   let stderrHoldStart = 0;
   for (const secret of secrets) {
+    if (digitsRedactionPattern(secret)) {
+      const stdoutTail = digitsTailLength(stdout, secret);
+      stdoutHold = Math.max(stdoutHold, stdoutTail);
+      stderrHoldEnd = Math.max(stderrHoldEnd, digitsTailLength(stderr, secret));
+      // A number that ends stdout may go on at the start of stderr.
+      if (stdoutTail > 0) {
+        const start = LEADING_DIGITS.exec(stderr.slice(0, redactionSpan(secret)));
+        stderrHoldStart = Math.max(stderrHoldStart, start ? start[0].length : 0);
+      }
+      continue;
+    }
     if (secret.length < 2) continue;
     const stdoutPrefix = secretPrefixSuffixLength(stdout, secret);
     stdoutHold = Math.max(stdoutHold, stdoutPrefix);

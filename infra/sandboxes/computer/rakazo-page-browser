@@ -384,6 +384,101 @@ EVAL_HELPERS = r"""
   const refused = (message) => new Error(`Refused: ${message}`);
   // Fields holding a saved login: snapshots never report their values, whatever their type.
   const loginFilled = new WeakSet();
+  // Selecting text in a field, a password field too, hands it to the desktop's selection, which a
+  // middle click pastes anywhere visible. So the page browser keeps a field holding a marked login
+  // value from starting a selection: a press only focuses it with the caret at the end, keyboard
+  // focus skips it (focusing a field by keyboard selects all of it), and keyboard selection, the
+  // context menu and the start of a selection are turned down. A selection made some other way is
+  // collapsed, but by then the desktop may have it, so that is a backstop, not the guard. Undo and
+  // redo are turned down too, since they would bring the value back. All of it lasts until the
+  // page browser fills the field again or types into it. When the field is emptied, by the person
+  // or the page, the person's own text in it can be selected again; undo stays turned down.
+  const selectionGuards = new WeakMap();
+  const guardedFields = new WeakSet();
+  function unguardSelection(el) {
+    selectionGuards.get(el)?.();
+    selectionGuards.delete(el);
+  }
+  // A page listener that stops these events on the field can't stop this one, on the document.
+  document.addEventListener("selectstart", (event) => {
+    if (event.composedPath().some((node) => guardedFields.has(node))) event.preventDefault();
+  }, true);
+  // The page's undo history is shared by its fields and keeps a login the person erased, even after
+  // the field is filled with something else, and the page browser's own fills. So once the page
+  // browser has typed a login into this page, undo and redo are turned down on the whole page until
+  // it is left: cancelled as edits, which the computer's browser honours, and also by key and in
+  // the context menu of any field, since some browser builds don't honour that and put the value
+  // back selected, which reaches the desktop's selection.
+  let undoGuarded = false;
+  const undoKey = (event) => (event.ctrlKey || event.metaKey) &&
+    (event.code === "KeyZ" || event.code === "KeyY" || event.keyCode === 90 || event.keyCode === 89);
+  const editable = (node) => node instanceof HTMLInputElement || node instanceof HTMLTextAreaElement ||
+    Boolean(node?.isContentEditable);
+  document.addEventListener("keydown", (event) => {
+    if (undoGuarded && undoKey(event)) event.preventDefault();
+  }, true);
+  document.addEventListener("contextmenu", (event) => {
+    if (undoGuarded && event.composedPath().some(editable)) event.preventDefault();
+  }, true);
+  document.addEventListener("beforeinput", (event) => {
+    if (undoGuarded && /^history/.test(event.inputType)) event.preventDefault();
+  }, true);
+  const SELECT_KEYS = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End", "PageUp", "PageDown"];
+  function guardSelection(el) {
+    unguardSelection(el);
+    const tabIndex = el.getAttribute("tabindex");
+    undoGuarded = true;
+    const end = () => el.setSelectionRange?.(el.value.length, el.value.length);
+    let selectable = false;
+    // Once the field is empty, what the person types in it is theirs to select.
+    const release = () => {
+      if (selectable) return;
+      selectable = true;
+      guardedFields.delete(el);
+      // Unless the page has set its own tab index since.
+      if (el.getAttribute("tabindex") !== "-1") return;
+      if (tabIndex === null) el.removeAttribute("tabindex");
+      else el.setAttribute("tabindex", tabIndex);
+    };
+    const press = (event) => {
+      if (selectable || event.button !== 0) return;
+      if (!el.value) return release();
+      event.preventDefault();
+      el.focus();
+      end();
+    };
+    // By key position, so select all is caught on every keyboard layout.
+    const keys = (event) => {
+      if (selectable) return;
+      if (!el.value) return release();
+      if (((event.ctrlKey || event.metaKey) && (event.code === "KeyA" || event.keyCode === 65)) ||
+          (event.shiftKey && SELECT_KEYS.includes(event.key))) event.preventDefault();
+    };
+    const block = (event) => {
+      if (!selectable) event.preventDefault();
+    };
+    const collapse = () => {
+      if (!selectable && el.selectionStart !== el.selectionEnd) end();
+    };
+    // A fallback: a value undo or redo brings back anyway, from a path not turned down, is emptied.
+    const undone = (event) => {
+      if (/^history/.test(event.inputType)) {
+        Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), "value").set.call(el, "");
+      }
+    };
+    const emptied = () => {
+      if (!el.value) release();
+    };
+    const listeners = [["mousedown", press], ["keydown", keys], ["selectstart", block],
+      ["contextmenu", block], ["select", collapse], ["input", undone], ["input", emptied]];
+    for (const [type, listener] of listeners) el.addEventListener(type, listener, true);
+    guardedFields.add(el);
+    el.setAttribute("tabindex", "-1");
+    selectionGuards.set(el, () => {
+      for (const [type, listener] of listeners) el.removeEventListener(type, listener, true);
+      release();
+    });
+  }
   // New snapshots/documents never recycle references. Retain exact nodes, not selectors.
   function newRef() {
     return `e${Array.from(crypto.getRandomValues(new Uint32Array(4)), n => n.toString(16).padStart(8, "0")).join("")}`;
@@ -574,6 +669,185 @@ EVAL_HELPERS = r"""
     walk(document);
     return found;
   }
+  // A login's second value that the person marked as not a password (a phone number, say) may go
+  // into one of these instead of a password field, masked, on a page that has no password field.
+  const MASKED_TEXT_TYPES = ["text", "tel"];
+  // The refusal for a password the page has nowhere to put. The backend reads it to offer the person
+  // the "Not a password" choice when the bot asks for the login again.
+  const NO_PASSWORD_FIELD = "This page has no password field. If this login's second value isn't a password, such as a phone number, ask for the login again with request_secret and replace: true, so the person can mark it.";
+  // Where each login's username went in this document: its marked second value goes only beside
+  // it, in a small sign-in form, so it can't be typed into a search box, a comment or contact form,
+  // or a field elsewhere on the site. A page that moved to another address since, its query or
+  // fragment included, starts again.
+  const usernameTargets = new Map();
+  const formKey = (form) => {
+    const key = form && [form.id, form.name, form.getAttribute("action")].join("|");
+    return key && key !== "||" ? key : "";
+  };
+  const textLike = (field) => (field instanceof HTMLInputElement &&
+    ["text", "tel", "email", "number", "password", "search", "url"].includes(field.type) && visible(field)) ||
+    field instanceof HTMLTextAreaElement;
+  // A sign-in form is small: no free-text box, and no more than three fields to type into, counting
+  // every field it submits, also one placed elsewhere with form="…".
+  function signInSized(form) {
+    const fields = [...form.elements].filter(textLike);
+    return fields.length <= 3 && !fields.some((field) => field instanceof HTMLTextAreaElement);
+  }
+  function besideUsername(el, login) {
+    const target = login && usernameTargets.get(login);
+    if (!target || el === target.field || el.getRootNode() !== target.root) return false;
+    if (location.href !== target.address) return false;
+    if (searchField(target.field)) return false;
+    if (target.form) {
+      // A page that re-renders its form after the username keeps the same form, not the same node.
+      const key = formKey(target.form);
+      const sameForm = el.form === target.form ||
+        Boolean(!target.form.isConnected && key && formKey(el.form) === key);
+      return sameForm && !searchForm(el.form) && signInSized(el.form);
+    }
+    // Without a form, the two fields share their nearest container, and nothing else in it is a
+    // field to type into: a sign-in, not a page with a feedback box beside it.
+    if (el.form || !target.field.isConnected) return false;
+    let container = target.field.parentElement;
+    while (container && !container.contains(el)) container = container.parentElement;
+    return Boolean(container) && container !== document.body &&
+      [...container.querySelectorAll("input, textarea")].filter(textLike)
+        .every((field) => field === target.field || field === el);
+  }
+  const SEARCH_NAMES = ["q", "query", "search", "s"];
+  // What names an element for a person: its own label attributes, its labels and the elements
+  // aria-labelledby points to.
+  function labelText(el) {
+    const root = el.getRootNode();
+    const referenced = String(el.getAttribute("aria-labelledby") || "").split(/\s+/).filter(Boolean)
+      .map((id) => root.getElementById?.(id)?.textContent);
+    return [el.getAttribute("aria-label"), el.title, ...[...(el.labels || [])].map((label) => label.textContent),
+      ...referenced].join(" ");
+  }
+  function searchField(el) {
+    if (el.closest('[role="search"], search')) return true;
+    if (el.inputMode === "search" || el.getAttribute("enterkeyhint") === "search") return true;
+    if ([el.name, el.id].some((name) => SEARCH_NAMES.includes(String(name || "").toLowerCase()))) return true;
+    return /search/i.test([labelText(el), el.placeholder, el.form?.getAttribute("action")].join(" "));
+  }
+  // A form that submits a search: whatever goes in it lands in a results address.
+  function searchForm(form) {
+    return form.matches('[role="search"]') || Boolean(form.closest("search")) ||
+      /search/i.test([form.getAttribute("action"), labelText(form)].join(" ")) ||
+      [...form.elements].some((field) => field instanceof HTMLInputElement &&
+        (field.type === "search" || SEARCH_NAMES.includes(String(field.name || "").toLowerCase()))) ||
+      // Or a field or button labelled as one ("Search", or a Search button that submits it).
+      [...form.elements].some((field) => (field instanceof HTMLInputElement || field instanceof HTMLButtonElement) &&
+        /search/i.test([labelText(field), field.placeholder, field instanceof HTMLButtonElement ? field.textContent : "",
+          ["submit", "button"].includes(field.type) ? field.value : ""].join(" ")));
+  }
+  // Marked values typed into this document. A page may show one reformatted (050-123-4567,
+  // +972 50 123 4567), so a value made of digits and separators, 6 to 20 of them after leading
+  // zeros, is matched by its digits, and by its last nine for a number saved internationally and
+  // shown nationally; anything else only as it is.
+  const markedValues = [];
+  const markedDigits = (value) => {
+    if (!/^[\p{N}\s\-().+\/\u200e\u200f\u2011\u2013]+$/u.test(value)) return [];
+    const digits = value.replace(/\D/g, "").replace(/^0+/, "");
+    if (digits.length < 6 || digits.length > 20) return [];
+    return digits.length > 9 ? [digits, digits.slice(-9)] : [digits];
+  };
+  function holdsMarked(text, value) {
+    const shown = text.replace(/\D/g, "");
+    return text.includes(value) || markedDigits(value).some((digits) => shown.includes(digits));
+  }
+  function hideMarked(text) {
+    let hidden = text;
+    for (const value of markedValues) {
+      hidden = hidden.split(value).join("[redacted]");
+      for (const digits of markedDigits(value)) {
+        // Six or seven digits match only with spaces or dashes between, not any punctuation.
+        // Up to nine separator characters or URL-encoded bytes, as the backend matches them: each
+        // unit fits only one way, so a near miss can't take exponential time.
+        const between = digits.length < 8 ? "[\\s\\-]{0,3}"
+          : "(?:%[0-9A-Fa-f]{2}|%(?![0-9A-Fa-f]{2})|[^\\p{L}\\p{N}%]){0,9}";
+        const spread = digits.split("").join(between);
+        hidden = hidden.replace(new RegExp(spread, "gu"), "[redacted]");
+      }
+    }
+    return hidden;
+  }
+  // Fields this helper made password fields to hold a marked value, not the page's own, and the
+  // type each had before.
+  const madePassword = new WeakSet();
+  const madeFrom = new WeakMap();
+  function hasPasswordField(root = document) {
+    for (const el of root.querySelectorAll("*")) {
+      if (el instanceof HTMLInputElement && el.type === "password" && !madePassword.has(el)) return true;
+      if (el.shadowRoot && hasPasswordField(el.shadowRoot)) return true;
+    }
+    return false;
+  }
+  // A marked value is held in a password field: the text or telephone field becomes one before the
+  // value is set, so the browser itself draws dots and keeps the text out of copying, the desktop's
+  // selection, form history and the accessibility tree, whatever the page's own listeners do. It
+  // stays one while it holds the value, until the person edits it. If the page turns it back into
+  // text, the value is emptied and the page told; from then on the field is the page's, emptied
+  // again only if the page puts the value back. A later fill of the field ends the watch and gives
+  // the field back its own type, after emptying it, as does the page removing the field. Returns
+  // "detached" if the page replaced the field, or whether it still holds the value hidden.
+  const maskWatchers = new WeakMap();
+  function stopMasking(el) {
+    maskWatchers.get(el)?.();
+    maskWatchers.delete(el);
+  }
+  function keepHidden(el, value) {
+    stopMasking(el);
+    const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set;
+    const type = el.getAttribute("type");
+    // Until the person empties it, the field holds the login however the page reformats it or
+    // whatever is typed into what is left of it.
+    let held = true;
+    const edited = (event) => {
+      if (event.isTrusted && !el.value) held = false;
+    };
+    el.addEventListener("input", edited, true);
+    // A password field's text still reaches the desktop's selection, so no selection starts here.
+    guardSelection(el);
+    const holds = () => held || holdsMarked(el.value, value);
+    const empty = () => {
+      setValue.call(el, "");
+      // What is typed into it from here is someone else's text, not the login.
+      held = false;
+      el.dispatchEvent(new Event("input", { bubbles: true }));
+      el.dispatchEvent(new Event("change", { bubbles: true }));
+      if (holds() && el.value) setValue.call(el, "");
+    };
+    const check = () => {
+      if (!el.isConnected) return "detached";
+      if (el.type === "password" || !holds()) return true;
+      empty();
+      return false;
+    };
+    madeFrom.set(el, el.type);
+    el.type = "password";
+    madePassword.add(el);
+    let frame = 0;
+    const guard = () => {
+      // A removed field is left to go, with nothing of this helper keeping it.
+      if (check() === "detached") return stopMasking(el);
+      frame = requestAnimationFrame(guard);
+    };
+    const observer = new MutationObserver(check);
+    observer.observe(el, { attributes: true, attributeFilter: ["type"] });
+    frame = requestAnimationFrame(guard);
+    maskWatchers.set(el, () => {
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+      el.removeEventListener("input", edited, true);
+      unguardSelection(el);
+      if (holds()) setValue.call(el, "");
+      madePassword.delete(el);
+      if (type === null) el.removeAttribute("type");
+      else el.setAttribute("type", type);
+    });
+    return check;
+  }
   function formatTree(elements) {
     if (!elements.length) return "(no interactive elements)";
     return elements
@@ -596,8 +870,10 @@ EVAL_HELPERS = r"""
         elements.push({
           ref,
           role: roleOf(el),
-          name: String(nameOf(el)).slice(0, 200),
-          value: el.type === "password" || loginFilled.has(el) ? undefined
+          name: hideMarked(String(nameOf(el))).slice(0, 200),
+          value: el.type === "password" || loginFilled.has(el) ||
+            ("value" in el && markedValues.some((marked) => holdsMarked(String(el.value ?? ""), marked)))
+            ? undefined
             : isFileInput(el) ? Array.from(el.files || [], (file) => file.name).join(", ")
             : ["checkbox", "radio"].includes(el.type) ? (el.checked ? "checked" : "unchecked")
             : "value" in el ? String(el.value ?? "").slice(0, 2000) : undefined,
@@ -616,10 +892,10 @@ EVAL_HELPERS = r"""
         if (!listed.has(el)) describe(el);
       }
       return {
-        url: location.href,
-        title: (document.title || "").slice(0, 200),
+        url: hideMarked(location.href),
+        title: hideMarked(document.title || "").slice(0, 200),
         elements,
-        tree: (document.body?.innerText || "").slice(0, 12000) + "\n" + formatTree(elements)
+        tree: hideMarked(document.body?.innerText || "").slice(0, 12000) + "\n" + formatTree(elements)
           + (document.querySelector("iframe,frame") ? "\nEmbedded frames require desktop tools." : ""),
       };
     },
@@ -636,9 +912,9 @@ EVAL_HELPERS = r"""
       if (!el) throw new Error(`Unknown element ref: ${ref}`);
       el.focus();
       el.click();
-      return { url: location.href, title: (document.title || "").slice(0, 200) };
+      return { url: hideMarked(location.href), title: hideMarked(document.title || "").slice(0, 200) };
     },
-    fill(ref, value, origin, field) {
+    fill(ref, value, origin, field, secondValue, login) {
       // Checked in the same evaluation as the fill, so a navigation cannot slip in between.
       // Private-LAN plain HTTP is not a login target, even when the page origin matches.
       if (origin) {
@@ -659,10 +935,23 @@ EVAL_HELPERS = r"""
       // field, which never displays it. A username is an input; textareas, search boxes, and
       // editable page content stay out.
       const password = Boolean(origin) && field !== "username";
-      if (password && !(el instanceof HTMLInputElement && el.type === "password")) {
-        throw refused("A saved password can only be typed into a password field.");
+      // A field this helper made a password field to hold a marked value is judged by its own
+      // type, so no other password goes into it as text; a refused fill leaves it as it is.
+      const ownType = madePassword.has(el) ? madeFrom.get(el) : el.type;
+      // A real password belongs in a page's password field, so a marked second value goes into a
+      // text or telephone field only when the page has none.
+      const textField = el instanceof HTMLInputElement && MASKED_TEXT_TYPES.includes(ownType);
+      const maskedText = password && secondValue === "text" && textField && !hasPasswordField();
+      if (maskedText && (!besideUsername(el, login) || searchField(el))) {
+        throw refused("This login's second value can only be typed into the form its username was typed into, and not into a search field. Fill the username there first.");
       }
-      if (origin && !password && !(el instanceof HTMLInputElement && ["text", "email", "tel"].includes(el.type))) {
+      if (password && !maskedText && !(el instanceof HTMLInputElement && ownType === "password")) {
+        throw refused(secondValue === "text"
+          ? "This login's second value can only be typed into a password field, or into a text or telephone field on a page without one."
+          : textField && !hasPasswordField() ? NO_PASSWORD_FIELD
+          : "A saved password can only be typed into a password field.");
+      }
+      if (origin && !password && !(el instanceof HTMLInputElement && ["text", "email", "tel"].includes(ownType))) {
         throw refused("A saved username can only be typed into a text, email, or telephone field.");
       }
       if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) {
@@ -671,27 +960,41 @@ EVAL_HELPERS = r"""
         }
         const prototype = el instanceof HTMLInputElement ? HTMLInputElement.prototype
           : el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLSelectElement.prototype;
+        // Any fill replaces an earlier fill's watcher, so a field filled with something else is
+        // no longer held.
+        stopMasking(el);
+        // Held in a password field before the value is set, so it is never drawn as text.
+        const kept = maskedText ? keepHidden(el, String(value)) : null;
         Object.getOwnPropertyDescriptor(prototype, "value").set.call(el, String(value));
         if (el.value !== String(value)) {
           // A partly accepted login (an email field trimming a username) is not left on the page,
           // and desktop tools can't type a saved login either, so it is settled like other refusals.
           if (origin) {
             Object.getOwnPropertyDescriptor(prototype, "value").set.call(el, "");
+            stopMasking(el);
             throw refused("This field didn't accept the saved login, so it was cleared.");
           }
           throw new Error("Input did not accept the requested value");
         }
         if (origin) loginFilled.add(el);
         else loginFilled.delete(el);
+        if (maskedText && !markedValues.includes(String(value))) markedValues.push(String(value));
         el.dispatchEvent(new Event("input", { bubbles: true }));
         el.dispatchEvent(new Event("change", { bubbles: true }));
+        const hidden = kept?.();
+        // The page replaced the field while the value went in: what the new one holds is unknown.
+        if (hidden === "detached") throw new Error("The page replaced this field as the login was typed. Check it with browser_snapshot before trying again.");
+        if (hidden === false) throw refused("The page showed this field as text, so it was cleared.");
+        if (origin && !password && login) {
+          usernameTargets.set(login, { field: el, form: el.form, root: el.getRootNode(), address: location.href });
+        }
       } else if (el.isContentEditable) {
         el.textContent = String(value);
         el.dispatchEvent(new Event("input", { bubbles: true }));
       } else {
         throw new Error(`Element is not fillable: ${ref}`);
       }
-      return { url: location.href, title: (document.title || "").slice(0, 200) };
+      return { url: hideMarked(location.href), title: hideMarked(document.title || "").slice(0, 200) };
     },
     fileInput(ref, count) {
       const el = this.resolve(ref);
@@ -725,6 +1028,8 @@ EVAL_HELPERS = r"""
       for (let i = 0; i < boxes.length; i++) {
         const box = targetBoxes()[i];
         loginFilled.delete(box);
+        // Typing over a held login empties it first, and gives the field back its own type.
+        stopMasking(box);
         if (!(box.isContentEditable ? box.textContent : box.value)) continue;
         if (box.isContentEditable) box.textContent = "";
         else Object.getOwnPropertyDescriptor(Object.getPrototypeOf(box), "value").set.call(box, "");
@@ -1115,6 +1420,12 @@ def act(client: CdpClient, session_id: str, actions: list[dict[str, Any]]) -> di
                 arguments += ", " + json.dumps(step["text"])
             if step.get("origin"):
                 arguments += ", " + json.dumps(step["origin"]) + ", " + json.dumps(step.get("field"))
+                marked = step.get("secondValue") == "text"
+                login = step.get("login") if isinstance(step.get("login"), str) else None
+                if marked or login:
+                    arguments += ", " + json.dumps("text" if marked else None)
+                if login:
+                    arguments += ", " + json.dumps(login)
             uncertain = True
             data = eval_json(client, session_id, f"window.__rakazoPageBrowser.{kind}({arguments})")
             if not isinstance(data, dict):

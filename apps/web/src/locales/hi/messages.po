@@ -3820,6 +3820,11 @@ msgstr ""
 msgid "Normal"
 msgstr ""
 
+#: src/components/AskCard.tsx
+#: src/pages/shell/bot-credentials.tsx
+msgid "Not a password"
+msgstr "पासवर्ड नहीं"
+
 #: src/pages/shell/agent-import.tsx
 msgid "Not a valid skill"
 msgstr "मान्य स्किल नहीं"

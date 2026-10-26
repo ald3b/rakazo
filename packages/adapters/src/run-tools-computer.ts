@@ -171,6 +171,7 @@ export async function pageBrowserTool(ctx: RunContext, call: ToolCall) {
               ctx.computer.mode === "team"
                 ? resolveBotUploadPath(ctx.computer.mode, bot.id, path)
                 : path,
+            onNoPasswordField: (login) => ctx.state.noPasswordFieldLogins.add(login),
             resolveSecretFill: async (step) => {
               const resolved = await resolveLoginFill({
                 prisma: deps.prisma,
@@ -181,7 +182,11 @@ export async function pageBrowserTool(ctx: RunContext, call: ToolCall) {
               });
               if ("error" in resolved) return resolved;
               addRunSecrets(ctx, resolved.redactions);
-              return { text: resolved.text, origin: resolved.origin };
+              return {
+                text: resolved.text,
+                origin: resolved.origin,
+                ...(resolved.secondValue ? { secondValue: resolved.secondValue } : {}),
+              };
             },
           },
         );
