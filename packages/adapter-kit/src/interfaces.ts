@@ -580,6 +580,15 @@ export interface BrowserProvider {
     request: BrowserActRequest,
     context: AdapterContext,
   ): Promise<BrowserActResult>;
+  /**
+   * Close the bot's tabs on `origin` (an http(s) origin), leaving no field typed into there
+   * open. The site's cookies stay. Providers with no real browser leave it out.
+   */
+  closeSite?(
+    computer: ComputerRef,
+    request: { origin: string },
+    context: AdapterContext,
+  ): Promise<{ ok: boolean }>;
 }
 
 /**

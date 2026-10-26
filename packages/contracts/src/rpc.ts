@@ -549,8 +549,14 @@ export const appContract = {
             clientNonce: z.string().min(1).max(200).optional(),
             /** Only for a login card; `answer` carries its password. */
             username: z.string().min(1).max(512).optional(),
+            /** Only for a login card: keep the login for later runs, not only this one. */
+            remember: z.literal(true).optional(),
             /** Turns down a pending secret request; `answer` is then empty. */
             dismiss: z.literal(true).optional(),
+          })
+          .refine((input) => !input.remember || Boolean(input.username), {
+            message: "Only a website login can be remembered",
+            path: ["remember"],
           })
           .refine(
             (input) =>

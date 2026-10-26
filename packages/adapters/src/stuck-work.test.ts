@@ -610,6 +610,10 @@ function expireClient(run: ReturnType<typeof candidate>, options?: { cancelled?:
     computerExecutionLease: { updateMany: vi.fn(async () => ({ count: 1 })) },
     computer: { updateMany: vi.fn(async () => ({ count: 1 })) },
     secret: { deleteMany: vi.fn(async () => ({ count: 0 })) },
+    runLogin: {
+      updateMany: vi.fn(async () => ({ count: 0 })),
+      deleteMany: vi.fn(async () => ({ count: 0 })),
+    },
     steeringMessage: {
       updateMany: vi.fn(async () => ({ count: 1 })),
       findMany: vi.fn(async () => [

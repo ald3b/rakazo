@@ -20,10 +20,12 @@ import {
   parseComputerMode,
 } from "@rakazo/db";
 import { getLogger } from "@rakazo/logging";
+import { createBrowserProvider } from "./browser-provider-factory.js";
 import { scheduleComputerSleep } from "./computer-idle.js";
 import { ComputerBusyError, provisionComputer } from "./computer-lifecycle.js";
 import { resolveBotWorkspaceCwd, teamBotWorkspaceDirectory } from "./computer-support.js";
 import { connectedContext, selectRunConnections } from "./connection-context.js";
+import { cleanUpEndedRunLogins } from "./run-login-cleanup.js";
 
 /**
  * The checker behind a routine's "when something changes" trigger. It never
@@ -403,6 +405,17 @@ async function readComputer(
     throw new RoutineWatchError(`Could not start the bot's computer: ${errorText(error)}`);
   }
   scheduleComputerSleep(deps.jobs, bot.computer.id);
+  // A page from a login that has ended may still be open, and a check can be bot-written code on
+  // the computer: close those tabs first, as a run would, and wait until they are closed.
+  const cleaned = await cleanUpEndedRunLogins({
+    prisma: deps.prisma,
+    browser: createBrowserProvider(undefined, { sandbox: deps.sandbox }),
+    computer,
+    computerId,
+    context: ctx,
+    bot: { id: bot.id, spaceId: routine.spaceId },
+  }).catch(() => false);
+  if (!cleaned) throw new RoutineWatchRetry();
   // The check's own time budget starts once the computer is up.
   const botFolder = watchFolder(mode, bot.id);
   const cwd = resolveBotWorkspaceCwd(mode, bot.id, undefined);

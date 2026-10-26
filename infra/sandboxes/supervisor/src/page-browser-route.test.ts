@@ -300,3 +300,43 @@ it.each([undefined, "5"])("forwards the upload size override only when set: %j",
     else process.env.RAKAZO_BROWSER_UPLOAD_MAX_BYTES = original;
   }
 });
+
+async function closeSite(body: Record<string, unknown>) {
+  return supervisorApp.request("/computers/computer-close/browser", {
+    method: "POST",
+    headers: {
+      authorization: `Bearer ${resolveSupervisorToken(process.env)}`,
+      "content-type": "application/json",
+      "x-rakazo-bot-id": "home",
+      "x-rakazo-space-id": "space",
+      "x-rakazo-screen-id": "first",
+      "x-rakazo-screen-lease-id": "run:2",
+    },
+    body: JSON.stringify({ command: "close_site", ...body }),
+  });
+}
+
+it("passes a site to close on to the helper on the bot's own screen", async () => {
+  const response = await closeSite({ origin: "https://login.example.test" });
+  expect(response.status).toBe(200);
+  const helperCall = mock.exec.mock.calls.find(([options]) =>
+    options.Cmd.includes("/usr/local/bin/rakazo-page-browser"),
+  )!;
+  expect(helperCall[0].Cmd).toContain("close_site");
+  expect(mock.stdin.join("")).toBe(
+    `${JSON.stringify({ command: "close_site", origin: "https://login.example.test" })}\n`,
+  );
+});
+
+it.each(["javascript:alert(1)", "not a url", "file:///etc/passwd"])(
+  "rejects a site to close that isn't an http(s) address: %s",
+  async (origin) => {
+    const response = await closeSite({ origin });
+    expect(response.status).toBeGreaterThanOrEqual(400);
+    expect(
+      mock.exec.mock.calls.some(([options]) =>
+        options.Cmd.includes("/usr/local/bin/rakazo-page-browser"),
+      ),
+    ).toBe(false);
+  },
+);

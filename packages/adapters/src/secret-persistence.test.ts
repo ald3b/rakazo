@@ -591,6 +591,7 @@ describe("prepared run-secret writes", () => {
                 spaceId: "space",
                 plaintext: input.answer,
                 credential,
+                remember: true,
                 tx,
               });
               if (clock - start > 5000) throw new Error("Transaction expired");

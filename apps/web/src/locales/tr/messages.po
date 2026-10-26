@@ -4377,6 +4377,10 @@ msgstr "Kontrolü bırak"
 msgid "Reload"
 msgstr "Yeniden yükle"
 
+#: src/components/AskCard.tsx
+msgid "Remember for next time"
+msgstr "Bir dahaki sefere hatırla"
+
 #: src/components/ApprovalRulesSettings.tsx
 #: src/pages/McpServersOverlay.tsx
 #: src/pages/ModelRoleSettings.tsx

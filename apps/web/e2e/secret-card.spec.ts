@@ -190,3 +190,55 @@ test("dismisses a secret card, resumes the bot and frees the composer", async ({
   await page.reload({ waitUntil: "domcontentloaded" });
   await expect(card.getByText("Dismissed", { exact: true })).toBeVisible();
 });
+
+test("shows Remember for next time on a login card, off by default, and keeps an unremembered login out of settings", async ({
+  page,
+}, testInfo) => {
+  const stamp = Date.now();
+  await signup(page, `login-card-${stamp}@rakazo.test`, "password12", "Login Card");
+  await completeOnboarding(page);
+
+  const botId = activeBotId(page);
+  await page.getByPlaceholder(/Message/).fill("show a login card");
+  await page.keyboard.press("Enter");
+  await expect
+    .poll(
+      async () => {
+        const snapshot = await rpc<{ run?: { status: string } | null }>(page, "threads/get", {
+          botId,
+        });
+        return snapshot.run?.status ?? null;
+      },
+      { timeout: 60_000 },
+    )
+    .toBe("waiting_input");
+
+  const card = page.getByTestId("secret-ask-card");
+  if ((await card.count()) === 0) {
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await expect(page.getByPlaceholder(/Message/)).toBeVisible({ timeout: 15_000 });
+  }
+  await expect(card).toBeVisible({ timeout: 15_000 });
+  const remember = card.getByRole("switch", { name: "Remember for next time" });
+  await expect(remember).toBeVisible();
+  await expect(remember).not.toBeChecked();
+  await captureScreenshot(page, testInfo, "login-card");
+  await remember.click();
+  await expect(remember).toBeChecked();
+  await captureScreenshot(page, testInfo, "login-card-remember-on");
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(remember).toBeVisible();
+  await captureScreenshot(page, testInfo, "login-card-narrow");
+  await page.setViewportSize({ width: 1280, height: 720 });
+
+  // Saved with the switch off, the login is kept for this run only, not in the bot's settings.
+  await remember.click();
+  await expect(remember).not.toBeChecked();
+  const password = `fake-login-password-${stamp}`;
+  await card.getByLabel("Username", { exact: true }).fill(`fake-user-${stamp}@example.test`);
+  await card.getByLabel("Password", { exact: true }).fill(password);
+  await card.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(card.getByText("Saved", { exact: true })).toBeVisible({ timeout: 30_000 });
+  expect(await rpc<unknown[]>(page, "botSecrets/list", { botId })).toHaveLength(0);
+  await expect(page.getByText(password)).toHaveCount(0);
+});

@@ -4377,6 +4377,10 @@ msgstr "操作を戻す"
 msgid "Reload"
 msgstr "再読み込み"
 
+#: src/components/AskCard.tsx
+msgid "Remember for next time"
+msgstr "次回のために保存"
+
 #: src/components/ApprovalRulesSettings.tsx
 #: src/pages/McpServersOverlay.tsx
 #: src/pages/ModelRoleSettings.tsx

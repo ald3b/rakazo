@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 import type { SecretStore } from "@rakazo/adapter-kit";
-import type { BotSecretDestination } from "@rakazo/contracts";
+import type { BotSecretDestination, LoginSecretValue } from "@rakazo/contracts";
 import {
   BotSecretAuth,
   BotSecretName,
@@ -647,22 +647,102 @@ export async function loadLoginPasswordRedactions(
  * Resolve one field of a saved website login for a page fill. The caller must pass `origin` to
  * the page browser, which refuses to fill unless the page is still on that origin.
  */
-export async function resolveLoginFill(input: {
-  prisma: PrismaClient;
-  secretStore: SecretStore;
-  scope: BotSecretScope;
-  name: string;
-  field: LoginField;
-}): Promise<{ text: string; origin: string; redactions: string[] } | { error: string }> {
-  const row = await input.prisma.botSecret.findFirst({
-    where: { ...scopeFields(input.scope), name: input.name },
+/** This run's unremembered login under `name`, with the site its card was for. */
+export async function findRunLogin(
+  prisma: PrismaClient,
+  secretStore: Pick<SecretStore, "load">,
+  scope: BotSecretScope,
+  runId: string,
+  name: string,
+): Promise<
+  (LoginSecretValue & { id: string; origin: string; filledComputerId: string | null }) | undefined
+> {
+  const row = await prisma.runLogin.findFirst({
+    where: { runId, spaceId: scope.spaceId, userId: scope.userId, name, endedAt: null },
+    select: { id: true, origin: true, ciphertext: true, filledComputerId: true },
   });
-  if (!row) return { error: "Login is unavailable. Use request_secret to save it first." };
-  if (isCommandCredential(row.auth)) {
-    return {
-      error: `${UNUSABLE_CREDENTIAL}. Command variables are only available to shell commands.`,
-    };
+  if (!row) return undefined;
+  return {
+    id: row.id,
+    origin: row.origin,
+    filledComputerId: row.filledComputerId,
+    ...decodeLoginSecret(await secretStore.load(row.ciphertext, row.id)),
+  };
+}
+
+/** This run's unremembered logins, as the bot's tools show them. */
+export async function listRunLogins(prisma: PrismaClient, scope: BotSecretScope, runId: string) {
+  const rows = await prisma.runLogin.findMany({
+    where: { runId, spaceId: scope.spaceId, userId: scope.userId, endedAt: null },
+    select: { name: true, origin: true },
+    orderBy: { name: "asc" },
+  });
+  return rows.map((row) => ({ ...row, auth: { type: "login" as const }, remembered: false }));
+}
+
+/**
+ * Redactions for this run's unremembered logins. A continuation that took one over may meet it
+ * on a page filled by the run before it.
+ */
+export async function loadRunLoginRedactions(
+  prisma: PrismaClient,
+  secretStore: Pick<SecretStore, "load">,
+  scope: BotSecretScope,
+  runId: string,
+): Promise<string[]> {
+  const rows = await prisma.runLogin.findMany({
+    where: { runId, spaceId: scope.spaceId, userId: scope.userId, endedAt: null },
+    select: { id: true, ciphertext: true },
+  });
+  const redactions: string[] = [];
+  for (const row of rows) {
+    redactions.push(
+      ...loginRedactions(decodeLoginSecret(await secretStore.load(row.ciphertext, row.id))),
+    );
   }
+  return redactions;
+}
+
+/** End this run's unremembered login under `name`, as its run ending would. */
+export async function forgetRunLogin(
+  prisma: PrismaClient,
+  scope: BotSecretScope,
+  runId: string,
+  name: string,
+) {
+  const where = { runId, spaceId: scope.spaceId, userId: scope.userId, name, endedAt: null };
+  // Never filled, it left nothing in the browser to clean.
+  await prisma.runLogin.deleteMany({ where: { ...where, filledAt: null } });
+  await prisma.runLogin.updateMany({ where, data: { ciphertext: "", endedAt: new Date() } });
+}
+
+/**
+ * What a run hides of a login it can fill. A password long enough to hide in every run is hidden
+ * in the same forms as there (form-encoded and base64 too); a shorter one as it is and URL-encoded.
+ * Redaction is substring replacement, so a short username would mangle unrelated text.
+ */
+function loginRedactions(login: LoginSecretValue): string[] {
+  const password =
+    login.password.length >= MIN_REDACTED_PASSWORD_EVERY_RUN
+      ? passwordRedactionForms(login.password)
+      : [login.password, encodeURIComponent(login.password)];
+  return [
+    ...new Set(
+      password.concat(
+        login.username.length >= MIN_REDACTED_USERNAME
+          ? [login.username, encodeURIComponent(login.username)]
+          : [],
+      ),
+    ),
+  ];
+}
+
+/** The site a login may be filled on, or why it can't be filled at all. */
+function loginFillOrigin(row: {
+  name: string;
+  origin: string;
+  auth: unknown;
+}): { origin: string } | { error: string } {
   // Checked on the stored origin itself, so the private-LAN HTTP allowance cannot widen a login.
   let storedOrigin: URL;
   try {
@@ -680,19 +760,78 @@ export async function resolveLoginFill(input: {
   if (destination.origin !== storedOrigin.origin) {
     return { error: "Website logins can only be filled on an HTTPS origin." };
   }
-  const login = decodeLoginSecret(await input.secretStore.load(row.ciphertext, row.id));
-  return {
-    text: login[input.field],
-    origin: destination.origin,
-    // Redaction is substring replacement, so a short username would mangle unrelated text.
-    redactions: [
-      ...new Set(
-        [login.password, encodeURIComponent(login.password)].concat(
-          login.username.length >= MIN_REDACTED_USERNAME
-            ? [login.username, encodeURIComponent(login.username)]
-            : [],
-        ),
-      ),
-    ],
-  };
+  return { origin: destination.origin };
+}
+
+/**
+ * Resolve one field of a website login for a page fill: this run's unremembered login under the
+ * name first, since it is what the person just typed, then a saved one. The caller must pass
+ * `origin` to the page browser, which refuses to fill unless the page is still on that origin.
+ */
+/** What filling a run login gets once it has been typed on a computer other than this run's. */
+export const RUN_LOGIN_ON_ANOTHER_COMPUTER =
+  "This login was used on another computer. Use request_secret to ask for it again.";
+
+export async function resolveLoginFill(input: {
+  prisma: PrismaClient;
+  secretStore: SecretStore;
+  scope: BotSecretScope;
+  runId: string;
+  name: string;
+  field: LoginField;
+  /** The computer the page browser types it on, for that computer's cleanup when it ends. */
+  computerId: string;
+}): Promise<{ text: string; origin: string; redactions: string[] } | { error: string }> {
+  let login: LoginSecretValue;
+  let origin: string;
+  const runLogin = await findRunLogin(
+    input.prisma,
+    input.secretStore,
+    input.scope,
+    input.runId,
+    input.name,
+  );
+  if (runLogin) {
+    const checked = loginFillOrigin({
+      name: input.name,
+      origin: runLogin.origin,
+      auth: { type: "login" },
+    });
+    if ("error" in checked) return checked;
+    // Only one computer's cleanup can drop it, so one typed elsewhere isn't typed here too.
+    if (runLogin.filledComputerId && runLogin.filledComputerId !== input.computerId) {
+      return { error: RUN_LOGIN_ON_ANOTHER_COMPUTER };
+    }
+    // From here the page may hold it, so its run's end leaves the site to be cleaned, on this
+    // computer. A run that ended since the read has already deleted or wiped it, and then nothing
+    // is filled.
+    const marked = await input.prisma.runLogin.updateMany({
+      where: {
+        id: runLogin.id,
+        endedAt: null,
+        OR: [{ filledComputerId: null }, { filledComputerId: input.computerId }],
+      },
+      data: { filledAt: new Date(), filledComputerId: input.computerId },
+    });
+    if (marked.count !== 1) {
+      return { error: "Login is unavailable. Use request_secret to save it first." };
+    }
+    origin = checked.origin;
+    login = runLogin;
+  } else {
+    const row = await input.prisma.botSecret.findFirst({
+      where: { ...scopeFields(input.scope), name: input.name },
+    });
+    if (!row) return { error: "Login is unavailable. Use request_secret to save it first." };
+    if (isCommandCredential(row.auth)) {
+      return {
+        error: `${UNUSABLE_CREDENTIAL}. Command variables are only available to shell commands.`,
+      };
+    }
+    const checked = loginFillOrigin(row);
+    if ("error" in checked) return checked;
+    origin = checked.origin;
+    login = decodeLoginSecret(await input.secretStore.load(row.ciphertext, row.id));
+  }
+  return { text: login[input.field], origin, redactions: loginRedactions(login) };
 }

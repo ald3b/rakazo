@@ -52,6 +52,7 @@ model User {
   autoReviewPreference        UserActionAutoReviewPreference?
   createdSpaces               Space[]                      @relation("SpaceCreator")
   botSecrets BotSecret[]
+  runLogins RunLogin[]
   agentSecrets               AgentSecret[]
   createdTickets              Ticket[]                     @relation("TicketCreatorUser")
   ticketComments              TicketComment[]              @relation("TicketCommentAuthorUser")
@@ -302,6 +303,7 @@ model Space {
   secrets                     Secret[]
   chatGroups                  ChatGroup[]
   botSecrets                  BotSecret[]
+  runLogins                   RunLogin[]
   externalConversations       ExternalConversation[]
   agentSecrets                AgentSecret[]
   board                       Board?
@@ -538,6 +540,7 @@ model Bot {
   agentImports      AgentImport[]
   groupMembers      ChatGroupMember[]
   botSecrets BotSecret[]
+  runLogins RunLogin[]
   assignedTickets   Ticket[]          @relation("TicketAssigneeBot")
   createdTickets    Ticket[]          @relation("TicketCreatorBot")
   ticketComments    TicketComment[]   @relation("TicketCommentAuthorBot")
@@ -763,6 +766,7 @@ model Run {
   attempts             Attempt[]
   effects              ExternalEffect[]
   steeringMessages     SteeringMessage[]
+  runLogins            RunLogin[]
   externalMessage      ExternalMessage?
 
   @@unique([spaceId, clientNonce])
@@ -1544,6 +1548,36 @@ model BotSecret {
   @@index([botId])
   @@index([spaceId])
   @@map("bot_secrets")
+}
+
+/// A website login the person didn't ask to remember, kept for the run that asked for it (or the
+/// continuation that takes over from it). When the run ends the value is wiped and `endedAt` set;
+/// the row stays only until the bot's browser is cleaned up.
+model RunLogin {
+  id         String    @id
+  runId      String
+  run        Run       @relation(fields: [runId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  spaceId    String
+  space      Space     @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  botId      String
+  bot        Bot       @relation(fields: [botId], references: [id], onDelete: Cascade)
+  name       String
+  origin     String
+  ciphertext String
+  createdAt  DateTime  @default(now())
+  /// Set when the value is handed to the page browser; an unfilled login leaves nothing to clean.
+  filledAt   DateTime?
+  /// The computer whose browser got it: only that computer's cleanup can drop the row.
+  filledComputerId String?
+  endedAt    DateTime?
+
+  /// One live login per run and name; an ended one stays beside it until its site is cleaned up.
+  @@index([runId, name])
+  @@index([botId, endedAt])
+  @@index([spaceId])
+  @@map("run_logins")
 }
 
 model ExternalConversation {

@@ -44,7 +44,7 @@ import {
   partialReplyClientNonce,
   RunHistoryWriteError,
 } from "./messages.js";
-import { deleteRunSecretsInTransaction } from "./run-secrets.js";
+import { deleteRunSecretsInTransaction, moveRunLoginsInTransaction } from "./run-secrets.js";
 import { isRunResponse, readRunTimingFields } from "./run-timing.js";
 import { RUN_TURN_CHECKPOINT_KIND } from "./run-turn-checkpoint.js";
 import { recordSecurityEvent } from "./security-events.js";
@@ -247,6 +247,8 @@ export interface AnswerRunInput {
   clientNonce?: string;
   /** Only for a login card; `answer` carries its password. */
   username?: string;
+  /** Only for a login card: keep the login for later runs, not only for this one. */
+  remember?: boolean;
   /** Turns down a pending secret request; only the run's user can, and nothing is stored. */
   dismiss?: boolean;
 }
@@ -295,6 +297,8 @@ export interface RunSecretWriter {
   store(input: {
     botId: string;
     credential?: BotSecretDestination;
+    /** A login card answered with "Remember for next time". */
+    remember: boolean;
     runId: string;
     userId: string;
     spaceId: string;
@@ -765,6 +769,7 @@ async function commitAnswerRunInput(
   const loginAsk = secretAsk && !dismissed && pendingAsk.credential?.auth.type === "login";
   // A username belongs only to a login card, which cannot be saved without one.
   if (loginAsk !== Boolean(input.username?.trim())) return null;
+  if (input.remember && !loginAsk) return null;
   const login = loginAsk
     ? LoginSecretValue.safeParse({ username: input.username!.trim(), password: input.answer })
     : undefined;
@@ -919,9 +924,12 @@ async function commitAnswerRunInput(
     });
     if (task.count !== 1) throw new Error("Run task was not available to answer");
   } else if (secretAsk) {
+    // A login is kept for later runs only when the person chose to; any other credential is saved.
+    const remembered = !loginAsk || input.remember === true;
     await runSecretWriter!.store({
       botId: run.botId,
       credential: pendingAsk.credential,
+      remember: remembered,
       runId: input.runId,
       userId: run.userId,
       spaceId: input.spaceId,
@@ -937,7 +945,9 @@ async function commitAnswerRunInput(
       },
       data: {
         status: "approved",
-        ...(pendingAsk.credential ? { result: { credentialSaved: pendingAsk.credential } } : {}),
+        ...(pendingAsk.credential
+          ? { result: { credentialSaved: pendingAsk.credential, remembered } }
+          : {}),
       },
     });
   } else {
@@ -1714,11 +1724,6 @@ async function finalizeRunOnce(
       payload: input.outcome === "completed" ? {} : { error: input.error },
     });
     await tx.event.deleteMany({ where: { runId: input.runId, type: "thread.progress" } });
-    if (writableRun) {
-      await deleteRunSecretsInTransaction(tx, [
-        { id: input.runId, userId: writableRun.userId, spaceId: input.spaceId },
-      ]);
-    }
     if (input.outcome === "completed") {
       await tx.steeringMessage.deleteMany({
         where: { runId: input.runId, claimedAt: { not: null } },
@@ -1729,6 +1734,13 @@ async function finalizeRunOnce(
       });
     }
     const continuationRunId = await createPendingSteeringRun(tx, input);
+    if (writableRun) {
+      // A continuation is the person's follow-up in the same flow, so a sign-in can go on there.
+      if (continuationRunId) await moveRunLoginsInTransaction(tx, input.runId, continuationRunId);
+      await deleteRunSecretsInTransaction(tx, [
+        { id: input.runId, userId: writableRun.userId, spaceId: input.spaceId },
+      ]);
+    }
     await tx.bot.update({ where: { id: input.botId }, data: { updatedAt: now } });
     return { threadId: lastEvent.threadId, seq: lastEvent.seq, continuationRunId, firstResponse };
   }, FINALIZE_TRANSACTION_OPTIONS);

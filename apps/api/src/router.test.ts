@@ -934,6 +934,20 @@ describe("secret request dismissal", () => {
     expect(h.enqueue).toHaveBeenCalledOnce();
   });
 
+  it("passes Remember for next time on with a login answer", async () => {
+    const h = setup(true);
+    const { response } = await h.send({
+      answer: "fake-password-1",
+      username: "fake-user",
+      remember: true,
+    });
+
+    expect(response.status).toBe(200);
+    expect(h.answerRunInput).toHaveBeenCalledWith(
+      expect.objectContaining({ username: "fake-user", remember: true }),
+    );
+  });
+
   it("reports a dismissal the card no longer accepts as a conflict", async () => {
     const h = setup(false);
     const { response } = await h.send({ answer: "", dismiss: true });
@@ -947,6 +961,8 @@ describe("secret request dismissal", () => {
     ["a dismissal with a username", { answer: "", username: "ada", dismiss: true }],
     ["a dismissal during a call", { answer: "", clientNonce: "call:call-1:x", dismiss: true }],
     ["an empty answer", { answer: "" }],
+    ["Remember on an answer that isn't a login", { answer: "123456", remember: true }],
+    ["Remember on a dismissal", { answer: "", dismiss: true, remember: true }],
   ])("rejects %s before it reaches the run", async (_name, json) => {
     const h = setup(true);
     const { response } = await h.send(json);
@@ -1119,6 +1135,10 @@ describe("MCP server deletion", () => {
         delete: deleteServer,
       },
       secret: { deleteMany: deleteSecrets },
+      runLogin: {
+        updateMany: vi.fn(async () => ({ count: 0 })),
+        deleteMany: vi.fn(async () => ({ count: 0 })),
+      },
       message: { findMany: vi.fn().mockResolvedValue([]) },
       $transaction: vi.fn(async (run: (tx: unknown) => Promise<unknown>) => run(prisma)),
     } as unknown as PrismaClient;
@@ -7862,6 +7882,10 @@ describe("groups.archive", () => {
       attempt: { updateMany: vi.fn() },
       task: { updateMany: vi.fn() },
       secret: { deleteMany: vi.fn() },
+      runLogin: {
+        updateMany: vi.fn(async () => ({ count: 0 })),
+        deleteMany: vi.fn(async () => ({ count: 0 })),
+      },
       computerExecutionLease: {
         findMany: vi
           .fn()

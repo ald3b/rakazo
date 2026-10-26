@@ -5,7 +5,7 @@ import { clearEndedRunState } from "./run-secrets.js";
 export async function cancelRunsInTransaction(
   tx: Pick<
     Prisma.TransactionClient,
-    "run" | "attempt" | "task" | "externalEffect" | "secret" | "message"
+    "run" | "attempt" | "task" | "externalEffect" | "secret" | "message" | "runLogin"
   >,
   runs: ReadonlyArray<{ id: string; taskId: string; userId: string; spaceId: string }>,
   cancelledAt: Date,

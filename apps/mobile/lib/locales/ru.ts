@@ -409,6 +409,7 @@ export const RU_MESSAGES: Record<string, string> = {
   "Could not save the server URL": "Не удалось сохранить URL-адрес сервера.",
   "Could not send reset email": "Не удалось отправить электронное письмо для сброса",
   "Could not send answer": "Не удалось отправить ответ",
+  "Remember for next time": "Запомнить на следующий раз",
   "Could not share file": "Не удалось поделиться файлом",
   "Could not sign out": "Не удалось выйти",
   "Could not speak": "Не удалось озвучить",

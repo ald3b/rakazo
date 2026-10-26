@@ -4378,6 +4378,10 @@ msgstr "交還控制權"
 msgid "Reload"
 msgstr "重新載入"
 
+#: src/components/AskCard.tsx
+msgid "Remember for next time"
+msgstr "記住以便下次使用"
+
 #: src/components/ApprovalRulesSettings.tsx
 #: src/pages/McpServersOverlay.tsx
 #: src/pages/ModelRoleSettings.tsx

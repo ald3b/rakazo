@@ -811,6 +811,66 @@ def navigate(client: CdpClient, session_id: str, url: str) -> dict[str, Any]:
     raise RuntimeError("Navigation did not settle; inspect the screen before continuing")
 
 
+def page_origin(url: str) -> str:
+    """The web origin of a page, as a browser computes it: scheme://host[:port] with the
+    default port dropped, and a blob: page mapped to the site that made it. "" for a page
+    with no web origin (about:, data:, file:, chrome: and the like)."""
+    if url[:5].lower() == "blob:":
+        url = url[5:]
+    try:
+        parsed = urlsplit(url)
+        port = parsed.port
+    except ValueError:
+        return ""
+    scheme = parsed.scheme.lower()
+    if scheme not in ("http", "https") or not parsed.hostname:
+        return ""
+    host = parsed.hostname.lower()
+    if ":" in host:
+        host = f"[{host}]"
+    default = 443 if scheme == "https" else 80
+    return f"{scheme}://{host}" + (f":{port}" if port and port != default else "")
+
+
+MAX_CLOSE_SITE_PAGES = 64
+
+
+def close_site(client: CdpClient, origin: str) -> dict[str, Any]:
+    """Close every tab that is on `origin` or has a page from it in its back/forward history,
+    so no field a login was typed into is left open or one Back away. When that would close the
+    window, a fresh blank tab with no history is opened first."""
+    wanted = page_origin(origin)
+    if not wanted or wanted != origin:
+        raise RuntimeError("close_site needs an http(s) origin")
+    targets = client.call("Target.getTargets").get("targetInfos") or []
+    pages = [t for t in targets if isinstance(t, dict) and t.get("type") == "page"]
+    on_site = []
+    for index, page in enumerate(pages):
+        urls = [str(page.get("url") or "")]
+        # A tab whose history isn't read, past the cap that bounds the round trips or because
+        # reading it failed, may still hold the site one Back away, so it is closed too.
+        checked = False
+        if index < MAX_CLOSE_SITE_PAGES:
+            try:
+                attached = client.call("Target.attachToTarget",
+                                       {"targetId": page["targetId"], "flatten": True})
+                history = client.call("Page.getNavigationHistory", session_id=attached["sessionId"])
+                urls += [str(entry.get("url") or "") for entry in history.get("entries") or []]
+                checked = True
+            except Exception:  # noqa: BLE001
+                pass
+        if not checked or any(page_origin(url) == wanted for url in urls):
+            on_site.append(page)
+    if on_site and len(on_site) == len(pages):
+        # In the bot's own browser context, so it is this window that stays open.
+        context = on_site[-1].get("browserContextId")
+        client.call("Target.createTarget",
+                    {"url": "about:blank", **({"browserContextId": context} if context else {})})
+    for page in on_site:
+        client.call("Target.closeTarget", {"targetId": page["targetId"]})
+    return {"ok": True, "closed": len(on_site)}
+
+
 MAX_UPLOAD_FILES = 10
 MAX_UPLOAD_BYTES = 100 * 1024 * 1024
 
@@ -1180,6 +1240,11 @@ def run(argv: list[str]) -> int:
         client = CdpClient(ws_url)
         client.connect()
         try:
+            if command == "close_site":
+                # Works on every tab, so it needs no visible page to attach to.
+                result = close_site(client, str(args.get("origin") or ""))
+                print(json.dumps(result))
+                return 0
             session_id = attach_page(client)
             if command == "navigate":
                 result = navigate(client, session_id, str(args.get("url") or ""))

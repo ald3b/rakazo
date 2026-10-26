@@ -160,6 +160,8 @@ export interface RunComputerContext {
   lazy: ReturnType<typeof lazyRunComputer>;
   /** Starts the computer on first use and copies the turn's files before each tool. */
   get: (reason: "tool" | "takeover" | "script", tool?: string) => Promise<ComputerRef>;
+  /** Closes the sites of this bot's ended run logins on the computer; whether all are closed. */
+  cleanUpEndedLogins: (computer: ComputerRef) => Promise<boolean>;
   checkpoint: ReturnType<typeof createRunWorkspaceCheckpoint>;
   hostEnvironment: Awaited<ReturnType<NonNullable<SandboxProvider["environment"]>>> | undefined;
   graphical: boolean;

@@ -71,6 +71,7 @@ function fakeDatabase() {
   const client: Record<string, unknown> = {
     botSecret,
     secret: { count: vi.fn(async () => 0) },
+    runLogin: { findFirst: vi.fn(async () => null) },
     integrationProviderConfig: { count: vi.fn(async () => 0) },
     $queryRaw: vi.fn(async () => []),
   };
@@ -206,9 +207,11 @@ describe("command variables stay out of HTTP and page fills", () => {
     await save(db, "cli-token", "fake-cli-token-1");
     expect(
       await resolveLoginFill({
+        computerId: "computer-1",
         prisma: db.prisma,
         secretStore,
         scope,
+        runId: "run-1",
         name: "cli-token",
         field: "password",
       }),

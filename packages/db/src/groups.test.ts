@@ -228,6 +228,10 @@ describe("archiveGroup", () => {
       attempt: { updateMany: attemptUpdateMany },
       task: { updateMany: taskUpdateMany },
       secret: { deleteMany: vi.fn() },
+      runLogin: {
+        updateMany: vi.fn(async () => ({ count: 0 })),
+        deleteMany: vi.fn(async () => ({ count: 0 })),
+      },
       computerExecutionLease: { findMany: leaseFindMany, updateMany: leaseUpdateMany },
       computer: { findMany: findManyComputers, updateMany: computerUpdateMany },
       event: { deleteMany: eventDeleteMany },

@@ -63,6 +63,10 @@ describe("queued run supersession", () => {
       message: { findMany: vi.fn(async () => []) },
       task: { updateMany: vi.fn() },
       secret: { deleteMany: vi.fn(async () => ({ count: 1 })) },
+      runLogin: {
+        updateMany: vi.fn(async () => ({ count: 0 })),
+        deleteMany: vi.fn(async () => ({ count: 0 })),
+      },
     };
     await cancelSupersededQueuedRuns(tx as never, {
       threadId: "thread-1",
@@ -1655,6 +1659,10 @@ describe("sendThreadMessage", () => {
       },
       attempt: { updateMany: vi.fn() },
       secret: { deleteMany: vi.fn() },
+      runLogin: {
+        updateMany: vi.fn(async () => ({ count: 0 })),
+        deleteMany: vi.fn(async () => ({ count: 0 })),
+      },
       steeringMessage: { create: vi.fn() },
       event: { create: vi.fn().mockResolvedValue({ seq: 2, threadId: "thread-1" }) },
       task: { create: vi.fn(), updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
@@ -1848,6 +1856,10 @@ describe("sendThreadMessage", () => {
       },
       attempt: { updateMany: vi.fn() },
       secret: { deleteMany: vi.fn() },
+      runLogin: {
+        updateMany: vi.fn(async () => ({ count: 0 })),
+        deleteMany: vi.fn(async () => ({ count: 0 })),
+      },
       steeringMessage: { create: vi.fn() },
       event: { create: vi.fn().mockResolvedValue({ seq: 2, threadId: "thread-1" }) },
       task: { create: vi.fn(), updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
@@ -1974,6 +1986,10 @@ describe("sendThreadMessage", () => {
           },
           attempt: { updateMany: vi.fn() },
           secret: { deleteMany: vi.fn() },
+          runLogin: {
+            updateMany: vi.fn(async () => ({ count: 0 })),
+            deleteMany: vi.fn(async () => ({ count: 0 })),
+          },
           task: { create: vi.fn().mockResolvedValue({ id: "task-new" }), updateMany: vi.fn() },
           steeringMessage: { create: vi.fn() },
           event: { create: vi.fn().mockResolvedValue({ seq: 4 }) },
@@ -3725,6 +3741,10 @@ describe("stopThreadRuns", () => {
       },
       steeringMessage: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
       secret: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
+      runLogin: {
+        updateMany: vi.fn(async () => ({ count: 0 })),
+        deleteMany: vi.fn(async () => ({ count: 0 })),
+      },
       computer: {
         // Production team ownership is lease-only: Computer.executionRunId stays null.
         findMany: vi.fn().mockImplementation(async ({ where }: { where: { OR?: unknown[] } }) => {
@@ -3865,6 +3885,10 @@ describe("stopThreadRuns", () => {
       },
       steeringMessage: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
       secret: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
+      runLogin: {
+        updateMany: vi.fn(async () => ({ count: 0 })),
+        deleteMany: vi.fn(async () => ({ count: 0 })),
+      },
       computer: {
         // Selected via lease for cancelled run A, but legacy columns still name
         // unrelated live run B. Legacy teardown must not cancel/release B.
@@ -3983,6 +4007,10 @@ describe("stopThreadRuns", () => {
       },
       steeringMessage: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
       secret: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
+      runLogin: {
+        updateMany: vi.fn(async () => ({ count: 0 })),
+        deleteMany: vi.fn(async () => ({ count: 0 })),
+      },
       computer: { findMany: vi.fn().mockResolvedValue([]) },
       computerExecutionLease: { findMany: vi.fn().mockResolvedValue([]) },
       event: {
@@ -4079,6 +4107,10 @@ describe("stopThreadRuns", () => {
       },
       steeringMessage: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
       secret: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
+      runLogin: {
+        updateMany: vi.fn(async () => ({ count: 0 })),
+        deleteMany: vi.fn(async () => ({ count: 0 })),
+      },
       computer: { findMany: vi.fn() },
       computerExecutionLease: { findMany: vi.fn() },
       event: { create: vi.fn(), deleteMany: vi.fn() },

@@ -17,6 +17,8 @@ import type { FakeBrowserProviderOptions } from "./fake-browser.js";
 import { FakeBrowserProvider } from "./fake-browser.js";
 
 const DETACHED_MESSAGE = "Page browser is not attached to this computer's Chrome.";
+/** What the host answers for a computer it runs without a page browser. */
+export const NO_PAGE_BROWSER_MESSAGE = "Page browser is unavailable on this computer.";
 
 type LivePayload = Partial<PageBrowserResult>;
 
@@ -174,6 +176,26 @@ export class ComputerBrowserProvider implements BrowserProvider {
     };
   }
 
+  async closeSite(
+    computer: ComputerRef,
+    request: { origin: string },
+    context: AdapterContext,
+  ): Promise<{ ok: boolean }> {
+    // Without a page browser no saved login was ever typed into a page here.
+    if (this.canUseInProcess(computer) || (!this.liveDriver && !this.sandbox?.pageBrowser))
+      return { ok: true };
+    const live = await this.runLive(
+      computer,
+      { command: "close_site", origin: request.origin },
+      context,
+    );
+    if (live?.ok === true) return { ok: true };
+    // A computer the host routes without a page browser never had a login typed into a page.
+    // Any other failure, an older image that can't close tabs included, keeps the site: its tabs
+    // or their history may still hold the page.
+    return { ok: live?.error === NO_PAGE_BROWSER_MESSAGE };
+  }
+
   private canUseInProcess(computer: ComputerRef): boolean {
     return computer.kind === "fake";
   }
@@ -195,7 +217,7 @@ export class ComputerBrowserProvider implements BrowserProvider {
               fallback: "computer_act" as const,
               uncertain: false,
             };
-      if (result?.ok === true) {
+      if (result?.ok === true && request.command !== "close_site") {
         if (typeof result.url !== "string" || typeof result.title !== "string") {
           throw new Error("Incomplete page browser response");
         }

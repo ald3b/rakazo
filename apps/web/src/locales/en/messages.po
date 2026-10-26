@@ -4377,6 +4377,10 @@ msgstr "Release control"
 msgid "Reload"
 msgstr "Reload"
 
+#: src/components/AskCard.tsx
+msgid "Remember for next time"
+msgstr "Remember for next time"
+
 #: src/components/ApprovalRulesSettings.tsx
 #: src/pages/McpServersOverlay.tsx
 #: src/pages/ModelRoleSettings.tsx

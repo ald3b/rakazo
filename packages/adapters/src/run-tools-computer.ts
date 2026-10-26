@@ -176,8 +176,10 @@ export async function pageBrowserTool(ctx: RunContext, call: ToolCall) {
                 prisma: deps.prisma,
                 secretStore: deps.secretStore,
                 scope: run,
+                runId: run.id,
                 name: step.secret,
                 field: step.field,
+                computerId: ctx.computer.stored.id,
               });
               if ("error" in resolved) return resolved;
               addRunSecrets(ctx, resolved.redactions);

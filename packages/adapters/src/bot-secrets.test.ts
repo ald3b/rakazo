@@ -46,7 +46,10 @@ async function fixture(auth = destination.auth) {
       ? row
       : null,
   );
-  const prisma = { botSecret: { findFirst } } as unknown as PrismaClient;
+  const prisma = {
+    botSecret: { findFirst },
+    runLogin: { findFirst: vi.fn(async () => null) },
+  } as unknown as PrismaClient;
   const fetch = vi.fn<typeof globalThis.fetch>(async () => Response.json({ ok: true }));
   const registerRedactions = vi.fn();
   const input = {
@@ -818,7 +821,12 @@ describe("saved website logins", () => {
         : null,
     );
     const findMany = vi.fn(async (query) => matchingRows([row], query));
-    return { prisma: { botSecret: { findFirst, findMany } } as unknown as PrismaClient };
+    return {
+      prisma: {
+        botSecret: { findFirst, findMany },
+        runLogin: { findFirst: vi.fn(async () => null) },
+      } as unknown as PrismaClient,
+    };
   }
 
   it("hides every saved password when the bot has more than 100 credentials", async () => {
@@ -870,9 +878,11 @@ describe("saved website logins", () => {
     );
     expect(await loadLoginPasswordRedactions(prisma, secretStore, scope)).toEqual([]);
     const fill = await resolveLoginFill({
+      computerId: "computer-1",
       prisma,
       secretStore,
       scope,
+      runId: "run-1",
       name: "site_login",
       field: "password",
     });
@@ -907,13 +917,17 @@ describe("saved website logins", () => {
 
   it("resolves one field bound to the saved origin with its redactions", async () => {
     const { prisma } = await loginFixture("fake-user@example.test");
-    const input = { prisma, secretStore, scope, name: "site_login" };
-    expect(await resolveLoginFill({ ...input, field: "password" })).toEqual({
+    const input = { prisma, secretStore, scope, runId: "run-1", name: "site_login" };
+    expect(
+      await resolveLoginFill({ computerId: "computer-1", ...input, field: "password" }),
+    ).toEqual({
       text: "fake-password-1",
       origin: "https://login.example.test",
       redactions: expect.arrayContaining(["fake-password-1", "fake-user@example.test"]),
     });
-    expect(await resolveLoginFill({ ...input, field: "username" })).toMatchObject({
+    expect(
+      await resolveLoginFill({ computerId: "computer-1", ...input, field: "username" }),
+    ).toMatchObject({
       text: "fake-user@example.test",
     });
   });
@@ -921,9 +935,11 @@ describe("saved website logins", () => {
   it("does not redact a short username that would mangle unrelated text", async () => {
     const { prisma } = await loginFixture("ada");
     const resolved = await resolveLoginFill({
+      computerId: "computer-1",
       prisma,
       secretStore,
       scope,
+      runId: "run-1",
       name: "site_login",
       field: "username",
     });
@@ -956,9 +972,11 @@ describe("saved website logins", () => {
     );
     expect(
       await resolveLoginFill({
+        computerId: "computer-1",
         prisma,
         secretStore,
         scope,
+        runId: "run-1",
         name: "site_login",
         field: "password",
       }),
@@ -967,8 +985,14 @@ describe("saved website logins", () => {
 
   it("refuses to fill a credential that is not a login", async () => {
     const { input } = await fixture();
-    expect(await resolveLoginFill({ ...input, name: destination.name, field: "password" })).toEqual(
-      { error: "This credential is not a website login." },
-    );
+    expect(
+      await resolveLoginFill({
+        computerId: "computer-1",
+        ...input,
+        runId: "run-1",
+        name: destination.name,
+        field: "password",
+      }),
+    ).toEqual({ error: "This credential is not a website login." });
   });
 });

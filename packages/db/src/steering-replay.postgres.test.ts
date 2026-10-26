@@ -144,6 +144,50 @@ describePostgres("steering after a run ends without completing (PostgreSQL)", ()
     );
   }
 
+  async function runLoginFor(runId: string) {
+    return system.runLogin.create({
+      data: {
+        id: `login-${randomUUID()}`,
+        runId,
+        userId,
+        spaceId,
+        botId,
+        name: "site_login",
+        origin: "https://login.example.test",
+        ciphertext: "fake-ciphertext",
+        filledAt: new Date(),
+      },
+    });
+  }
+
+  it("hands an unremembered login to the continuation, and ends it with the last run", async () => {
+    const fixture = await runSteeredByMessage("running");
+    const login = await runLoginFor(fixture.run.id);
+
+    const { continuationRunId } = (await failRun(fixture)) as { continuationRunId: string };
+
+    expect(continuationRunId).toEqual(expect.any(String));
+    expect(await system.runLogin.findUniqueOrThrow({ where: { id: login.id } })).toMatchObject({
+      runId: continuationRunId,
+      ciphertext: "fake-ciphertext",
+      endedAt: null,
+    });
+  });
+
+  it("ends an unremembered login with a run that has no continuation", async () => {
+    const fixture = await runSteeredByMessage("running");
+    await botReplies(fixture.run.id);
+    const login = await runLoginFor(fixture.run.id);
+
+    await expect(failRun(fixture)).resolves.toEqual({ continuationRunId: null });
+
+    expect(await system.runLogin.findUniqueOrThrow({ where: { id: login.id } })).toMatchObject({
+      runId: fixture.run.id,
+      ciphertext: "",
+      endedAt: expect.any(Date),
+    });
+  });
+
   it("does not answer a message again after the failed run already replied to it", async () => {
     const fixture = await runSteeredByMessage("running");
     await botReplies(fixture.run.id);

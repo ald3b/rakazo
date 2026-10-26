@@ -12,6 +12,7 @@ import {
   describeEntryChanges,
   FILES_SCRIPT,
   parseRoutineWatch,
+  RoutineWatchRetry,
   readItems,
   resolveWatchPath,
   stableStringify,
@@ -141,6 +142,10 @@ describe("tickRoutineWatch", () => {
     };
     const deps = {
       prisma: {
+        runLogin: {
+          findMany: vi.fn(async () => []),
+          deleteMany: vi.fn(async () => ({ count: 0 })),
+        },
         routine: { updateMany },
         connection: { findMany: vi.fn(async () => []) },
         spaceSettingOverride: { findUnique: vi.fn(async () => null) },
@@ -388,6 +393,10 @@ describe("tool results", () => {
   it("treats an MCP error result as a failed check, not a reading", async () => {
     const deps = {
       prisma: {
+        runLogin: {
+          findMany: vi.fn(async () => []),
+          deleteMany: vi.fn(async () => ({ count: 0 })),
+        },
         connection: { findMany: vi.fn(async () => []) },
         spaceSettingOverride: { findUnique: vi.fn(async () => null) },
         actionApprovalRule: { findMany: vi.fn(async () => []) },
@@ -445,6 +454,10 @@ describe("tickRoutineWatch on a computer", () => {
     });
     const deps = {
       prisma: {
+        runLogin: {
+          findMany: vi.fn(async () => []),
+          deleteMany: vi.fn(async () => ({ count: 0 })),
+        },
         routine: { updateMany },
         bot: {
           findUnique: vi.fn(async () => ({
@@ -471,6 +484,41 @@ describe("tickRoutineWatch on a computer", () => {
     };
     return { deps, routine, updateMany, messages, execute };
   }
+
+  it("closes the tabs of an ended login itself, then runs the check", async () => {
+    const vm = { id: "sandbox-1", botId: "home-1", kind: "e2b" as const, providerRef: "sandbox-1" };
+    vi.mocked(provisionComputer).mockResolvedValueOnce(vm);
+    const { deps, routine, execute } = setupComputer({ kind: "command", command: "cat page" });
+    vi.mocked(deps.prisma.runLogin.findMany).mockResolvedValueOnce([
+      { id: "ended-login", origin: "https://login.example.test" },
+    ] as never);
+    const pageBrowser = vi.fn(async () => ({ ok: true }));
+    Object.assign(deps.sandbox, { pageBrowser });
+    await checkRoutineWatch(deps, routine);
+    expect(pageBrowser).toHaveBeenCalledWith(
+      expect.anything(),
+      { command: "close_site", origin: "https://login.example.test" },
+      expect.anything(),
+    );
+    expect(deps.prisma.runLogin.deleteMany).toHaveBeenCalledWith({
+      where: { id: { in: ["ended-login"] }, endedAt: { not: null } },
+    });
+    expect(execute).toHaveBeenCalled();
+  });
+
+  it("waits, running nothing, while those tabs can't be closed", async () => {
+    const vm = { id: "sandbox-1", botId: "home-1", kind: "e2b" as const, providerRef: "sandbox-1" };
+    vi.mocked(provisionComputer).mockResolvedValueOnce(vm);
+    const { deps, routine, execute } = setupComputer({ kind: "command", command: "cat page" });
+    vi.mocked(deps.prisma.runLogin.findMany).mockResolvedValueOnce([
+      { id: "ended-login", origin: "https://login.example.test" },
+    ] as never);
+    Object.assign(deps.sandbox, {
+      pageBrowser: vi.fn(async () => ({ ok: false, error: "unknown command: close_site" })),
+    });
+    await expect(checkRoutineWatch(deps, routine)).rejects.toBeInstanceOf(RoutineWatchRetry);
+    expect(execute).not.toHaveBeenCalled();
+  });
 
   it.each(["team", "dedicated"])("checks files in a %s desktop workspace", async (scope) => {
     const computer = {
@@ -848,6 +896,10 @@ describe("watch tool guard", () => {
     });
     const deps = {
       prisma: {
+        runLogin: {
+          findMany: vi.fn(async () => []),
+          deleteMany: vi.fn(async () => ({ count: 0 })),
+        },
         connection: { findMany: vi.fn(async () => []) },
         spaceSettingOverride: { findUnique: vi.fn(async () => null) },
         actionApprovalRule: { findMany: vi.fn(async () => []) },
@@ -964,6 +1016,7 @@ it("loads authorized connection context for discovery, creation validation and c
   });
   const deps = {
     prisma: {
+      runLogin: { findMany: vi.fn(async () => []), deleteMany: vi.fn(async () => ({ count: 0 })) },
       connection: {
         findMany: vi.fn(async () => [
           connection,

@@ -14,6 +14,10 @@ describe("clearEndedRunState", () => {
         ]),
       },
       secret: { deleteMany: vi.fn(async () => ({ count: 1 })) },
+      runLogin: {
+        updateMany: vi.fn(async () => ({ count: 0 })),
+        deleteMany: vi.fn(async () => ({ count: 0 })),
+      },
     };
     await clearEndedRunState(prisma as unknown as PrismaClient, ["run-1", "run-2"]);
     expect(prisma.externalEffect.deleteMany).toHaveBeenCalledOnce();
@@ -76,6 +80,10 @@ describe("clearEndedRunState", () => {
       externalEffect: { deleteMany: vi.fn() },
       run: { findMany: vi.fn() },
       secret: { deleteMany: vi.fn() },
+      runLogin: {
+        updateMany: vi.fn(async () => ({ count: 0 })),
+        deleteMany: vi.fn(async () => ({ count: 0 })),
+      },
     };
     await clearEndedRunState(prisma as unknown as PrismaClient, []);
     expect(prisma.run.findMany).not.toHaveBeenCalled();

@@ -461,6 +461,10 @@ describe("destroyBot", () => {
       externalEffect: { deleteMany: vi.fn().mockResolvedValue({ count: 0 }) },
       message: { findMany: vi.fn(async () => []) },
       secret: { deleteMany: deleteSecrets },
+      runLogin: {
+        updateMany: vi.fn(async () => ({ count: 0 })),
+        deleteMany: vi.fn(async () => ({ count: 0 })),
+      },
       routine: { findMany: vi.fn().mockResolvedValue([]) },
       $transaction: transaction,
     } as unknown as PrismaClient;
@@ -554,6 +558,10 @@ describe("destroyBot", () => {
         attempt: { updateMany: cancelAttempts },
         task: { updateMany: cancelTasks },
         secret: { deleteMany: vi.fn() },
+        runLogin: {
+          updateMany: vi.fn(async () => ({ count: 0 })),
+          deleteMany: vi.fn(async () => ({ count: 0 })),
+        },
         chatGroupMember: { deleteMany: deleteMemberships },
         artifact: {
           findMany: vi.fn().mockResolvedValue([]),
@@ -1938,6 +1946,10 @@ describe("archiveBot", () => {
         },
         task: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
         secret: { deleteMany: deleteSecrets },
+        runLogin: {
+          updateMany: vi.fn(async () => ({ count: 0 })),
+          deleteMany: vi.fn(async () => ({ count: 0 })),
+        },
         routine: { updateMany: disableRoutines },
         computerExecutionLease: { updateMany: vi.fn().mockResolvedValue({ count: 0 }) },
         computer: { updateMany: vi.fn().mockResolvedValue({ count: 0 }) },

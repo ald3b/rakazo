@@ -177,6 +177,7 @@ const MessageBubbleContent = memo(function MessageBubbleContent({
     answer: string,
     username?: string,
     dismiss?: boolean,
+    remember?: boolean,
   ) => Promise<void>;
   onOpenBot: (botId: string, name: string) => void;
   onOpenComputer: (botId: string, name: string) => void;
@@ -230,7 +231,9 @@ const MessageBubbleContent = memo(function MessageBubbleContent({
           actionProps={actionProps}
           canAnswer={canAnswer}
           canDismiss={canDismiss}
-          onAnswer={(answer, username) => onAnswer(message, answer, username)}
+          onAnswer={(answer, username, remember) =>
+            onAnswer(message, answer, username, undefined, remember)
+          }
           onDismiss={() => onAnswer(message, "", undefined, true)}
         />
         {appConnectBlocks.map((block, index) => (

@@ -4377,6 +4377,10 @@ msgstr "שחרור השליטה"
 msgid "Reload"
 msgstr "טעינה מחדש"
 
+#: src/components/AskCard.tsx
+msgid "Remember for next time"
+msgstr "לזכור לפעם הבאה"
+
 #: src/components/ApprovalRulesSettings.tsx
 #: src/pages/McpServersOverlay.tsx
 #: src/pages/ModelRoleSettings.tsx

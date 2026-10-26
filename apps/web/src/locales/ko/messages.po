@@ -4377,6 +4377,10 @@ msgstr "제어권 넘기기"
 msgid "Reload"
 msgstr "새로고침"
 
+#: src/components/AskCard.tsx
+msgid "Remember for next time"
+msgstr "다음을 위해 기억하기"
+
 #: src/components/ApprovalRulesSettings.tsx
 #: src/pages/McpServersOverlay.tsx
 #: src/pages/ModelRoleSettings.tsx

@@ -2052,6 +2052,10 @@ describe("team chat bridge", () => {
         },
         task: { updateMany: taskUpdateMany },
         secret: { deleteMany: secretDeleteMany },
+        runLogin: {
+          updateMany: vi.fn(async () => ({ count: 0 })),
+          deleteMany: vi.fn(async () => ({ count: 0 })),
+        },
       } as unknown as PrismaClient,
       events: { sendUserMessage },
       jobs: { enqueue },

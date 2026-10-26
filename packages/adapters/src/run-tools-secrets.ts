@@ -15,8 +15,11 @@ import {
   botSecretToolView,
   findBotSecret,
   findCommandVariableConflict,
+  findRunLogin,
   forgetBotSecret,
+  forgetRunLogin,
   listBotSecrets,
+  listRunLogins,
   normalizeSecretDestination,
   requestWithBotSecret,
   resolveRequestSecretDestination,
@@ -39,13 +42,18 @@ import type { ToolHandlers } from "./run-tool-gate.js";
 export const secretTools: ToolHandlers = {
   async list_secrets(ctx) {
     const { deps, run } = ctx;
-    return listBotSecrets(deps.prisma, run);
+    return [
+      ...(await listRunLogins(deps.prisma, run, run.id)),
+      ...(await listBotSecrets(deps.prisma, run)),
+    ];
   },
   async forget_secret(ctx, call) {
     const { deps, run } = ctx;
     const { args } = call;
     const parsed = BotSecretName.safeParse(args.name);
     if (!parsed.success) return call.finish({ error: "A valid credential name is required." });
+    // This run's unremembered login under the name goes too.
+    await forgetRunLogin(deps.prisma, run, run.id, parsed.data);
     return call.finish(await forgetBotSecret(deps.prisma, run, parsed.data));
   },
   async secret_request(ctx, call) {
@@ -87,6 +95,19 @@ export const secretTools: ToolHandlers = {
           error: `Invalid credential destination — name: ${conflict} is already exported as the same variable. Choose another name.`,
         });
       }
+      // A login the person didn't ask to remember is kept for this run only, and the bot
+      // is told so it doesn't promise to remember it.
+      const runLogin =
+        destination.auth.type === "login"
+          ? await findRunLogin(deps.prisma, deps.secretStore, run, run.id, destination.name)
+          : undefined;
+      const runLoginView =
+        runLogin && runLogin.origin === destination.origin
+          ? { saved: true, ...destination, remembered: false }
+          : undefined;
+      const savedView = existing
+        ? { saved: true, ...botSecretToolView(existing), remembered: true }
+        : undefined;
       const submitted = botSecretSubmissionSchema({
         allowPrivateHttpOrigin: allowPrivateHttpSecretOrigins(),
       }).safeParse(applied?.effect.result).data;
@@ -95,13 +116,11 @@ export const secretTools: ToolHandlers = {
         sameSecretDestination(normalizeSecretDestination(submitted.credentialSaved), destination)
       ) {
         return call.finish(
-          existing
-            ? { saved: true, ...botSecretToolView(existing) }
-            : { error: "The saved credential is no longer available." },
+          runLoginView ?? savedView ?? { error: "The saved credential is no longer available." },
         );
       }
-      if (existing && args.replace !== true) {
-        return call.finish({ saved: true, ...botSecretToolView(existing) });
+      if ((runLoginView ?? savedView) && args.replace !== true) {
+        return call.finish(runLoginView ?? savedView);
       }
       // Action approval authorizes showing the card; it is not a credential submission.
       // Return the claim to intended so the answer transaction can approve the saved value.

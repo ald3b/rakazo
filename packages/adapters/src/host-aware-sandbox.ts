@@ -15,6 +15,7 @@ import type {
   WorkspaceExportLimits,
 } from "@rakazo/adapter-kit";
 import type { PrismaClient } from "@rakazo/db";
+import { NO_PAGE_BROWSER_MESSAGE } from "./computer-browser.js";
 import { cancelComputerRunWork } from "./computer-idle.js";
 import { manageComputerWorkspaceDirectories } from "./computer-workspace.js";
 import { assertHostCommandsAllowed, DesktopSandboxProvider } from "./desktop-sandbox.js";
@@ -69,7 +70,7 @@ export class HostAwareSandbox implements SandboxProvider {
               ok: false,
               uncertain: false,
               fallback: "computer_act",
-              error: "Page browser is unavailable on this computer.",
+              error: NO_PAGE_BROWSER_MESSAGE,
             });
       };
     }

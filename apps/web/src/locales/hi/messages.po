@@ -4377,6 +4377,10 @@ msgstr "नियंत्रण छोड़ें"
 msgid "Reload"
 msgstr "फिर से लोड करें"
 
+#: src/components/AskCard.tsx
+msgid "Remember for next time"
+msgstr "अगली बार के लिए याद रखें"
+
 #: src/components/ApprovalRulesSettings.tsx
 #: src/pages/McpServersOverlay.tsx
 #: src/pages/ModelRoleSettings.tsx

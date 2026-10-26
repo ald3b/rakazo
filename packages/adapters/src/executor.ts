@@ -1,4 +1,4 @@
-import type { AgentRunRequest, SemanticMemoryProvider } from "@rakazo/adapter-kit";
+import type { AgentRunRequest, ComputerRef, SemanticMemoryProvider } from "@rakazo/adapter-kit";
 import { DEFAULT_CONTEXT_STRATEGY, runContinueJob } from "@rakazo/adapter-kit";
 import type { MessageBlock, ModelRoleChoice, RunStatus } from "@rakazo/contracts";
 import { disabledBuiltinToolSet } from "@rakazo/contracts";
@@ -45,6 +45,7 @@ import {
   commandCredentialRedactions,
   loadBotCommandEnvironment,
   loadLoginPasswordRedactions,
+  loadRunLoginRedactions,
 } from "./bot-secrets.js";
 import { createBrowserProvider } from "./browser-provider-factory.js";
 import { agentConnectionTools, builtinAgentTools } from "./builtin-tools.js";
@@ -131,6 +132,7 @@ import {
   setupFailureStreak,
   writeComputerRunRequeue,
 } from "./run-lifecycle.js";
+import { cleanUpEndedRunLogins, ENDED_LOGIN_CLEANUP_PENDING } from "./run-login-cleanup.js";
 import {
   cloudflareRunFields,
   isTerminalModelSetupError,
@@ -410,6 +412,7 @@ export function createRunExecutor(deps: ExecutorDeps) {
           agentSecretRows,
           initialBotCommandEnvironment,
           savedLoginPasswordRedactions,
+          runLoginRedactions,
         ] = await Promise.all([
           deps.prisma.bot.findUniqueOrThrow({
             where: { id: run.botId },
@@ -453,6 +456,7 @@ export function createRunExecutor(deps: ExecutorDeps) {
           }),
           loadBotCommandEnvironment(deps.prisma, deps.secretStore, run),
           loadLoginPasswordRedactions(deps.prisma, deps.secretStore, run),
+          loadRunLoginRedactions(deps.prisma, deps.secretStore, run, run.id),
         ]);
         const historySearchBeforeSeq =
           contextStrategy !== "current" && run.sourceMessageId
@@ -472,6 +476,8 @@ export function createRunExecutor(deps: ExecutorDeps) {
         // A login filled in an earlier run may still be on its page, and anything this run reads
         // or is given may contain it, so every run hides its saved passwords before the model runs.
         runSecrets.push(...savedLoginPasswordRedactions);
+        // A login this run took over from the run before it may already be on a page.
+        runSecrets.push(...runLoginRedactions);
         const agentEnvironmentInstruction = formatAgentEnvironmentInstruction({
           ...agentEnvironment,
           ...initialBotCommandEnvironment,
@@ -784,6 +790,22 @@ export function createRunExecutor(deps: ExecutorDeps) {
         const pendingTurnFiles: MessageBlock[][] = [turnBlocks ?? []];
         let copyingTurnFiles = Promise.resolve();
         // Serialize copies before each tool, including attachments received while a boot is in flight.
+        // Sites whose run login ended, possibly in a run that stopped without cleaning up: their
+        // tabs close before this run's first computer tool can read them, and until they do,
+        // computer tools wait (their login is no longer there to hide).
+        let endedLoginCleanup: Promise<boolean> | undefined;
+        const cleanUpEndedLogins = (computer: ComputerRef) =>
+          cleanUpEndedRunLogins({
+            prisma: deps.prisma,
+            browser,
+            computer,
+            computerId: storedComputer.id,
+            context,
+            bot: { id: bot.id, spaceId: run.spaceId },
+          }).catch((error: unknown) => {
+            getLogger().warn("ended run login cleanup", { error });
+            return false;
+          });
         const getRunComputer = async (reason: "tool" | "takeover" | "script", tool?: string) => {
           if (computerUse.reason === "none") {
             computerUse.reason = reason;
@@ -799,6 +821,12 @@ export function createRunExecutor(deps: ExecutorDeps) {
             },
             async () => {
               const computer = await runComputer.get();
+              endedLoginCleanup ??= cleanUpEndedLogins(computer);
+              if (!(await endedLoginCleanup)) {
+                endedLoginCleanup = undefined;
+                // The person taking over may see the page; the bot's tools may not read it.
+                if (reason === "tool") throw new Error(ENDED_LOGIN_CLEANUP_PENDING);
+              }
               copyingTurnFiles = copyingTurnFiles
                 .catch(() => undefined)
                 .then(async () => {
@@ -1082,6 +1110,7 @@ export function createRunExecutor(deps: ExecutorDeps) {
             lease: computerLease,
             lazy: runComputer,
             get: getRunComputer,
+            cleanUpEndedLogins,
             checkpoint: workspaceCheckpoint,
             hostEnvironment,
             graphical,

@@ -155,6 +155,107 @@ class PageBrowserTest(unittest.TestCase):
                 helper.navigate(client, "session", url)
         client.call.assert_not_called()
 
+    @staticmethod
+    def browser(pages, history=None):
+        """A fake browser: `pages` maps a target id to its address, `history` to earlier ones."""
+        history = history or {}
+        def call(method, params=None, session_id=None, **_):
+            if method == "Target.getTargets":
+                return {"targetInfos": [{"type": "page", "targetId": t, "url": u, "browserContextId": "ctx-1"}
+                                        for t, u in pages.items()]
+                        + [{"type": "service_worker", "targetId": "w1", "url": "https://login.example.test/sw.js"}]}
+            if method == "Target.attachToTarget":
+                return {"sessionId": "session-" + params["targetId"]}
+            if method == "Page.getNavigationHistory":
+                target = session_id.removeprefix("session-")
+                return {"entries": [{"url": u} for u in history.get(target, [])] + [{"url": pages[target]}]}
+            return {}
+        client = Mock()
+        client.call.side_effect = call
+        return client
+
+    @staticmethod
+    def calls(client, method):
+        return [c.args[1] for c in client.call.call_args_list if c.args[0] == method]
+
+    def test_close_site_closes_the_sites_tabs_and_tabs_with_it_in_their_history(self):
+        client = self.browser(
+            {"t1": "https://login.example.test/sign-in?x=1", "t2": "https://other.example.test/",
+             "t3": "https://LOGIN.example.test:443/home", "t4": "https://login.example.test.evil.test/",
+             "t5": "https://app.example.test/", "t6": "blob:https://login.example.test/9f1c"},
+            # An SSO sign-in that redirected away keeps the login page one Back away.
+            history={"t5": ["https://login.example.test/sso"]},
+        )
+        self.assertEqual(helper.close_site(client, "https://login.example.test"), {"ok": True, "closed": 4})
+        self.assertEqual([c["targetId"] for c in self.calls(client, "Target.closeTarget")],
+                         ["t1", "t3", "t5", "t6"])
+        self.assertEqual(self.calls(client, "Target.createTarget"), [])
+        # The site's cookies and storage stay: the bot may stay signed in.
+        methods = {c.args[0] for c in client.call.call_args_list}
+        self.assertEqual(methods, {"Target.getTargets", "Target.attachToTarget",
+                                   "Page.getNavigationHistory", "Target.closeTarget"})
+
+    def test_close_site_closes_a_tab_whose_history_it_cannot_check(self):
+        client = self.browser({"t1": "https://other.example.test/", "t2": "https://app.example.test/"})
+        default = client.call.side_effect
+        def call(method, params=None, session_id=None, **kwargs):
+            if method == "Page.getNavigationHistory" and session_id == "session-t2":
+                raise RuntimeError("target crashed")
+            return default(method, params, session_id=session_id, **kwargs)
+        client.call.side_effect = call
+        self.assertEqual(helper.close_site(client, "https://login.example.test"), {"ok": True, "closed": 1})
+        self.assertEqual([c["targetId"] for c in self.calls(client, "Target.closeTarget")], ["t2"])
+
+    def test_close_site_closes_tabs_past_the_history_cap(self):
+        pages = {f"t{index}": "https://other.example.test/" for index in range(helper.MAX_CLOSE_SITE_PAGES + 2)}
+        client = self.browser(pages)
+        self.assertEqual(helper.close_site(client, "https://login.example.test"), {"ok": True, "closed": 2})
+        self.assertEqual([c["targetId"] for c in self.calls(client, "Target.closeTarget")],
+                         [f"t{helper.MAX_CLOSE_SITE_PAGES}", f"t{helper.MAX_CLOSE_SITE_PAGES + 1}"])
+        history_reads = [c for c in client.call.call_args_list if c.args[0] == "Page.getNavigationHistory"]
+        self.assertEqual(len(history_reads), helper.MAX_CLOSE_SITE_PAGES)
+
+    def test_close_site_opens_a_fresh_blank_tab_instead_of_closing_the_window(self):
+        client = self.browser({"t1": "https://login.example.test/x"})
+        self.assertEqual(helper.close_site(client, "https://login.example.test"), {"ok": True, "closed": 1})
+        names = [c.args[0] for c in client.call.call_args_list]
+        self.assertLess(names.index("Target.createTarget"), names.index("Target.closeTarget"))
+        self.assertEqual(self.calls(client, "Target.createTarget"),
+                         [{"url": "about:blank", "browserContextId": "ctx-1"}])
+        self.assertNotIn("Page.navigate", names)
+
+    def test_close_site_reads_a_page_origin_as_a_browser_does(self):
+        self.assertEqual(helper.page_origin("https://LOGIN.Example.test:443/a?b#c"), "https://login.example.test")
+        self.assertEqual(helper.page_origin("http://login.example.test:80/"), "http://login.example.test")
+        self.assertEqual(helper.page_origin("https://login.example.test:8443/"), "https://login.example.test:8443")
+        self.assertEqual(helper.page_origin("blob:https://login.example.test/9f1c"), "https://login.example.test")
+        self.assertEqual(helper.page_origin("https://[::1]:8443/"), "https://[::1]:8443")
+        for url in ("about:blank", "data:text/html,x", "chrome://settings", "file:///tmp/x", "https://a.test:99999/"):
+            self.assertEqual(helper.page_origin(url), "")
+
+    def test_close_site_rejects_anything_but_an_origin(self):
+        for origin in ("https://login.example.test/path", "https://LOGIN.example.test", "javascript:alert(1)",
+                       "", "about:blank"):
+            client = Mock()
+            with self.assertRaisesRegex(RuntimeError, "origin"):
+                helper.close_site(client, origin)
+            client.call.assert_not_called()
+
+    def test_close_site_runs_without_attaching_to_a_visible_page(self):
+        client = Mock()
+        with patch.object(helper, "wait_for_cdp"), \
+                patch.object(helper, "discover_ws_url", return_value="ws://127.0.0.1:9222/x"), \
+                patch.object(helper, "CdpClient", return_value=client), \
+                patch.object(helper, "attach_page") as attach, \
+                patch.object(helper, "close_site", return_value={"ok": True, "closed": 0}) as close, \
+                patch.dict(os.environ, {"RAKAZO_BROWSER_ARGS_STDIN": "0"}), \
+                patch("builtins.print"):
+            code = helper.run(["rakazo-page-browser", "close_site",
+                               '{"origin": "https://login.example.test"}'])
+        self.assertEqual(code, 0)
+        close.assert_called_once_with(client, "https://login.example.test")
+        attach.assert_not_called()
+
     def test_rejects_navigation_error(self):
         client = Mock()
         client.call.return_value = {"errorText": "net::ERR_NAME_NOT_RESOLVED"}

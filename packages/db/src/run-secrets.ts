@@ -9,10 +9,11 @@ export function runSecretKind(runId: string): string {
 
 /**
  * An ended run never reads its waiting answer, so drop it with the run. The answer is stored
- * under the run's user and space, which also keeps this delete on the secrets index.
+ * under the run's user and space, which also keeps this delete on the secrets index. The run's
+ * unremembered logins end with it too.
  */
 export async function deleteRunSecretsInTransaction(
-  tx: Pick<Prisma.TransactionClient, "secret">,
+  tx: Pick<Prisma.TransactionClient, "secret" | "runLogin">,
   runs: ReadonlyArray<{ id: string; userId: string; spaceId: string }>,
 ): Promise<void> {
   if (runs.length === 0) return;
@@ -25,6 +26,55 @@ export async function deleteRunSecretsInTransaction(
       })),
     },
   });
+  await endRunLoginsInTransaction(
+    tx,
+    runs.map((run) => run.id),
+  );
+}
+
+/**
+ * End runs' unremembered logins. One that was never filled is simply deleted. A filled one has
+ * its value wiped now and keeps its row, without it, until the bot's browser has been cleaned up
+ * for its site.
+ */
+export async function endRunLoginsInTransaction(
+  tx: Pick<Prisma.TransactionClient, "runLogin">,
+  runIds: readonly string[],
+): Promise<void> {
+  if (runIds.length === 0) return;
+  await endRunLogins(tx, { runId: { in: [...runIds] } });
+}
+
+async function endRunLogins(
+  tx: Pick<Prisma.TransactionClient, "runLogin">,
+  where: Prisma.RunLoginWhereInput,
+): Promise<void> {
+  await tx.runLogin.deleteMany({ where: { ...where, endedAt: null, filledAt: null } });
+  await tx.runLogin.updateMany({
+    where: { ...where, endedAt: null },
+    data: { ciphertext: "", endedAt: new Date() },
+  });
+}
+
+/** End a run's unremembered login under `name`, as its run ending would. */
+export async function endRunLoginsByName(
+  tx: Pick<Prisma.TransactionClient, "runLogin">,
+  runId: string,
+  name: string,
+): Promise<void> {
+  await endRunLogins(tx, { runId, name });
+}
+
+/** A run's continuation takes over its unremembered logins: the same sign-in goes on there. */
+export async function moveRunLoginsInTransaction(
+  tx: Pick<Prisma.TransactionClient, "runLogin">,
+  fromRunId: string,
+  toRunId: string,
+): Promise<void> {
+  await tx.runLogin.updateMany({
+    where: { runId: fromRunId, endedAt: null },
+    data: { runId: toRunId },
+  });
 }
 
 /**
@@ -33,7 +83,7 @@ export async function deleteRunSecretsInTransaction(
  * by id read each run's user and space here for the secrets index.
  */
 export async function clearEndedRunState(
-  prisma: Pick<PrismaClient, "run" | "externalEffect" | "secret" | "message">,
+  prisma: Pick<PrismaClient, "run" | "externalEffect" | "secret" | "message" | "runLogin">,
   runIds: readonly string[],
 ): Promise<void> {
   if (runIds.length === 0) return;

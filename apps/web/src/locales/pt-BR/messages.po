@@ -4377,6 +4377,10 @@ msgstr "Liberar o controle"
 msgid "Reload"
 msgstr "Recarregar"
 
+#: src/components/AskCard.tsx
+msgid "Remember for next time"
+msgstr "Lembrar para a próxima vez"
+
 #: src/components/ApprovalRulesSettings.tsx
 #: src/pages/McpServersOverlay.tsx
 #: src/pages/ModelRoleSettings.tsx

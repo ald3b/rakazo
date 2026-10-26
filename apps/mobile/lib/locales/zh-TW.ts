@@ -374,6 +374,7 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   "Could not save the server URL": "無法儲存伺服器網址",
   "Could not send reset email": "無法傳送重設郵件",
   "Could not send answer": "無法傳送回答",
+  "Remember for next time": "記住以便下次使用",
   "Could not share file": "無法分享檔案",
   "Could not sign out": "無法登出",
   "Could not speak": "無法朗讀",

@@ -87,6 +87,10 @@ function tx(options?: {
     computerExecutionLease: { updateMany: vi.fn(async () => ({ count: 1 })) },
     computer: { updateMany: vi.fn(async () => ({ count: 1 })) },
     secret: { deleteMany: vi.fn(async () => ({ count: 0 })) },
+    runLogin: {
+      updateMany: vi.fn(async () => ({ count: 0 })),
+      deleteMany: vi.fn(async () => ({ count: 0 })),
+    },
     steeringMessage: {
       updateMany: vi.fn(async () => ({ count: 1 })),
       findMany: vi.fn(async () =>
@@ -173,6 +177,11 @@ describe("expireStuckRun", () => {
     });
     expect(client.secret.deleteMany).toHaveBeenCalledWith({
       where: { OR: [{ userId: "user-1", spaceId: "space-1", kind: "run-secret:run-1" }] },
+    });
+    // An automatic stop ends the run's unremembered logins; its follow-up doesn't take them over.
+    expect(client.runLogin.updateMany).toHaveBeenCalledWith({
+      where: { runId: { in: ["run-1"] }, endedAt: null },
+      data: { ciphertext: "", endedAt: expect.any(Date) },
     });
   });
 

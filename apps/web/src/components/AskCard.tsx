@@ -4,8 +4,8 @@ import { ChatMarkdown } from "@rakazo/chat-ui/web";
 import type { ThreadMessage } from "@rakazo/contracts";
 import { BOT_INSTRUCTIONS_MAX_LENGTH, commandVariableName } from "@rakazo/contracts";
 import { isApprovalAskBlock, isSecretAskBlock, selectedAskActionLabel } from "@rakazo/core";
-import { Button, Input, Textarea } from "@rakazo/ui-web";
-import { useState } from "react";
+import { Button, Input, Switch, Textarea } from "@rakazo/ui-web";
+import { useId, useState } from "react";
 import { rpc } from "../lib/rpc";
 import { errorText } from "../lib/user-error";
 import { BuiCard } from "./ai/primitives";
@@ -61,7 +61,7 @@ export function AskCard({
   block: AskBlock;
   canAnswer: boolean;
   canDismiss: boolean;
-  onAnswer: (text: string, username?: string) => Promise<void>;
+  onAnswer: (text: string, username?: string, remember?: boolean) => Promise<void>;
   /** Turns down a secret request without a value. */
   onDismiss: () => Promise<void>;
 }) {
@@ -72,6 +72,8 @@ export function AskCard({
   const [acceptedAnswer, setAcceptedAnswer] = useState<string>();
   const [undone, setUndone] = useState(false);
   const [username, setUsername] = useState("");
+  const [remember, setRemember] = useState(false);
+  const rememberId = useId();
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const submitting = pendingAction !== null;
@@ -105,7 +107,7 @@ export function AskCard({
       setUsername("");
     }
     try {
-      await onAnswer(submitValue, submitUsername);
+      await onAnswer(submitValue, submitUsername, loginInput && remember ? true : undefined);
       setAcceptedAnswer(secretInput ? "" : submitValue);
     } catch (err) {
       // A secret answer's failure may echo the secret, so never show its message.
@@ -326,6 +328,19 @@ export function AskCard({
             onChange={(event) => setAnswer(event.target.value)}
             placeholder={secretLabel}
           />
+          {loginInput ? (
+            <div className="flex min-h-11 items-center justify-between gap-3 text-sm">
+              <label htmlFor={rememberId}>
+                <Trans>Remember for next time</Trans>
+              </label>
+              <Switch
+                id={rememberId}
+                checked={remember}
+                disabled={submitting}
+                onCheckedChange={setRemember}
+              />
+            </div>
+          ) : null}
           <div className="flex gap-2">
             <Button
               type="submit"

@@ -40,6 +40,10 @@ function fixture() {
     attempt: { updateMany: vi.fn() },
     task: { updateMany: vi.fn() },
     secret: { deleteMany: vi.fn(async () => ({ count: 0 })) },
+    runLogin: {
+      updateMany: vi.fn(async () => ({ count: 0 })),
+      deleteMany: vi.fn(async () => ({ count: 0 })),
+    },
   };
   return { client: client as unknown as PrismaClient, upsert, locked, stored: () => stored };
 }

@@ -108,6 +108,10 @@ describe("finalizeRun", () => {
         thread: { update: vi.fn(async () => ({ nextEventSeq: 1 })) },
         event: { create: createEvent, deleteMany: vi.fn(async () => ({ count: 0 })) },
         secret: { deleteMany: vi.fn(async () => ({ count: 0 })) },
+        runLogin: {
+          updateMany: vi.fn(async () => ({ count: 0 })),
+          deleteMany: vi.fn(async () => ({ count: 0 })),
+        },
         steeringMessage: {
           deleteMany: vi.fn(async () => ({ count: 0 })),
           findMany: vi.fn(async () => []),
@@ -166,6 +170,10 @@ describe("finalizeRun", () => {
       task: { updateMany: vi.fn(async () => ({ count: 1 })) },
       thread: { update: vi.fn(async () => ({ nextEventSeq: 1, nextMessageSeq: 5 })) },
       secret: { deleteMany: vi.fn(async () => ({ count: 0 })) },
+      runLogin: {
+        updateMany: vi.fn(async () => ({ count: 0 })),
+        deleteMany: vi.fn(async () => ({ count: 0 })),
+      },
       event: {
         create: vi.fn(async ({ data }: { data: { type: string } }) => ({
           ...data,
@@ -241,6 +249,10 @@ describe("finalizeRun", () => {
       task: { updateMany: vi.fn(async () => ({ count: 1 })) },
       thread: { update: vi.fn(async () => ({ nextEventSeq: 1 })) },
       secret: { deleteMany: vi.fn(async () => ({ count: 0 })) },
+      runLogin: {
+        updateMany: vi.fn(async () => ({ count: 0 })),
+        deleteMany: vi.fn(async () => ({ count: 0 })),
+      },
       event: {
         create: vi.fn(async () => ({ threadId: "thread-1", seq: 0 })),
         deleteMany: vi.fn(async () => ({ count: 0 })),
@@ -293,6 +305,10 @@ describe("finalizeRun", () => {
         deleteMany: vi.fn(async () => ({ count: 0 })),
       },
       secret: { deleteMany: vi.fn(async () => ({ count: 0 })) },
+      runLogin: {
+        updateMany: vi.fn(async () => ({ count: 0 })),
+        deleteMany: vi.fn(async () => ({ count: 0 })),
+      },
       steeringMessage: {
         findMany: vi.fn(async () => [
           {
@@ -361,6 +377,10 @@ describe("finalizeRun", () => {
         deleteMany: vi.fn(async () => ({ count: 0 })),
       },
       secret: { deleteMany: vi.fn(async () => ({ count: 0 })) },
+      runLogin: {
+        updateMany: vi.fn(async () => ({ count: 0 })),
+        deleteMany: vi.fn(async () => ({ count: 0 })),
+      },
       steeringMessage: {
         findMany: vi.fn(async () => [
           {
@@ -441,6 +461,10 @@ describe("finalizeRun", () => {
         deleteMany: vi.fn(async () => ({ count: 0 })),
       },
       secret: { deleteMany: vi.fn(async () => ({ count: 0 })) },
+      runLogin: {
+        updateMany: vi.fn(async () => ({ count: 0 })),
+        deleteMany: vi.fn(async () => ({ count: 0 })),
+      },
       steeringMessage: {
         findMany: vi.fn(async () => [
           {
@@ -2624,7 +2648,7 @@ describe("answerRunInput", () => {
       },
       data: {
         status: "approved",
-        ...(credential ? { result: { credentialSaved: credential } } : {}),
+        ...(credential ? { result: { credentialSaved: credential, remembered: true } } : {}),
       },
     });
     expect(tx.message.update).toHaveBeenCalledWith({
@@ -2643,6 +2667,84 @@ describe("answerRunInput", () => {
         ],
       },
     });
+  });
+
+  it.each([
+    ["a login card left as is", "login", undefined, true, false],
+    ["a login card with Remember for next time", "login", true, true, true],
+    ["Remember on an API key card", "bearer", true, false, undefined],
+  ] as const)("%s", async (_name, type, remember, accepted, remembered) => {
+    const credential =
+      type === "login"
+        ? { name: "site_login", origin: "https://login.example.test", auth: { type: "login" } }
+        : { name: "example_api", origin: "https://api.example.test", auth: { type: "bearer" } };
+    const store = vi.fn().mockResolvedValue(undefined);
+    const tx = {
+      $queryRaw: vi.fn().mockResolvedValue([{ id: "thread-1" }]),
+      message: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "message-1",
+          blocks: [
+            {
+              kind: "ask",
+              text: "Sign in",
+              input: "secret",
+              purpose: "password",
+              credential,
+              status: "pending",
+            },
+          ],
+        }),
+        update: vi.fn().mockResolvedValue({ id: "message-1" }),
+      },
+      run: {
+        findFirst: vi.fn().mockResolvedValue({ botId: "bot-1", userId: "user-1" }),
+        findUnique: vi.fn().mockResolvedValue({ status: "queued" }),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
+      task: { updateMany: vi.fn() },
+      externalEffect: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
+      thread: { update: vi.fn().mockResolvedValue({ nextEventSeq: 10 }) },
+      event: {
+        create: vi.fn(async ({ data }: { data: { seq: number; type: string } }) => ({
+          ...event(data.seq),
+          type: data.type,
+        })),
+      },
+    };
+    const prisma = {
+      $transaction: vi.fn(async (callback: (client: typeof tx) => unknown) => callback(tx)),
+    } as unknown as PrismaClient;
+
+    await expect(
+      answerRunInput(
+        prisma,
+        {
+          spaceId: "workspace-1",
+          threadId: "thread-1",
+          runId: "run-1",
+          messageId: "message-1",
+          answeredByUserId: "user-1",
+          answer: "fake-password-1",
+          ...(type === "login" ? { username: "fake-user@example.test" } : {}),
+          ...(remember ? { remember } : {}),
+        },
+        new TestFanout(),
+        { store },
+      ),
+    ).resolves.toBe(accepted);
+    if (!accepted) {
+      expect(store).not.toHaveBeenCalled();
+      return;
+    }
+    expect(store).toHaveBeenCalledWith(
+      expect.objectContaining({ credential, remember: remembered }),
+    );
+    expect(tx.externalEffect.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { status: "approved", result: { credentialSaved: credential, remembered } },
+      }),
+    );
   });
 
   it("does not let another workspace member save a credential as the run owner", async () => {
@@ -3903,6 +4005,10 @@ describe("clearThread", () => {
       attempt: { updateMany: vi.fn() },
       task: { updateMany: vi.fn() },
       secret: { deleteMany: vi.fn() },
+      runLogin: {
+        updateMany: vi.fn(async () => ({ count: 0 })),
+        deleteMany: vi.fn(async () => ({ count: 0 })),
+      },
       computerExecutionLease: { updateMany: vi.fn() },
       computer: { updateMany: vi.fn() },
       message: { deleteMany: vi.fn(), findMany: vi.fn(async () => []) },
@@ -3973,6 +4079,10 @@ describe("clearThread", () => {
       attempt: { updateMany: vi.fn() },
       task: { updateMany: vi.fn() },
       secret: { deleteMany: vi.fn() },
+      runLogin: {
+        updateMany: vi.fn(async () => ({ count: 0 })),
+        deleteMany: vi.fn(async () => ({ count: 0 })),
+      },
       computerExecutionLease: { updateMany: vi.fn() },
       computer: { updateMany: vi.fn() },
       message: { deleteMany: vi.fn(), findMany: vi.fn(async () => []) },

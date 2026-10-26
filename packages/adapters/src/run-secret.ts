@@ -8,7 +8,7 @@ import {
 } from "@rakazo/contracts";
 import { isSecretAskBlock } from "@rakazo/core";
 import type { PrismaClient, RunSecretWriter } from "@rakazo/db";
-import { runSecretKind, withTransactionRetry } from "@rakazo/db";
+import { endRunLoginsByName, runSecretKind, withTransactionRetry } from "@rakazo/db";
 import type { ApprovalPausedToolResult } from "./approval-effect.js";
 import { resolveDuplicateEffectGate } from "./approval-effect.js";
 import { prepareBotSecret } from "./bot-secrets.js";
@@ -167,15 +167,15 @@ export function createRunSecretWriter(secretStore: SecretStore): RunSecretWriter
             ? encodeLoginSecret({ username: input.username?.trim() ?? "", password: input.answer })
             : input.answer;
         const scope = { userId: run.userId, spaceId: input.spaceId, botId: run.botId };
-        const prepared = ask.credential
-          ? await prepareBotSecret({
-              prisma,
-              secretStore,
-              scope,
-              destination: ask.credential,
-              plaintext,
-            })
-          : await secretStore.put(
+        // Without "Remember for next time", a login is kept for this run only, never as a saved
+        // credential. Its site is the card's, so the value stays bound to it.
+        const runLogin =
+          ask.credential?.auth.type === "login" && input.remember !== true
+            ? { name: ask.credential.name, origin: ask.credential.origin }
+            : undefined;
+        // Encrypted locally even with an external store, so deleting the row deletes the value.
+        const prepared = runLogin
+          ? await secretStore.put(
               plaintext,
               {
                 operationId: input.runId,
@@ -184,7 +184,25 @@ export function createRunSecretWriter(secretStore: SecretStore): RunSecretWriter
                 signal: new AbortController().signal,
               },
               { ephemeral: true },
-            );
+            )
+          : ask.credential
+            ? await prepareBotSecret({
+                prisma,
+                secretStore,
+                scope,
+                destination: ask.credential,
+                plaintext,
+              })
+            : await secretStore.put(
+                plaintext,
+                {
+                  operationId: input.runId,
+                  traceId: input.runId,
+                  ...scope,
+                  signal: new AbortController().signal,
+                },
+                { ephemeral: true },
+              );
         return persistPreparedSecret(prisma, secretStore, prepared, () =>
           commit({
             async store(value) {
@@ -192,11 +210,34 @@ export function createRunSecretWriter(secretStore: SecretStore): RunSecretWriter
                 value.userId !== run.userId ||
                 value.botId !== run.botId ||
                 value.plaintext !== plaintext ||
+                value.remember !== !runLogin ||
                 JSON.stringify(value.credential) !== JSON.stringify(ask.credential)
               )
                 throw new Error("Secret request changed; retry");
-              if ("store" in prepared) await prepared.store(value.tx);
-              else
+              if ("store" in prepared) {
+                await prepared.store(value.tx);
+                // A remembered login takes over from this run's earlier unremembered answer.
+                if (ask.credential?.auth.type === "login")
+                  await endRunLoginsByName(value.tx, input.runId, ask.credential.name);
+              } else if (runLogin) {
+                // A card asked again with replace takes the place of this run's earlier answer.
+                // A saved login of the same name is never touched. The earlier answer ends now, as
+                // at the end of its run: if the page browser typed it, its site's tabs close before
+                // the resumed run's first computer tool, since its password is no longer hidden.
+                await endRunLoginsByName(value.tx, input.runId, runLogin.name);
+                await value.tx.runLogin.create({
+                  data: {
+                    id: prepared.id,
+                    runId: input.runId,
+                    userId: run.userId,
+                    spaceId: input.spaceId,
+                    botId: run.botId,
+                    name: runLogin.name,
+                    origin: runLogin.origin,
+                    ciphertext: prepared.ciphertext,
+                  },
+                });
+              } else
                 await value.tx.secret.create({
                   data: {
                     id: prepared.id,

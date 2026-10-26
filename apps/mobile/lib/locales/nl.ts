@@ -278,6 +278,7 @@ export const NL_MESSAGES: Record<string, string> = {
   "Tap to open": "Tik om te openen",
   "Could not open message": "Bericht openen mislukt",
   "Could not send answer": "Antwoord verzenden mislukt",
+  "Remember for next time": "Onthouden voor de volgende keer",
   "Could not speak": "Spreken mislukt",
   "Could not update reaction": "Reactie bijwerken mislukt",
   Created: "Aangemaakt",

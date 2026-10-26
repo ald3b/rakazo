@@ -20,7 +20,8 @@ function setup(refresh: () => Promise<void>, overrides: Partial<ThreadAnswerCont
       answer: string,
       username?: string,
       dismiss?: boolean,
-    ) => answerThreadMessage(context, message, answer, username, dismiss),
+      remember?: boolean,
+    ) => answerThreadMessage(context, message, answer, username, dismiss, remember),
   };
 }
 
@@ -39,6 +40,19 @@ describe("mobile ask answers", () => {
       username: "ada",
     });
     expect(h.refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("sends Remember for next time with a login answer", async () => {
+    const h = setup(async () => undefined);
+    await h.answerMessage(message, "example-password", "ada", undefined, true);
+    expect(h.rpc).toHaveBeenCalledWith("threads/answer", {
+      botId: "bot-1",
+      runId: "run-1",
+      messageId: "message-1",
+      answer: "example-password",
+      username: "ada",
+      remember: true,
+    });
   });
 
   it("targets the group in a group thread", async () => {

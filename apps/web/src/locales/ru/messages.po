@@ -4377,6 +4377,10 @@ msgstr "Передать управление"
 msgid "Reload"
 msgstr "Перезагрузить"
 
+#: src/components/AskCard.tsx
+msgid "Remember for next time"
+msgstr "Запомнить на следующий раз"
+
 #: src/components/ApprovalRulesSettings.tsx
 #: src/pages/McpServersOverlay.tsx
 #: src/pages/ModelRoleSettings.tsx

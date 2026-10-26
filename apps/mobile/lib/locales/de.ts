@@ -287,6 +287,7 @@ export const DE_MESSAGES: Record<string, string> = {
   "Tap to open": "Zum Öffnen tippen",
   "Could not open message": "Nachricht konnte nicht geöffnet werden",
   "Could not send answer": "Antwort konnte nicht gesendet werden",
+  "Remember for next time": "Für das nächste Mal merken",
   "Could not speak": "Vorlesen fehlgeschlagen",
   "Could not update reaction": "Reaktion konnte nicht aktualisiert werden",
   Created: "Erstellt",
