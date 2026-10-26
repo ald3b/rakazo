@@ -373,8 +373,7 @@ export const RU_MESSAGES: Record<string, string> = {
   "Could not load routine": "Не удалось загрузить программу",
   "Could not load routines": "Не удалось загрузить задачи",
   "{count} on": "Вкл.: {count}",
-  "Routines are recurring tasks this Bot runs on a schedule. Ask it in chat to set one up.":
-    "Задачи — это повторяющиеся дела, которые этот бот выполняет по расписанию. Попросите его в чате настроить задачу.",
+  "Ask this Bot in chat to set up a routine.": "Попросите этого бота в чате настроить задачу.",
   "{name}, On": "{name}, вкл.",
   "{name}, Off": "{name}, выкл.",
   "Active: {name}": "Активна: {name}",

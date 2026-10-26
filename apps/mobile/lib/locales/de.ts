@@ -439,8 +439,8 @@ export const DE_MESSAGES: Record<string, string> = {
   Routines: "Routinen",
   "Could not load routines": "Routinen konnten nicht geladen werden",
   "{count} on": "{count} aktiv",
-  "Routines are recurring tasks this Bot runs on a schedule. Ask it in chat to set one up.":
-    "Routinen sind wiederkehrende Aufgaben, die dieser Bot nach Zeitplan ausführt. Bitte ihn im Chat, eine einzurichten.",
+  "Ask this Bot in chat to set up a routine.":
+    "Bitte diesen Bot im Chat, eine Routine einzurichten.",
   "{name}, On": "{name}, Ein",
   "{name}, Off": "{name}, Aus",
   "Active: {name}": "Aktiv: {name}",

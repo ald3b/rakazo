@@ -415,8 +415,8 @@ export const JA_MESSAGES: Record<string, string> = {
   Routines: "ルーティン",
   "Could not load routines": "ルーティンを読み込めませんでした",
   "{count} on": "{count}件オン",
-  "Routines are recurring tasks this Bot runs on a schedule. Ask it in chat to set one up.":
-    "ルーティンは、このBotがスケジュールに沿って繰り返し実行するタスクです。設定するにはチャットで頼んでください。",
+  "Ask this Bot in chat to set up a routine.":
+    "チャットでこのBotにルーティンの設定を頼んでください。",
   "{name}, On": "{name}、オン",
   "{name}, Off": "{name}、オフ",
   "Active: {name}": "有効: {name}",

@@ -630,9 +630,7 @@ describe("routines screen", () => {
 
     await act(async () => load([]));
     expect(container.querySelector("progress")).toBeNull();
-    expect(container.textContent).toBe(
-      "Routines are recurring tasks this Bot runs on a schedule. Ask it in chat to set one up.",
-    );
+    expect(container.textContent).toBe("Ask this Bot in chat to set up a routine.");
     expect(container.querySelector("button")).toBeNull();
   });
 

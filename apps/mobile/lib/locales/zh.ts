@@ -347,8 +347,7 @@ export const ZH_MESSAGES: Record<string, string> = {
   "Could not load routine": "无法加载例行任务",
   "Could not load routines": "无法加载例行任务",
   "{count} on": "{count} 个已开启",
-  "Routines are recurring tasks this Bot runs on a schedule. Ask it in chat to set one up.":
-    "例行任务是此 Bot 按计划重复执行的任务。在聊天中让它帮你设置一个。",
+  "Ask this Bot in chat to set up a routine.": "在聊天中让此 Bot 设置一个例行任务。",
   "{name}, On": "{name}，开启",
   "{name}, Off": "{name}，关闭",
   "Active: {name}": "启用：{name}",

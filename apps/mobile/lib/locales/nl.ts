@@ -424,8 +424,8 @@ export const NL_MESSAGES: Record<string, string> = {
   Routines: "Routines",
   "Could not load routines": "Routines laden mislukt",
   "{count} on": "{count} aan",
-  "Routines are recurring tasks this Bot runs on a schedule. Ask it in chat to set one up.":
-    "Routines zijn terugkerende taken die deze Bot volgens een schema uitvoert. Vraag er in de chat om er een in te stellen.",
+  "Ask this Bot in chat to set up a routine.":
+    "Vraag deze Bot in de chat om een routine in te stellen.",
   "{name}, On": "{name}, aan",
   "{name}, Off": "{name}, uit",
   "Active: {name}": "Actief: {name}",
