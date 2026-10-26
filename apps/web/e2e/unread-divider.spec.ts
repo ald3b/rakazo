@@ -16,8 +16,14 @@ test("a chat opens with a New divider above replies that arrived while away", as
   await completeOnboarding(page);
   await page.goto("/app");
   await page.waitForURL(/\/app\/[^/]+$/);
-  await expect(page.getByTestId("unread-divider")).toHaveCount(0);
   const chiefId = activeBotId(page);
+  // A brand-new chat is all new, so there is nothing read above to divide from.
+  await expect(page.locator("[data-message-id]").first()).toBeVisible();
+  await expect(page.locator(`[data-roster-bot-id="${chiefId}"]`)).not.toHaveAttribute(
+    "data-roster-unread",
+    "true",
+  );
+  await expect(page.getByTestId("unread-divider")).toHaveCount(0);
   const otherId = await createNamedBot(page, "Elsewhere");
 
   // Chief answers while the user is in another chat.
@@ -55,6 +61,28 @@ test("a chat opens with a New divider above replies that arrived while away", as
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await captureScreenshot(page, testInfo, "chat-unread-divider-dark");
   await page.emulateMedia({ colorScheme: "light" });
+
+  // Writing in the chat means the user has caught up.
+  const followUp = `Thanks ${stamp}`;
+  await page.getByPlaceholder("Message Chief").fill(followUp);
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("message-user-bubble").filter({ hasText: followUp })).toBeVisible();
+  await expect(divider).toHaveCount(0);
+  // Let Chief answer here so its reply is read before leaving.
+  await expect
+    .poll(
+      async () => {
+        const bots = await rpc<Array<{ id: string; unread: boolean; status: string }>>(
+          page,
+          "bots/list",
+          {},
+        );
+        const chief = bots.find((bot) => bot.id === chiefId);
+        return chief?.unread === false && !["queued", "leased", "running"].includes(chief.status);
+      },
+      { timeout: 60_000 },
+    )
+    .toBe(true);
 
   // Once read, the next visit has no divider.
   await page.goto(`/app/${otherId}`);
@@ -146,6 +174,11 @@ test("marking a message unread brings the chat back with New above the reply fro
         { timeout: 60_000 },
       )
       .toBe(true);
+  // A closing menu stays mounted while it animates out; wait for it before opening the next.
+  const closeMenu = async () => {
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("menuitem")).toHaveCount(0);
+  };
   const first = `First question ${stamp}`;
   const second = `Second question ${stamp}`;
   await rpc(page, "threads/send", { botId: chiefId, text: first });
@@ -186,7 +219,7 @@ test("marking a message unread brings the chat back with New above the reply fro
   expect(composerBounds).not.toBeNull();
   expect(transcriptBounds!.y + transcriptBounds!.height - composerBounds!.y).toBe(28);
   await captureScreenshot(page, testInfo, "message-marked-unread-menu");
-  await page.keyboard.press("Escape");
+  await closeMenu();
   // The menu's modal backdrop intentionally intercepts hits until it finishes closing.
   await expect
     .poll(() =>
@@ -209,7 +242,7 @@ test("marking a message unread brings the chat back with New above the reply fro
   await firstReply.hover();
   await firstReply.getByRole("button", { name: "More" }).click();
   await expect(page.getByRole("menuitem")).toHaveText(["Reply", "Copy"]);
-  await page.keyboard.press("Escape");
+  await closeMenu();
 
   await page.goto(`/app/${otherId}`);
   await expect(page.getByPlaceholder("Message Elsewhere")).toBeVisible();
@@ -224,7 +257,7 @@ test("marking a message unread brings the chat back with New above the reply fro
   await firstReply.hover();
   await firstReply.getByRole("button", { name: "More" }).click();
   await expect(markUnread).toBeVisible();
-  await page.keyboard.press("Escape");
+  await closeMenu();
 
   // The user's own message offers it too; New then starts at the reply after it.
   const secondQuestion = page.locator("[data-message-id]").filter({ hasText: second }).first();

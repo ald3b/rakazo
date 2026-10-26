@@ -1,7 +1,8 @@
 import type { RouterUtils } from "@orpc/tanstack-query";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
+import type { AppBootstrap } from "@rakazo/contracts";
 import { isRetryableError } from "@rakazo/core";
-import type { DataTag, QueryFunction, QueryKey } from "@tanstack/react-query";
+import type { DataTag, QueryKey } from "@tanstack/react-query";
 import { QueryClient } from "@tanstack/react-query";
 import { createContext, useContext } from "react";
 import type { RpcClient } from "./rpc";
@@ -17,7 +18,9 @@ export const queryClient = new QueryClient({
     queries: {
       staleTime: 30_000,
       gcTime: 30 * 60_000,
-      // Screens refresh when they open; live updates and polling keep open ones current.
+      // Screens refresh every time they open, even over a recent read; live updates and
+      // polling keep open ones current.
+      refetchOnMount: "always",
       refetchOnWindowFocus: false,
       retry: (failures, error) => failures < 1 && isRetryableError(error),
     },
@@ -49,8 +52,53 @@ export function spaceQueries(userId: string | null, spaceId: string | null): Spa
  * Where a space's last bootstrap is kept. It holds the whole space (bots, groups, account), so
  * it is not keyed by bot: a visited space opens at once through any of its chats.
  */
-export function spaceSeedKey(userId: string | null, spaceId: string) {
+export function spaceSeedKey(userId: string | null, spaceId: string | null) {
   return spaceQueries(userId, spaceId).bootstrap.queryKey({ input: {} });
+}
+
+/** A bot chat or a group chat. */
+export type ChatTarget =
+  | { botId: string; groupId?: undefined }
+  | { groupId: string; botId?: undefined };
+
+/** Where a space keeps the chat it last had selected, apart from any snapshot that chat loaded. */
+export function lastChatKey(userId: string | null, spaceId: string | null) {
+  return [...spaceSeedKey(userId, spaceId), "last-chat"] as unknown as DataTag<
+    QueryKey,
+    ChatTarget
+  >;
+}
+
+/** The chat a cached space had selected, if the space still lists it. */
+export function lastChatOf(
+  seed: AppBootstrap | undefined,
+  chat: ChatTarget | undefined,
+): ChatTarget | undefined {
+  if (!seed || !chat) return undefined;
+  if (chat.groupId) {
+    return seed.groups.some((group) => group.id === chat.groupId) ? chat : undefined;
+  }
+  return seed.bots.some((bot) => bot.id === chat.botId) ? chat : undefined;
+}
+
+/**
+ * What a space reopens with after the shell leaves it: its latest lists, and the loaded snapshot
+ * only when it belongs to the selected chat. A chat picked just before leaving may still show the
+ * previous chat's snapshot while its own loads.
+ */
+export function seedOnLeave(
+  previous: AppBootstrap,
+  latest: Omit<AppBootstrap, "thread" | "routines">,
+  chat: ChatTarget | undefined,
+  snapshot: AppBootstrap["thread"],
+): AppBootstrap {
+  const selected =
+    snapshot &&
+    chat &&
+    (chat.groupId
+      ? snapshot.groupId === chat.groupId
+      : !snapshot.groupId && snapshot.botId === chat.botId);
+  return { ...previous, ...latest, thread: selected ? snapshot : previous.thread };
 }
 
 const QueryUserContext = createContext<string | null>(null);
@@ -75,31 +123,4 @@ let cachedUserId: string | null | undefined;
 export function setQueryUser(userId: string | null): void {
   if (cachedUserId !== undefined && cachedUserId !== userId) queryClient.clear();
   cachedUserId = userId;
-}
-
-/**
- * Writes what a save confirmed. An older read still in flight is cancelled first, or it could
- * land afterwards and put the value from before the save back on screen.
- */
-export async function writeSaved<T, E>(
-  client: QueryClient,
-  queryKey: DataTag<QueryKey, T, E>,
-  update: (current: T | undefined) => T,
-): Promise<void> {
-  await client.cancelQueries({ queryKey, exact: true });
-  client.setQueryData(queryKey, update);
-}
-
-/**
- * Reads data again. After a change, a read already in flight started before it, so that read is
- * cancelled rather than reused and the answer comes from a request sent afterwards. `reuse` is
- * for a screen opening, where sharing an in-flight read is fine.
- */
-export async function fetchFresh<T, E>(
-  client: QueryClient,
-  options: { queryKey: DataTag<QueryKey, T, E>; queryFn: QueryFunction<T> },
-  { reuse = false } = {},
-): Promise<T> {
-  if (!reuse) await client.cancelQueries({ queryKey: options.queryKey, exact: true });
-  return client.fetchQuery({ ...options, staleTime: 0 });
 }
