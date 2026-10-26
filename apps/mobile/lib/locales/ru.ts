@@ -1,4 +1,7 @@
 export const RU_MESSAGES: Record<string, string> = {
+  "Could not connect to the computer screen": "Не удалось подключиться к экрану компьютера",
+  "Retry screen": "Повторить подключение экрана",
+  "The screen connection closed.": "Соединение с экраном закрыто.",
   Approvals: "Одобрения",
   "Never ask": "Не спрашивать",
   Auto: "Авто",
@@ -1006,6 +1009,10 @@ export const RU_MESSAGES: Record<string, string> = {
   "Your subscription or API key": "Ваша подписка или API-ключ",
   "Free. ChatGPT, Claude, or any model provider.":
     "Бесплатно. ChatGPT, Claude или любой провайдер моделей.",
+  "{price} / month. ChatGPT, Claude, or any model provider.":
+    "{price} в месяц. ChatGPT, Claude или любой провайдер моделей.",
+  "Free plan ends": "Бесплатный тариф до",
+  Subscribe: "Оформить подписку",
   "Use my subscription or API key": "Использовать свою подписку или API-ключ",
   "Monthly credits expire at renewal. Top-ups do not expire.":
     "Ежемесячные кредиты истекают при продлении. Разовые пополнения не сгорают.",

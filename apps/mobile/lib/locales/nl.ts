@@ -1,4 +1,7 @@
 export const NL_MESSAGES: Record<string, string> = {
+  "Could not connect to the computer screen": "Kan geen verbinding maken met het computerscherm",
+  "Retry screen": "Scherm opnieuw verbinden",
+  "The screen connection closed.": "De schermverbinding is gesloten.",
   Approvals: "Goedkeuringen",
   "Never ask": "Nooit vragen",
   Auto: "Auto",
@@ -963,6 +966,10 @@ export const NL_MESSAGES: Record<string, string> = {
   "Your subscription or API key": "Je abonnement of API-sleutel",
   "Free. ChatGPT, Claude, or any model provider.":
     "Gratis. ChatGPT, Claude of elke modelaanbieder.",
+  "{price} / month. ChatGPT, Claude, or any model provider.":
+    "{price} per maand. ChatGPT, Claude of elke modelaanbieder.",
+  "Free plan ends": "Gratis abonnement eindigt",
+  Subscribe: "Abonneren",
   "Use my subscription or API key": "Mijn abonnement of API-sleutel gebruiken",
   "Monthly credits expire at renewal. Top-ups do not expire.":
     "Maandelijks tegoed vervalt bij verlenging. Los gekocht tegoed verloopt niet.",
