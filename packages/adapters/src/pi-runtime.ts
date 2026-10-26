@@ -39,8 +39,9 @@ import {
 } from "./pi-runtime-errors.js";
 import type { FallbackStreamState } from "./pi-runtime-fallback.js";
 import {
-  continuationOverlap,
+  continuationRepeat,
   fallbackAwareModelStream,
+  MAX_CONTINUATION_MARKER,
   MAX_CONTINUATION_OVERLAP,
 } from "./pi-runtime-fallback.js";
 import type { RuntimeModelTarget } from "./pi-runtime-models.js";
@@ -90,6 +91,21 @@ export const SILENT_TOOL_CONTINUATION_PROMPT = automated(
 export const CUT_REPLY_CONTINUATION_PROMPT = automated(
   "Your previous reply was cut off by a connection error. Continue exactly where it stopped, mid-word if needed, without repeating anything.",
 );
+/**
+ * Sent after a reply ran out of output room. Models don't reliably tell a finished last word
+ * from a cut one, or keep the space before the next word, so the continuation starts by
+ * repeating the reply's last words, quoted here, and the join drops that repeat.
+ */
+export function cutReplyAtLimitPrompt(cut: string): string {
+  const end = cut.trimEnd().slice(-200);
+  const words = /(?:\S+\s+){0,5}\S+$/.exec(end)?.[0] ?? end;
+  // Escaped so a quote mark in the reply can't end the quote early; line breaks stay as they
+  // are, for the model to repeat them.
+  const quoted = words.slice(-80).replace(/["\\]/g, "\\$&");
+  return automated(
+    `Your previous reply hit the output limit. It ended with: "${quoted}" Continue it: start by repeating those last words exactly, then carry on without repeating anything else.`,
+  );
+}
 export const SILENT_ALLOWED_TOOL_CONTINUATION_PROMPT = automated(
   "Your last turn ended right after a tool result, without a reply. Continue the original task from the latest tool result. If you need information or a decision from the user, ask them instead of guessing, even if you were told to stay silent. Otherwise, if you were instructed to stay silent when there is nothing to report, follow that instruction for the entire final assistant reply; if not, use any remaining tools needed, then give the user the final answer.",
 );
@@ -349,7 +365,7 @@ export class PiAgentRuntime implements AgentRuntime {
           nextIndex: 0,
           backupOutcomes: new Map(),
           selfRecoveries: 0,
-          cutReplies: new WeakSet(),
+          cutReplies: new WeakMap(),
           stream: (target, ctx, options) => {
             if (hasCurrentImages && !target.model.input.includes("image")) {
               throw new Error(MODEL_IMAGE_INPUT_ERROR);
@@ -529,11 +545,15 @@ export class PiAgentRuntime implements AgentRuntime {
         // A reply cut off by a dropped connection continues in the same bubble: no turn break,
         // and a continuation that starts by repeating the end of the cut text loses that repeat.
         let joinCutReply: { tail: string; held: string } | undefined;
+        // What the last join dropped from the start of a continuation, which the completed
+        // message still holds.
+        let joinDropped = "";
         const releaseJoin = () => {
           if (!joinCutReply) return;
           const { tail, held } = joinCutReply;
           joinCutReply = undefined;
-          const text = held.slice(continuationOverlap(tail, held));
+          joinDropped = held.slice(0, continuationRepeat(tail, held));
+          const text = held.slice(joinDropped.length);
           if (!text) return;
           streamed += text;
           queue.push({ type: "text", text });
@@ -572,6 +592,7 @@ export class PiAgentRuntime implements AgentRuntime {
           }
           if (event.type === "message_start" && event.message.role === "assistant") {
             currentMessageStreamed = "";
+            if (!joinCutReply) joinDropped = "";
             // A later message (after a finished shell or steering, not only a tool call)
             // must not run its text straight on from the previous one.
             if (streamed && !joinCutReply) queue.push({ type: "turn" });
@@ -590,7 +611,9 @@ export class PiAgentRuntime implements AgentRuntime {
               currentMessageStreamed += delta;
               if (joinCutReply) {
                 joinCutReply.held += delta;
-                const decidable = Math.min(joinCutReply.tail.length, MAX_CONTINUATION_OVERLAP);
+                const decidable =
+                  Math.min(joinCutReply.tail.length, MAX_CONTINUATION_OVERLAP) +
+                  MAX_CONTINUATION_MARKER;
                 if (joinCutReply.held.length > decidable) releaseJoin();
               } else {
                 streamed += delta;
@@ -668,11 +691,13 @@ export class PiAgentRuntime implements AgentRuntime {
               streamed = text;
               queue.push({ type: "text", text });
             }
-            if (fallbackState.cutReplies?.has(event.message.content)) {
+            const cutBy = fallbackState.cutReplies?.get(event.message.content);
+            if (cutBy) {
               joinCutReply = { tail: text, held: "" };
               agent.followUp({
                 role: "user",
-                content: CUT_REPLY_CONTINUATION_PROMPT,
+                content:
+                  cutBy === "limit" ? cutReplyAtLimitPrompt(text) : CUT_REPLY_CONTINUATION_PROMPT,
                 timestamp: Date.now(),
               });
             }
@@ -842,7 +867,11 @@ export class PiAgentRuntime implements AgentRuntime {
           throw modelFailure(error, message);
         }
         if (!budgetExceeded && terminalMessage && !messageHasToolCall(terminalMessage)) {
-          const terminalText = assistantText(terminalMessage);
+          const completedText = assistantText(terminalMessage);
+          const terminalText =
+            joinDropped && completedText.startsWith(joinDropped)
+              ? completedText.slice(joinDropped.length)
+              : completedText;
           const sincePendingFinal = streamed.slice(streamedBeforePendingFinal);
           if (terminalText.trim() && !sincePendingFinal.includes(terminalText)) {
             const missing =

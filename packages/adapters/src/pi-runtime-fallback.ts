@@ -11,7 +11,7 @@ import { AssistantMessageEventStream } from "@earendil-works/pi-ai/utils/event-s
 import type { AgentRunRequest, ConnectorTool } from "@rakazo/adapter-kit";
 import { isRetryableProviderUnavailable, isTransientModelError } from "@rakazo/adapter-kit";
 import type { ModelBackupOutcome } from "@rakazo/core";
-import { abortableDelay, MODEL_OUTPUT_LIMIT_ERROR } from "@rakazo/core";
+import { abortableDelay, MODEL_OUTPUT_CUT_ERROR, MODEL_OUTPUT_LIMIT_ERROR } from "@rakazo/core";
 import { getLogger } from "@rakazo/logging";
 import { ModelImageLimitError, pruneForRebuild } from "./context-pruning.js";
 import { groqRequestContextWindow } from "./groq-request-budget.js";
@@ -45,6 +45,9 @@ import {
 
 const MODEL_PROVIDER_RETRY_DELAYS_MS = [2_000, 8_000, 20_000] as const;
 
+/** Why a reply ended before the model finished it. */
+export type CutReplyReason = "connection" | "limit";
+
 export interface FallbackStreamState {
   request: AgentRunRequest;
   getActive(): RuntimeModelTarget;
@@ -58,11 +61,11 @@ export interface FallbackStreamState {
   /** More room for the next call, after a call ran out of it inside a tool call. */
   nextCallRecovery?: { maxTokens?: number; thinkingLevel?: ModelThinkingLevel };
   /**
-   * Replies ended early by a dropped connection; the runtime asks the model to continue them.
-   * Absent where nothing asks (subagents), so a cut there still fails.
+   * Replies ended early by a dropped connection or the output limit; the runtime asks the model
+   * to continue them. Absent where nothing asks (subagents), so a cut there is not continued.
    */
-  cutReplies?: WeakSet<AssistantMessage["content"]>;
-  /** The next call continues a cut reply, so it is not continued again if it is cut too. */
+  cutReplies?: WeakMap<AssistantMessage["content"], CutReplyReason>;
+  /** The next call continues a cut reply, so a dropped connection there is not continued again. */
   continuingCutReply?: boolean;
   onSwitch(target: RuntimeModelTarget): Promise<void>;
   onContextLimit(contextWindow: number): void;
@@ -119,6 +122,21 @@ export function continuationOverlap(cut: string, continuation: string): number {
     if (cut.endsWith(continuation.slice(0, size))) return size;
   }
   return 0;
+}
+
+// Models often open a continuation with an ellipsis before picking the words up again.
+const CONTINUATION_MARKER = /^(?:…|\.{3})[^\S\n]*/;
+/** Longest marker the join may drop, so it waits for enough text to decide. */
+export const MAX_CONTINUATION_MARKER = 4;
+
+/**
+ * How much of the start of a continuation to drop: its repeat of the end of the cut reply, and
+ * an ellipsis before that repeat. An ellipsis that doesn't lead into a repeat is kept.
+ */
+export function continuationRepeat(cut: string, continuation: string): number {
+  const marker = CONTINUATION_MARKER.exec(continuation)?.[0] ?? "";
+  const afterMarker = marker ? continuationOverlap(cut, continuation.slice(marker.length)) : 0;
+  return afterMarker ? marker.length + afterMarker : continuationOverlap(cut, continuation);
 }
 const LOWEST_FIRST_THINKING_LEVELS: readonly ModelThinkingLevel[] = [
   "minimal",
@@ -590,7 +608,7 @@ export function fallbackAwareModelStream(
                 stopReason: "stop",
               };
               state.selfRecoveries += 1;
-              state.cutReplies.add(cut.content);
+              state.cutReplies.set(cut.content, "connection");
               state.continuingCutReply = true;
               for (const pending of buffered) output.push(pending);
               buffered = [];
@@ -624,7 +642,9 @@ export function fallbackAwareModelStream(
                   ...event.message,
                   content: event.message.content.filter((part) => part.type !== "toolCall"),
                   stopReason: "error",
-                  errorMessage: MODEL_OUTPUT_LIMIT_ERROR,
+                  errorMessage: assistantText(event.message).trim()
+                    ? MODEL_OUTPUT_CUT_ERROR
+                    : MODEL_OUTPUT_LIMIT_ERROR,
                 };
                 for (const pending of buffered) output.push(pending);
                 buffered = [];
@@ -639,6 +659,46 @@ export function fallbackAwareModelStream(
                 thinkingLevel,
                 outputCap,
               );
+            }
+            if (
+              state.cutReplies &&
+              event.message.stopReason === "length" &&
+              !event.message.errorMessage &&
+              !messageHasToolCall(event.message) &&
+              assistantText(event.message).trim() &&
+              !signalAborted()
+            ) {
+              // A reply that ran out of room mid-way is not an answer. It is continued in a call
+              // with more room, again if the continuation runs out too, while the run has
+              // recoveries left; after that the run fails and keeps the text written so far.
+              const ended: AssistantMessage = {
+                ...event.message,
+                content: event.message.content.filter((part) => part.type === "text"),
+              };
+              const message: AssistantMessage =
+                state.selfRecoveries >= MAX_SELF_RECOVERIES_PER_RUN
+                  ? { ...ended, stopReason: "error", errorMessage: MODEL_OUTPUT_CUT_ERROR }
+                  : { ...ended, stopReason: "stop" };
+              if (message.stopReason === "stop") {
+                state.selfRecoveries += 1;
+                state.cutReplies.set(message.content, "limit");
+                state.continuingCutReply = true;
+                state.nextCallRecovery = lengthRecovery(
+                  target,
+                  sentMaxTokens,
+                  thinkingLevel,
+                  outputCap,
+                );
+              }
+              for (const pending of buffered) output.push(pending);
+              buffered = [];
+              output.push(
+                message.stopReason === "stop"
+                  ? { type: "done", reason: "stop", message }
+                  : { type: "error", reason: "error", error: message },
+              );
+              output.end(message);
+              return;
             }
             const recovery =
               !lengthRecovered &&
