@@ -57,11 +57,18 @@ export function parseComputerActions(value: unknown): ComputerAction[] {
       ];
     }
     if (kind === "scroll") {
+      // A point is optional, and needs both coordinates: the wheel turns where the pointer is.
+      const at =
+        action.x === undefined && action.y === undefined
+          ? {}
+          : { x: finiteCoordinate(action.x, "x"), y: finiteCoordinate(action.y, "y") };
       return [
         {
           kind: "scroll",
-          direction: action.direction === "up" ? "up" : "down",
-          amount: boundedNumber(action.amount, 1, 20, 3),
+          direction: scrollDirection(action.direction),
+          // Wheel notches; none or fewer means the default three.
+          amount: Number(action.amount) > 0 ? boundedNumber(action.amount, 1, 20, 3) : 3,
+          ...at,
         },
       ];
     }
@@ -238,6 +245,10 @@ function finiteCoordinate(value: unknown, name: string) {
     throw new Error(`computer action ${name} must be a non-negative coordinate`);
   }
   return number;
+}
+
+function scrollDirection(value: unknown): "up" | "down" | "left" | "right" {
+  return value === "up" || value === "left" || value === "right" ? value : "down";
 }
 
 function boundedNumber(value: unknown, min: number, max: number, fallback: number) {

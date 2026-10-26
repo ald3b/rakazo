@@ -46,6 +46,7 @@ import { addScreenProxyCapability } from "@rakazo/core/node/screen-capability";
 import type { ComputerRunEnd, PrismaClient } from "@rakazo/db";
 import { createRepos, IsolationError, parseComputerMode, recordComputerRunEnd } from "@rakazo/db";
 import { getLogger } from "@rakazo/logging";
+import { scrollDirection, scrollPoint } from "../computer-input.js";
 import {
   executionBlocksUserTakeover,
   resolveBusyBotName,
@@ -456,9 +457,9 @@ export function computerRoutes(ctx: RouterContext) {
               : input.kind === "scroll"
                 ? {
                     kind: "scroll" as const,
-                    direction:
-                      input.payload.direction === "up" ? ("up" as const) : ("down" as const),
+                    direction: scrollDirection(input.payload.direction),
                     amount: Number(input.payload.amount ?? 3),
+                    ...scrollPoint(input.payload),
                     sensitive,
                   }
                 : {
