@@ -643,10 +643,6 @@ export async function loadLoginPasswordRedactions(
   return [...forms];
 }
 
-/**
- * Resolve one field of a saved website login for a page fill. The caller must pass `origin` to
- * the page browser, which refuses to fill unless the page is still on that origin.
- */
 /** This run's unremembered login under `name`, with the site its card was for. */
 export async function findRunLogin(
   prisma: PrismaClient,
@@ -763,15 +759,15 @@ function loginFillOrigin(row: {
   return { origin: destination.origin };
 }
 
+/** What filling a run login gets once it has been typed on a computer other than this run's. */
+export const RUN_LOGIN_ON_ANOTHER_COMPUTER =
+  "This login was used on another computer. Use request_secret to ask for it again.";
+
 /**
  * Resolve one field of a website login for a page fill: this run's unremembered login under the
  * name first, since it is what the person just typed, then a saved one. The caller must pass
  * `origin` to the page browser, which refuses to fill unless the page is still on that origin.
  */
-/** What filling a run login gets once it has been typed on a computer other than this run's. */
-export const RUN_LOGIN_ON_ANOTHER_COMPUTER =
-  "This login was used on another computer. Use request_secret to ask for it again.";
-
 export async function resolveLoginFill(input: {
   prisma: PrismaClient;
   secretStore: SecretStore;
