@@ -567,6 +567,19 @@ describe("a tool call cut at the output limit", () => {
 
 describe("continuationRepeat", () => {
   it.each([
+    ["Read it\n\n", "then continue.", 0],
+    ["Read it", "…then continue.", 0],
+    ["Try cat\n\n", "at noon.", 0],
+    ["Read it\n\n", "it works.", 2],
+    ["Ag", "Agree on a time.", 2],
+    ["Next Ag", "…Agree on a time.", 3],
+    ["Hello\n\n", "Hello world.", 5],
+    ["Try testing", "ting works.", 4],
+  ])("requires a whole final fragment for short requested repeats: %j, %j", (cut, more, size) => {
+    expect(continuationRepeat(cut, more, true)).toBe(size);
+  });
+
+  it.each([
     ["as they arrive, since", "…since a friendly", "…since".length],
     ["as they arrive, since", "... since a friendly", "... since".length],
     ["deposit the money", "deposit the money according", "deposit the money".length],
@@ -640,6 +653,9 @@ describe("a reply cut off at the output limit", () => {
   });
 
   it.each([
+    ["Read it\n\n", "then continue.", "Read it\n\nthen continue."],
+    ["Read it", "…then continue.", "Read it…then continue."],
+    ["Try cat\n\n", "at noon.", "Try cat\n\nat noon."],
     ["Hello\n\n", "Hello world.", "Hello\n\n world."],
     ["Ag", "Agree on a time.", "Agree on a time."],
     ["Ag", "…Agree on a time.", "Agree on a time."],

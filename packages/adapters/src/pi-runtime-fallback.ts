@@ -139,7 +139,10 @@ export const MAX_CONTINUATION_MARKER = 4;
  */
 export function continuationRepeat(cut: string, continuation: string, requested = false): number {
   if (requested) cut = cut.trimEnd();
-  const minimum = requested ? 1 : MIN_CONTINUATION_OVERLAP;
+  // Short requested repeats must cover the whole final word or cut fragment.
+  const minimum = requested
+    ? Math.min(MIN_CONTINUATION_OVERLAP, /\S+$/.exec(cut)?.[0].length ?? MIN_CONTINUATION_OVERLAP)
+    : MIN_CONTINUATION_OVERLAP;
   const marker = CONTINUATION_MARKER.exec(continuation)?.[0] ?? "";
   const afterMarker = marker
     ? continuationOverlap(cut, continuation.slice(marker.length), minimum)
