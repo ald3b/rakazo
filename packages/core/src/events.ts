@@ -463,16 +463,7 @@ export function subagentBlockFromPayload(
   );
 }
 
-/**
- * Redaction entries for a value made of digits and separators, such as a phone number marked as
- * not a password. Pages show such a value reformatted ("050-123-4567", "+972 50 123 4567",
- * URL-encoded in an address), so an entry matches its digits with up to nine non-alphanumeric
- * characters or URL-encoded bytes between each ("%20" is one, "%E2%80%91" three). One entry is
- * the digits without leading zeros; one more is the last nine, which is how a number saved in its international form is shown nationally. Only 6 to 20
- * ASCII digits get entries: shorter would hide unrelated numbers, longer is no phone number. Six
- * or seven digits allow only spaces and dashes between, as they would otherwise match too much.
- * Digits in other scripts, such as Arabic-Indic, aren't matched this way.
- */
+/** Marks a redaction entry matched by a value's digits rather than as typed. */
 const DIGITS_SECRET = "\u0000digits:";
 /**
  * One separator unit: an encoded byte, a "%" that starts none, or another non-alphanumeric
@@ -486,6 +477,17 @@ const DIGIT_SEPARATORS_SPAN = 27;
 const SHORT_DIGIT_SEPARATORS = "[\\s\\-]{0,3}";
 const NATIONAL_DIGITS = 9;
 
+/**
+ * Redaction entries for a value made of digits and separators, such as a phone number marked as
+ * not a password. Pages show such a value reformatted ("050-123-4567", "+972 50 123 4567",
+ * URL-encoded in an address), so an entry matches its digits with up to nine non-alphanumeric
+ * characters or URL-encoded bytes between each ("%20" is one, "%E2%80%91" three). One entry is
+ * the digits without leading zeros; one more is the last nine, which is how a number saved in its
+ * international form is shown nationally. Only 6 to 20 ASCII digits get entries: shorter would
+ * hide unrelated numbers, longer is no phone number. Six or seven digits allow only spaces and
+ * dashes between, as they would otherwise match too much.
+ * Digits in other scripts, such as Arabic-Indic, aren't matched this way.
+ */
 export function digitsRedactions(value: string): string[] {
   if (!/^[\p{N}\s\-().+/\u200e\u200f\u2011\u2013]+$/u.test(value)) return [];
   const digits = value.replace(/\D/g, "").replace(/^0+/, "");
@@ -510,11 +512,8 @@ export function redactionSpan(secret: string): number {
   return digits ? digits + (digits - 1) * DIGIT_SEPARATORS_SPAN : secret.length;
 }
 
-const digitsPattern = digitsRedactionPattern;
-const secretSpan = redactionSpan;
-
 function holdsSecret(value: string, secret: string): boolean {
-  const pattern = digitsPattern(secret);
+  const pattern = digitsRedactionPattern(secret);
   return pattern ? pattern.test(value) : value.includes(secret);
 }
 
@@ -536,7 +535,7 @@ function redactedRanges(value: string, secrets: Iterable<string>): Array<[number
   };
   for (const secret of new Set(secrets)) {
     if (!secret) continue;
-    const pattern = digitsPattern(secret);
+    const pattern = digitsRedactionPattern(secret);
     if (pattern) {
       for (const match of value.matchAll(pattern)) mark(match.index, match[0].length);
       continue;
@@ -653,7 +652,7 @@ export function sanitizeJsonValue<T>(value: T): T {
 
 export function createStreamingRedactor(secrets: string[]) {
   const values = [...new Set(secrets.filter(Boolean))];
-  const maxLength = Math.max(0, ...values.map(secretSpan));
+  const maxLength = Math.max(0, ...values.map(redactionSpan));
   let buffer = "";
   let covered = 0;
 
