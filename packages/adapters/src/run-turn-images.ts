@@ -399,6 +399,7 @@ export async function claimRunSteering(
       return {
         id: item.id,
         messageId: item.messageId,
+        origin: item.origin,
         historyText: item.text,
         text: [
           await loadReplyContext(deps.prisma, lease.threadId, item.messageId),
