@@ -573,6 +573,8 @@ describe("continuationRepeat", () => {
     // An ellipsis that doesn't lead into a repeat is the model's own text.
     ["Wait", "... and then it worked", 0],
     ["no repeat here", "fresh words", 0],
+    ["Ag", "Agree on a time.", 0],
+    ["Hello\n\n", "Hello world.", 0],
   ])("drops %j's repeat from %j", (cut, continuation, size) => {
     expect(continuationRepeat(cut, continuation)).toBe(size);
   });
@@ -638,6 +640,9 @@ describe("a reply cut off at the output limit", () => {
   });
 
   it.each([
+    ["Hello\n\n", "Hello world.", "Hello\n\n world."],
+    ["Ag", "Agree on a time.", "Agree on a time."],
+    ["Ag", "…Agree on a time.", "Agree on a time."],
     // Seams a model wrote when asked only to continue, each joined cleanly once it repeats.
     [
       "Keep cash in a lockbox and deposit the money",
@@ -666,6 +671,40 @@ describe("a reply cut off at the output limit", () => {
     const events = await run(request(plain));
     expect(texts(events).join("")).toBe(whole);
     expect(events.at(-1)).toEqual({ type: "done", text: whole });
+  });
+
+  it.each(["", "Your login just", "…Your login just"])(
+    "retries a continuation that adds no text: %j",
+    async (more) => {
+      providerState.stream
+        .mockImplementationOnce(() => replyAtLimit(plain, "Your login just"))
+        .mockImplementationOnce(() => streamedReply(plain, more))
+        .mockImplementation(() => streamedReply(plain, "login just expired."));
+      const events = await run(request(plain));
+      expect(providerState.stream).toHaveBeenCalledTimes(3);
+      expect(texts(events).join("")).toBe("Your login just expired.");
+      expect(events.at(-1)).toEqual({ type: "done", text: "Your login just expired." });
+    },
+  );
+
+  it.each(["", "Your login just", "…Your login just"])(
+    "fails when continuations keep adding no text: %j",
+    async (more) => {
+      providerState.stream
+        .mockImplementationOnce(() => replyAtLimit(plain, "Your login just"))
+        .mockImplementation(() => streamedReply(plain, more));
+      await expect(run(request(plain))).rejects.toThrow(MODEL_OUTPUT_CUT_ERROR);
+      expect(providerState.stream).toHaveBeenCalledTimes(4);
+    },
+  );
+
+  it("shares the recovery allowance with continuations that hit the limit again", async () => {
+    providerState.stream
+      .mockImplementationOnce(() => replyAtLimit(plain, "Part one. "))
+      .mockImplementationOnce(() => replyAtLimit(plain, "Part two. "))
+      .mockImplementation(() => streamedReply(plain, ""));
+    await expect(run(request(plain))).rejects.toThrow(MODEL_OUTPUT_CUT_ERROR);
+    expect(providerState.stream).toHaveBeenCalledTimes(4);
   });
 
   it("drops a continuation's repeat of the cut text", async () => {

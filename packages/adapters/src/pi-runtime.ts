@@ -22,6 +22,7 @@ import { ModelAccountError, ModelOutputError, TransientModelError } from "@rakaz
 import {
   MISSING_TOOL_FINAL_RESPONSE_ERROR,
   MODEL_IMAGE_INPUT_ERROR,
+  MODEL_OUTPUT_CUT_ERROR,
   modelFallbackFailure,
 } from "@rakazo/core";
 import { getLogger } from "@rakazo/logging";
@@ -43,6 +44,7 @@ import {
   fallbackAwareModelStream,
   MAX_CONTINUATION_MARKER,
   MAX_CONTINUATION_OVERLAP,
+  MAX_SELF_RECOVERIES_PER_RUN,
 } from "./pi-runtime-fallback.js";
 import type { RuntimeModelTarget } from "./pi-runtime-models.js";
 import {
@@ -544,15 +546,17 @@ export class PiAgentRuntime implements AgentRuntime {
         let silentToolContinuations = 0;
         // A reply cut off by a dropped connection continues in the same bubble: no turn break,
         // and a continuation that starts by repeating the end of the cut text loses that repeat.
-        let joinCutReply: { tail: string; held: string } | undefined;
+        let joinCutReply: { tail: string; held: string; requested: boolean } | undefined;
+        let limitContinuation: { tail: string; start: number } | undefined;
+        let outputCutFailed = false;
         // What the last join dropped from the start of a continuation, which the completed
         // message still holds.
         let joinDropped = "";
         const releaseJoin = () => {
           if (!joinCutReply) return;
-          const { tail, held } = joinCutReply;
+          const { tail, held, requested } = joinCutReply;
           joinCutReply = undefined;
-          joinDropped = held.slice(0, continuationRepeat(tail, held));
+          joinDropped = held.slice(0, continuationRepeat(tail, held, requested));
           const text = held.slice(joinDropped.length);
           if (!text) return;
           streamed += text;
@@ -691,13 +695,32 @@ export class PiAgentRuntime implements AgentRuntime {
               streamed = text;
               queue.push({ type: "text", text });
             }
-            const cutBy = fallbackState.cutReplies?.get(event.message.content);
+            let cutBy = fallbackState.cutReplies?.get(event.message.content);
+            let tail = text;
+            // A normal stop only finishes the cut reply if the join added new text.
+            if (
+              limitContinuation &&
+              !messageHasToolCall(event.message) &&
+              event.message.stopReason === "stop" &&
+              !streamed.slice(limitContinuation.start).trim() &&
+              !cutBy
+            ) {
+              if (fallbackState.selfRecoveries >= MAX_SELF_RECOVERIES_PER_RUN) {
+                outputCutFailed = true;
+              } else {
+                fallbackState.selfRecoveries += 1;
+                cutBy = "limit";
+                tail = limitContinuation.tail;
+              }
+            }
+            limitContinuation = undefined;
             if (cutBy) {
-              joinCutReply = { tail: text, held: "" };
+              limitContinuation = cutBy === "limit" ? { tail, start: streamed.length } : undefined;
+              joinCutReply = { tail, held: "", requested: cutBy === "limit" };
               agent.followUp({
                 role: "user",
                 content:
-                  cutBy === "limit" ? cutReplyAtLimitPrompt(text) : CUT_REPLY_CONTINUATION_PROMPT,
+                  cutBy === "limit" ? cutReplyAtLimitPrompt(tail) : CUT_REPLY_CONTINUATION_PROMPT,
                 timestamp: Date.now(),
               });
             }
@@ -844,7 +867,9 @@ export class PiAgentRuntime implements AgentRuntime {
         // length stop and any failure that never landed on state.
         const providerFailure =
           !budgetExceeded && terminalMessage ? providerFailureText(terminalMessage) : undefined;
-        const error = agent.state.errorMessage || providerFailure;
+        const error = outputCutFailed
+          ? MODEL_OUTPUT_CUT_ERROR
+          : agent.state.errorMessage || providerFailure;
         if (error && !budgetExceeded && (!host.pausePending || signal.aborted)) {
           let message = sanitizeProviderError(activeStreamTarget.model.provider, error);
           if (
