@@ -428,7 +428,10 @@ EVAL_HELPERS = r"""
     unguardSelection(el);
     const tabIndex = el.getAttribute("tabindex");
     undoGuarded = true;
-    const end = () => el.setSelectionRange?.(el.value.length, el.value.length);
+    // An email input has no selection API (selectionStart is null and setSelectionRange throws).
+    const end = () => {
+      if (el.selectionStart !== null) el.setSelectionRange(el.value.length, el.value.length);
+    };
     let selectable = false;
     // Once the field is empty, what the person types in it is theirs to select.
     const release = () => {

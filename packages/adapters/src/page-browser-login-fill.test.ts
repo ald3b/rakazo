@@ -219,6 +219,28 @@ describe("live page helper saved-login fill", () => {
     expect(press()).toBe(false);
   });
 
+  it("guards a saved username in an email input, which has no selection API", () => {
+    const { domWindow, browser } = installPageHelper(
+      `${origin}/signin`,
+      '<input aria-label="Email" type="email" />',
+    );
+    const field = domWindow.document.querySelector('[aria-label="Email"]') as HTMLInputElement;
+    const errors: unknown[] = [];
+    domWindow.addEventListener("error", (event) => errors.push(event.error));
+    browser.fill(
+      refFor("Email", browser.snapshot().elements),
+      "user@example.test",
+      origin,
+      "username",
+    );
+    const press = new domWindow.MouseEvent("mousedown", { button: 0, cancelable: true });
+    field.dispatchEvent(press);
+    field.dispatchEvent(new domWindow.Event("select", { bubbles: true }));
+    expect(press.defaultPrevented).toBe(true);
+    expect(domWindow.document.activeElement).toBe(field);
+    expect(errors).toEqual([]);
+  });
+
   it("keeps keyboard focus off a guarded field and undo off the page, and gives focus back after", () => {
     const { domWindow, browser } = installPageHelper(
       `${origin}/signin`,
