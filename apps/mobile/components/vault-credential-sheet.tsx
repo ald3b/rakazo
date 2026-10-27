@@ -28,6 +28,7 @@ import {
 } from "../lib/vault";
 import { MenuPicker } from "./menu-picker";
 import { NativeActionButton } from "./native-action-button";
+import { NativeSwitch } from "./native-switch";
 
 const EMPTY_SECRET: CredentialSecret = { username: "", value: "" };
 
@@ -55,6 +56,8 @@ export function VaultCredentialSheet({
   const [secret, setSecret] = useState<CredentialSecret>(EMPTY_SECRET);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // A replacement keeps the saved login's mark unless the owner changes it.
+  const [notPassword, setNotPassword] = useState(replacing?.secondValue === "text");
   const clear = () => setSecret(EMPTY_SECRET);
   const { close, closing, endEditing } = useSecretSheetClose(
     [usernameInput, valueInput],
@@ -77,7 +80,7 @@ export function VaultCredentialSheet({
     const destination = replacing
       ? credentialDestination(replacing.name, replacing.origin, replacing.auth)
       : draftDestination(draft);
-    const value = credentialValue(type, secret);
+    const value = credentialValue(type, secret, notPassword);
     clear();
     setSubmitting(true);
     setError(null);
@@ -244,6 +247,17 @@ export function VaultCredentialSheet({
             onEndEditing={(event) => endEditing(event.nativeEvent.text)}
             style={styles.field}
           />
+          {type === "login" ? (
+            <View style={styles.row}>
+              <Text style={styles.rowLabel}>{t("Not a password")}</Text>
+              <NativeSwitch
+                accessibilityLabel={t("Not a password")}
+                disabled={!editable}
+                onValueChange={setNotPassword}
+                value={notPassword}
+              />
+            </View>
+          ) : null}
           {error ? (
             <Text accessibilityRole="alert" style={styles.error}>
               {error}
@@ -277,6 +291,14 @@ function createStyles() {
     },
     picker: { backgroundColor: tokens.muted, borderRadius: 13, overflow: "hidden" },
     placeholder: { color: tokens.faintForeground },
+    row: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 12,
+      minHeight: 44,
+    },
+    rowLabel: { flex: 1, color: tokens.foreground, fontSize: 15 },
     error: { color: tokens.destructive, fontSize: 13 },
   });
 }

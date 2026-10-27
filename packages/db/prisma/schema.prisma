@@ -1569,9 +1569,6 @@ model BotSecret {
   origin     String
   auth       Json
   ciphertext String
-  /// A login whose second value the person marked as not a password, as in its encrypted value.
-  /// Kept here only so the owner's settings can show it without decrypting.
-  notPassword Boolean  @default(false)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -1593,6 +1590,9 @@ model VaultCredential {
   origin     String
   auth       Json
   ciphertext String
+  /// A login whose second value the person marked as not a password, as in its encrypted value.
+  /// Kept here only so the owner's settings can show it without decrypting.
+  notPassword Boolean  @default(false)
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 

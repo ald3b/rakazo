@@ -1004,7 +1004,10 @@ describe("saved website logins", () => {
     "offers Not a password from the saved mark (%s) and this run's refusal (%s)",
     async (savedMark, refused, expected) => {
       const findFirst = vi.fn(async () => ({ notPassword: savedMark }));
-      const prisma = { botSecret: { findFirst } } as unknown as PrismaClient;
+      const prisma = {
+        spaceSettingOverride: ownVault,
+        vaultCredential: { findFirst },
+      } as unknown as PrismaClient;
       expect(await notPasswordOffer(prisma, scope, "site_login", refused)).toBe(expected);
       expect(findFirst).toHaveBeenCalledWith(
         expect.objectContaining({ where: expect.objectContaining({ name: "site_login" }) }),

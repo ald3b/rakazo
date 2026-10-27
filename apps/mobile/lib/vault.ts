@@ -99,10 +99,21 @@ export function draftReady(draft: CredentialDraft, secret: CredentialSecret): bo
   );
 }
 
-/** The stored value: a website login is saved as one encoded username and password pair. */
-export function credentialValue(type: CredentialType, secret: CredentialSecret): string {
+/**
+ * The stored value: a website login is saved as one encoded username and password pair, with its
+ * second value marked when it is not a password.
+ */
+export function credentialValue(
+  type: CredentialType,
+  secret: CredentialSecret,
+  notPassword = false,
+): string {
   return type === "login"
-    ? encodeLoginSecret({ username: secret.username.trim(), password: secret.value })
+    ? encodeLoginSecret({
+        username: secret.username.trim(),
+        password: secret.value,
+        ...(notPassword ? { secondValue: "text" as const } : {}),
+      })
     : secret.value;
 }
 

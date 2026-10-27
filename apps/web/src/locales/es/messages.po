@@ -3866,7 +3866,7 @@ msgid "Normal"
 msgstr ""
 
 #: src/components/AskCard.tsx
-#: src/pages/shell/bot-credentials.tsx
+#: src/components/VaultSettings.tsx
 msgid "Not a password"
 msgstr "No es una contraseña"
 

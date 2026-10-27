@@ -266,7 +266,7 @@ describe("VaultSettings", () => {
   });
 
   it("saves a login's second value marked as not a password only when switched on", async () => {
-    botSecrets.put.mockResolvedValue(rows[3]);
+    vault.put.mockResolvedValue(rows[3]);
     await render();
     await click("credential-add");
     await type("credential-auth-type", "login");
@@ -278,7 +278,7 @@ describe("VaultSettings", () => {
     await click("credential-not-password");
     await click("credential-add-save");
 
-    expect(botSecrets.put).toHaveBeenCalledWith(
+    expect(vault.put).toHaveBeenCalledWith(
       expect.objectContaining({
         value: encodeLoginSecret({
           username: "fake-id",
@@ -292,12 +292,12 @@ describe("VaultSettings", () => {
   it.each([true, false])(
     "presets the switch from the saved login when replacing it (marked: %s)",
     async (marked) => {
-      botSecrets.list.mockResolvedValue(
+      vault.list.mockResolvedValue(
         rows.map((row) =>
           row.name === "portal" && marked ? { ...row, secondValue: "text" } : row,
         ),
       );
-      botSecrets.put.mockResolvedValue(rows[3]);
+      vault.put.mockResolvedValue(rows[3]);
       await render();
       await click("credential-replace-portal");
       const toggle = byTestId("credential-replace-not-password");
@@ -306,7 +306,7 @@ describe("VaultSettings", () => {
       await type("credential-replace-value", FAKE_VALUE);
       await click("credential-replace-save");
 
-      expect(botSecrets.put).toHaveBeenCalledWith(
+      expect(vault.put).toHaveBeenCalledWith(
         expect.objectContaining({
           value: encodeLoginSecret({
             username: "fake-id",

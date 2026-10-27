@@ -144,7 +144,7 @@ async function requestSecretWith(
       ...(options.savedNotPassword === undefined
         ? {}
         : {
-            botSecret: {
+            vaultCredential: {
               // The saved login being replaced, with the person's mark as they left it.
               findFirst: async ({ select }: { select?: Record<string, boolean> }) =>
                 select?.notPassword

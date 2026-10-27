@@ -87,6 +87,27 @@ vi.mock("../components/menu-picker", () => ({
   ),
 }));
 
+vi.mock("../components/native-switch", () => ({
+  NativeSwitch: ({
+    value,
+    onValueChange,
+    accessibilityLabel,
+  }: {
+    value: boolean;
+    onValueChange: (value: boolean) => void;
+    accessibilityLabel?: string;
+  }) => (
+    <input
+      type="checkbox"
+      role="switch"
+      aria-checked={value}
+      aria-label={accessibilityLabel}
+      checked={value}
+      onChange={() => onValueChange(!value)}
+    />
+  ),
+}));
+
 import { VaultCredentialSheet } from "../components/vault-credential-sheet";
 
 const onClose = vi.fn();
@@ -198,6 +219,53 @@ it("replaces a website login's username and password on its saved site", async (
   expect(decodeLoginSecret(value)).toEqual({ username: "ada", password: "example-password" });
   expect(field("Username")!.value).toBe("");
   expect(field("Password")!.value).toBe("");
+});
+
+it("marks a login's second value as not a password only when switched on", async () => {
+  onSave.mockResolvedValue();
+  await render();
+  await type("Name", "portal");
+  await choose("login");
+  await type("Site", "https://login.example.test");
+  const toggle = () => field("Not a password")!;
+  expect(toggle().checked).toBe(false);
+  await type("Username", "fake-id");
+  await type("Password", "fake-phone-0501234");
+  await act(async () => toggle().click());
+  await act(async () => save().click());
+  expect(decodeLoginSecret(onSave.mock.lastCall![1])).toEqual({
+    username: "fake-id",
+    password: "fake-phone-0501234",
+    secondValue: "text",
+  });
+});
+
+it.each([true, false])(
+  "starts a replacement from the saved login's mark (marked: %s)",
+  async (marked) => {
+    onSave.mockResolvedValue();
+    await render({
+      name: "portal",
+      origin: "https://login.example.test",
+      auth: { type: "login" },
+      ...(marked ? { secondValue: "text" as const } : {}),
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+    expect(field("Not a password")!.checked).toBe(marked);
+    await type("Username", "fake-id");
+    await type("Password", "fake-phone-0501234");
+    await act(async () => save().click());
+    expect(decodeLoginSecret(onSave.mock.lastCall![1]).secondValue).toBe(
+      marked ? "text" : undefined,
+    );
+  },
+);
+
+it("offers Not a password only for a website login", async () => {
+  await render();
+  await choose("command");
+  expect(field("Not a password")).toBeNull();
 });
 
 it("clears the value and shows an error when saving fails", async () => {

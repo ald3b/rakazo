@@ -643,7 +643,8 @@ describe("prepared run-secret writes", () => {
             ],
           }),
         },
-        botSecret: { findFirst: async () => null, count: async () => 0 },
+        vaultCredential: { findFirst: async () => null, count: async () => 0 },
+        spaceSettingOverride: { findUnique: async () => null },
       } as unknown as PrismaClient;
       const writer = createRunSecretWriter(store);
       await writer.withPrepared!(
