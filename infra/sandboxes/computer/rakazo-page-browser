@@ -974,6 +974,10 @@ EVAL_HELPERS = r"""
       if (maskedText && (!besideUsername(el, login) || searchField(el))) {
         throw refused("This login's second value can only be typed into the form its username was typed into, and not into a search field. Fill the username there first.");
       }
+      // A checkout's card fields can sit beside a sign-in, its CVC box masked like a password.
+      if (password && secondValue === "text" && /(^|\s)cc-/i.test(el.getAttribute("autocomplete") || "")) {
+        throw refused("This login's second value can't be typed into a card field.");
+      }
       if (password && !maskedText && !(el instanceof HTMLInputElement && ownType === "password")) {
         throw refused(secondValue === "text"
           ? "This login's second value can only be typed into a password field, or into a text or telephone field on a page without one."

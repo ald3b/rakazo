@@ -400,6 +400,26 @@ describe("live page helper saved-login fill", () => {
       expect(phoneField(domWindow).value).toBe("fake-phone-0501234");
     });
 
+    it("never goes into a card field beside its username", () => {
+      const page = `<form id="pay"><input aria-label="ID number" /><input aria-label="Phone" type="tel" />
+        <input aria-label="Card number" autocomplete="billing cc-number" /></form>`;
+      const { domWindow, browser } = installPageHelper(`${origin}/signin`, page);
+      fillId(browser);
+      expect(() => marked(browser, "Card number")).toThrow(/card field/);
+      const card = phoneField(domWindow, "Card number");
+      expect([card.value, card.type]).toEqual(["", "text"]);
+      marked(browser);
+      expect(phoneField(domWindow).value).toBe("fake-phone-0501234");
+      // Nor into a masked CVC box on a page that has a password field.
+      const checkout = installPageHelper(
+        `${origin}/signin`,
+        '<input aria-label="Password" type="password" /><input aria-label="CVC" type="password" autocomplete="cc-csc" />',
+      );
+      expect(() => marked(checkout.browser, "CVC")).toThrow(/card field/);
+      marked(checkout.browser, "Password");
+      expect(phoneField(checkout.domWindow, "Password").value).toBe("fake-phone-0501234");
+    });
+
     it("never goes into a field or form labelled as a search", () => {
       const page = `
         <form id="a"><input aria-label="ID number" /><label for="b">Search</label><input id="b" type="tel" /></form>
