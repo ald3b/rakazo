@@ -1,6 +1,7 @@
 import type { ComputerRef } from "@rakazo/adapter-kit";
 import { encodeLoginSecret } from "@rakazo/contracts";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { RUN_LOGIN_NAME_TAKEN } from "./bot-secrets.js";
 import type * as ComputerLifecycleModule from "./computer-lifecycle.js";
 import { createRunExecutor } from "./executor.js";
 import { EncryptedSecretStore } from "./secrets.js";
@@ -41,7 +42,8 @@ function recordingPrisma(models: Record<string, Record<string, unknown>>, calls:
         if (model === "$transaction") {
           return async (fn: (tx: unknown) => unknown) => fn(prisma);
         }
-        if (model === "$queryRaw") return async () => [];
+        // The member's settings lock always finds the membership row.
+        if (model === "$queryRaw") return async () => [{ locked: 1 }];
         const methods = models[model] ?? {};
         return new Proxy(methods, {
           get: (target, method: string) => {
@@ -291,8 +293,8 @@ describe("request_secret for a website login", () => {
     const { calls } = await runTool(requestLogin({ remember: true, persist: true, save: true }));
     // The card opens as usual; what is kept is decided only by the person's answer.
     expect(JSON.stringify(calls)).toContain('"kind":"request_secret"');
-    expect(JSON.stringify(calls)).not.toContain('"botSecret","create"');
-    expect(JSON.stringify(calls)).not.toContain('"botSecret","upsert"');
+    expect(JSON.stringify(calls)).not.toContain('"vaultCredential","create"');
+    expect(JSON.stringify(calls)).not.toContain('"vaultCredential","update"');
   });
 });
 
@@ -305,6 +307,17 @@ describe("list_secrets", () => {
     expect(toolResults).toEqual([
       [{ name: "site_login", origin: ORIGIN, auth: { type: "login" }, remembered: false }],
     ]);
+  });
+});
+
+describe("generate_secret", () => {
+  it("won't save a login under the name of this run's own login, which fills would skip", async () => {
+    const { toolResults, calls } = await runTool(
+      { name: "generate_secret", args: { name: "site_login", type: "login", origin: ORIGIN } },
+      { runLogins: [await runLogin("run-1")] },
+    );
+    expect(toolResults).toEqual([{ error: RUN_LOGIN_NAME_TAKEN }]);
+    expect(JSON.stringify(calls)).not.toContain('"vaultCredential","create"');
   });
 });
 

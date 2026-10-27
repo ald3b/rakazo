@@ -4,10 +4,12 @@ import { deleteRunSecretsInTransaction, moveRunLoginsInTransaction } from "@raka
 import { describe, expect, it, vi } from "vitest";
 import {
   forgetRunLogin,
+  listBotSecrets,
   listRunLogins,
   loadRunLoginRedactions,
   RUN_LOGIN_ON_ANOTHER_COMPUTER,
   resolveLoginFill,
+  revealBotSecret,
 } from "./bot-secrets.js";
 import { createRunSecretWriter } from "./run-secret.js";
 import { EncryptedSecretStore } from "./secrets.js";
@@ -21,9 +23,16 @@ const secretStore = new EncryptedSecretStore("test-only-encryption-key");
 /** An in-memory table set with the filters these paths use. */
 function database(tables: Record<string, Row[]> = {}) {
   const data = new Map<string, Row[]>(
-    ["secret", "botSecret", "integrationProviderConfig", "run", "message", "runLogin"].map(
-      (name) => [name, tables[name] ?? []],
-    ),
+    [
+      "secret",
+      "botSecret",
+      "vaultCredential",
+      "spaceSettingOverride",
+      "integrationProviderConfig",
+      "run",
+      "message",
+      "runLogin",
+    ].map((name) => [name, tables[name] ?? []]),
   );
   const matches = (row: Row, where: Row = {}): boolean =>
     Object.entries(where).every(([key, value]) => {
@@ -72,8 +81,15 @@ function database(tables: Record<string, Row[]> = {}) {
       },
     };
   }
+  // A Space uses its own vault once its member customizes "credentials".
+  const overrides = data.get("spaceSettingOverride")!;
+  client.spaceSettingOverride = {
+    findUnique: async ({ where }: { where: { spaceId_userId_setting: Row } }) =>
+      overrides.find((row) => matches(row, where.spaceId_userId_setting)) ?? null,
+  };
   client.$transaction = async (fn: (tx: unknown) => unknown) => fn(client);
-  client.$queryRaw = async () => [];
+  // The member's settings lock always finds the membership row.
+  client.$queryRaw = async () => [{ locked: 1 }];
   return { prisma: client as unknown as PrismaClient, data };
 }
 
@@ -151,7 +167,7 @@ async function runLogin(
 describe("a login answered without Remember for next time", () => {
   it("is kept for the run that asked, bound to the card's site, and saves nothing", async () => {
     const db = await answerLoginCard(false);
-    expect(db.data.get("botSecret")).toEqual([]);
+    expect(db.data.get("vaultCredential")).toEqual([]);
     expect(db.data.get("secret")).toEqual([]);
     const rows = db.data.get("runLogin")!;
     expect(rows).toMatchObject([{ ...scope, runId: "run-1", name: "site_login", origin: ORIGIN }]);
@@ -166,18 +182,19 @@ describe("a login answered without Remember for next time", () => {
   it("never touches a saved login of the same name", async () => {
     const saved = {
       id: "saved-1",
-      ...scope,
+      userId: scope.userId,
+      spaceId: null,
       name: "site_login",
       origin: ORIGIN,
       auth: { type: "login" },
       ciphertext: "saved-ciphertext",
       updatedAt: new Date(0),
     };
-    const db = await answerLoginCard(false, { botSecret: [{ ...saved }] });
-    expect(db.data.get("botSecret")).toEqual([saved]);
+    const db = await answerLoginCard(false, { vaultCredential: [{ ...saved }] });
+    expect(db.data.get("vaultCredential")).toEqual([saved]);
     expect(db.data.get("runLogin")).toHaveLength(1);
     await deleteRunSecretsInTransaction(db.prisma, [{ id: "run-1", ...scope }]);
-    expect(db.data.get("botSecret")).toEqual([saved]);
+    expect(db.data.get("vaultCredential")).toEqual([saved]);
   });
 
   it("takes the place of this run's earlier answer to the same card", async () => {
@@ -277,6 +294,29 @@ describe("a login answered without Remember for next time", () => {
   });
 });
 
+describe("a run login and the vault", () => {
+  it("is never in the vault, so no other bot of the Space lists, reveals or fills it", async () => {
+    const db = await answerLoginCard(false);
+    expect(db.data.get("vaultCredential")).toEqual([]);
+    const otherBot = { ...scope, botId: "bot-2" };
+    expect(await listBotSecrets(db.prisma, otherBot)).toEqual([]);
+    expect(
+      await revealBotSecret({ prisma: db.prisma, secretStore, scope, name: "site_login" }),
+    ).toBeNull();
+    expect(
+      await resolveLoginFill({
+        prisma: db.prisma,
+        secretStore,
+        scope: otherBot,
+        runId: "run-2",
+        name: "site_login",
+        field: "password",
+        computerId: "computer-1",
+      }),
+    ).toEqual({ error: "Login is unavailable. Use request_secret to save it first." });
+  });
+});
+
 describe("hiding a run login from its run's output", () => {
   it("uses the same forms as a saved login: plain, URL-encoded, form-encoded and base64", async () => {
     const password = "fake pass!word";
@@ -315,11 +355,22 @@ describe("hiding a run login from its run's output", () => {
 });
 
 describe("a login answered with Remember for next time", () => {
-  it("is saved as a credential and keeps nothing for the run", async () => {
+  it("is saved in the account vault and keeps nothing for the run", async () => {
     const db = await answerLoginCard(true);
     expect(db.data.get("runLogin")).toEqual([]);
-    expect(db.data.get("botSecret")).toMatchObject([
-      { ...scope, name: "site_login", origin: ORIGIN },
+    expect(db.data.get("vaultCredential")).toMatchObject([
+      { userId: scope.userId, spaceId: null, name: "site_login", origin: ORIGIN },
+    ]);
+  });
+
+  it("is saved in the Space's own vault when the Space keeps its own credentials", async () => {
+    const db = await answerLoginCard(true, {
+      spaceSettingOverride: [
+        { spaceId: scope.spaceId, userId: scope.userId, setting: "credentials" },
+      ],
+    });
+    expect(db.data.get("vaultCredential")).toMatchObject([
+      { userId: scope.userId, spaceId: scope.spaceId, name: "site_login", origin: ORIGIN },
     ]);
   });
 });
@@ -328,7 +379,7 @@ describe("a login remembered after this run kept one under the same name", () =>
   it("ends the run's login, so fills use the remembered one", async () => {
     const db = await answerLoginCard(true, { runLogin: [await runLogin("run-1")] });
     expect(db.data.get("runLogin")).toMatchObject([{ ciphertext: "", endedAt: expect.any(Date) }]);
-    expect(db.data.get("botSecret")).toHaveLength(1);
+    expect(db.data.get("vaultCredential")).toHaveLength(1);
   });
 
   it("keeps that ended login for cleanup when the card is answered again unremembered", async () => {

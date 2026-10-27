@@ -22,6 +22,7 @@ import {
   listBotSecrets,
   listRunLogins,
   normalizeSecretDestination,
+  RUN_LOGIN_NAME_TAKEN,
   requestWithBotSecret,
   resolveRequestSecretDestination,
   sameSecretDestination,
@@ -59,6 +60,12 @@ export const secretTools: ToolHandlers = {
   },
   async generate_secret(ctx, call) {
     const { deps, run } = ctx;
+    // A login given for this run only is filled before any saved one under its name, so a
+    // generated login under that name would be saved but never typed.
+    const runLogins = await listRunLogins(deps.prisma, run, run.id);
+    if (runLogins.some((login) => login.name === call.args.name)) {
+      return call.finish({ error: RUN_LOGIN_NAME_TAKEN });
+    }
     const { result, redactions } = await generateBotSecret({
       prisma: deps.prisma,
       secretStore: deps.secretStore,

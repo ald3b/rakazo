@@ -918,6 +918,10 @@ function loginFillOrigin(row: {
   return { origin: destination.origin };
 }
 
+/** What generate_secret gets for a name this run already has a login for. */
+export const RUN_LOGIN_NAME_TAKEN =
+  "A login with this name was given for this run only; fill it with browser_act fill_secret, or use another name.";
+
 /** What filling a run login gets once it has been typed on a computer other than this run's. */
 export const RUN_LOGIN_ON_ANOTHER_COMPUTER =
   "This login was used on another computer. Use request_secret to ask for it again.";
