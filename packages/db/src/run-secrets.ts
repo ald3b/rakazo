@@ -65,14 +65,21 @@ export async function endRunLoginsByName(
   await endRunLogins(tx, { runId, name });
 }
 
-/** A run's continuation takes over its unremembered logins: the same sign-in goes on there. */
+/**
+ * A run's continuation takes over the unremembered logins of its own person: the same sign-in
+ * goes on there. Another member's login stays with the run, to end with it.
+ */
 export async function moveRunLoginsInTransaction(
-  tx: Pick<Prisma.TransactionClient, "runLogin">,
+  tx: Pick<Prisma.TransactionClient, "runLogin" | "run">,
   fromRunId: string,
   toRunId: string,
 ): Promise<void> {
+  const { userId } = await tx.run.findUniqueOrThrow({
+    where: { id: toRunId },
+    select: { userId: true },
+  });
   await tx.runLogin.updateMany({
-    where: { runId: fromRunId, endedAt: null },
+    where: { runId: fromRunId, userId, endedAt: null },
     data: { runId: toRunId },
   });
 }

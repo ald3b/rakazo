@@ -18,6 +18,7 @@ describePostgres("steering after a run ends without completing (PostgreSQL)", ()
   let close: () => Promise<void>;
   let provisioned = false;
   let userId: string;
+  const memberId = `steering-member-${randomUUID()}`;
   let spaceId: string;
   let botId: string;
   let threadId: string;
@@ -42,6 +43,14 @@ describePostgres("steering after a run ends without completing (PostgreSQL)", ()
       ),
     );
     ({ userId, spaceId, botId, threadId } = identity);
+    await system.user.create({
+      data: {
+        id: memberId,
+        name: "Steering Member",
+        email: `${memberId}@rakazo.test`,
+        emailVerified: false,
+      },
+    });
     provisioned = true;
   });
 
@@ -50,7 +59,7 @@ describePostgres("steering after a run ends without completing (PostgreSQL)", ()
       if (prisma && provisioned) {
         await system.messagingIdentity.deleteMany({ where: { provider: "sendblue", address } });
         await system.organization.deleteMany({ where: { id: spaceId } });
-        await system.user.deleteMany({ where: { id: userId } });
+        await system.user.deleteMany({ where: { id: { in: [userId, memberId] } } });
       }
     } finally {
       await close?.();
@@ -60,7 +69,10 @@ describePostgres("steering after a run ends without completing (PostgreSQL)", ()
   /** The executor finalizes and claims steering inside the run owner's tenant job. */
   const asOwner = <T>(fn: () => Promise<T>) => runAsTenant({ spaceId, userId }, fn);
 
-  async function runSteeredByMessage(status: "running" | "waiting_input") {
+  async function runSteeredByMessage(
+    status: "running" | "waiting_input",
+    steeredBy: string = userId,
+  ) {
     await system.run.updateMany({
       where: { threadId, status: { in: ["queued", "running", "waiting_input"] } },
       data: { status: "cancelled" },
@@ -94,7 +106,7 @@ describePostgres("steering after a run ends without completing (PostgreSQL)", ()
       data: {
         messageId: steeringText.id,
         botId,
-        userId,
+        userId: steeredBy,
         runId: run.id,
       },
     });
@@ -171,6 +183,22 @@ describePostgres("steering after a run ends without completing (PostgreSQL)", ()
       runId: continuationRunId,
       ciphertext: "fake-ciphertext",
       endedAt: null,
+    });
+  });
+
+  it("ends one person's login when another member's message continues the run", async () => {
+    const fixture = await runSteeredByMessage("running", memberId);
+    const login = await runLoginFor(fixture.run.id);
+
+    const { continuationRunId } = (await failRun(fixture)) as { continuationRunId: string };
+
+    expect(await system.run.findUniqueOrThrow({ where: { id: continuationRunId } })).toMatchObject({
+      userId: memberId,
+    });
+    expect(await system.runLogin.findUniqueOrThrow({ where: { id: login.id } })).toMatchObject({
+      runId: fixture.run.id,
+      ciphertext: "",
+      endedAt: expect.any(Date),
     });
   });
 

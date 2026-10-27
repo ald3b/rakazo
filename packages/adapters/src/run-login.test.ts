@@ -51,6 +51,11 @@ function database(tables: Record<string, Row[]> = {}) {
         rows.find((row) => matches(row, where)) ?? null,
       findUnique: async ({ where }: { where?: Row } = {}) =>
         rows.find((row) => matches(row, where)) ?? null,
+      findUniqueOrThrow: async ({ where }: { where?: Row } = {}) => {
+        const row = rows.find((candidate) => matches(candidate, where));
+        if (!row) throw new Error("No record found");
+        return row;
+      },
       findMany: async ({ where, select }: { where?: Row; select?: Row } = {}) =>
         rows
           .filter((row) => matches(row, where))
@@ -318,6 +323,26 @@ describe("a run login and the vault", () => {
 });
 
 describe("hiding a run login from its run's output", () => {
+  it("hides every login on the run, while only the person who gave it can fill it", async () => {
+    const othersLogin = { ...(await runLogin("run-1")), userId: "user-2" };
+    const db = database({ runLogin: [othersLogin] });
+    expect(await loadRunLoginRedactions(db.prisma, secretStore, scope, "run-1")).toContain(
+      "password-run-1",
+    );
+    expect(await listRunLogins(db.prisma, scope, "run-1")).toEqual([]);
+    expect(
+      await resolveLoginFill({
+        computerId: "computer-1",
+        prisma: db.prisma,
+        secretStore,
+        scope,
+        runId: "run-1",
+        name: "site_login",
+        field: "password",
+      }),
+    ).toEqual({ error: "Login is unavailable. Use request_secret to save it first." });
+  });
+
   it("uses the same forms as a saved login: plain, URL-encoded, form-encoded and base64", async () => {
     const password = "fake pass!word";
     const db = database({ runLogin: [await runLogin("run-1", "site_login", ORIGIN, password)] });
@@ -483,7 +508,10 @@ describe("when a login's run ends", () => {
   });
 
   it("goes on in the continuation that takes over from it", async () => {
-    const db = database({ runLogin: [await runLogin("run-1")] });
+    const db = database({
+      runLogin: [await runLogin("run-1")],
+      run: [{ id: "run-2", userId: scope.userId }],
+    });
     await moveRunLoginsInTransaction(db.prisma, "run-1", "run-2");
     await deleteRunSecretsInTransaction(db.prisma, [{ id: "run-1", ...scope }]);
     expect(
@@ -500,6 +528,18 @@ describe("when a login's run ends", () => {
     expect(await loadRunLoginRedactions(db.prisma, secretStore, scope, "run-2")).toContain(
       "password-run-1",
     );
+  });
+
+  it("ends with its run when another member's message continues it", async () => {
+    const db = database({
+      runLogin: [await runLogin("run-1")],
+      run: [{ id: "run-2", userId: "user-2" }],
+    });
+    await moveRunLoginsInTransaction(db.prisma, "run-1", "run-2");
+    await deleteRunSecretsInTransaction(db.prisma, [{ id: "run-1", ...scope }]);
+    expect(db.data.get("runLogin")).toMatchObject([
+      { runId: "run-1", ciphertext: "", endedAt: expect.any(Date) },
+    ]);
   });
 
   it("ends early when the bot forgets it", async () => {

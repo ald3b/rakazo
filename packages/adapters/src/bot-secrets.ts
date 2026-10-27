@@ -833,7 +833,8 @@ export async function listRunLogins(prisma: PrismaClient, scope: BotSecretScope,
 
 /**
  * Redactions for this run's unremembered logins. A continuation that took one over may meet it
- * on a page filled by the run before it.
+ * on a page filled by the run before it. Every login on the run is hidden, whoever gave it; only
+ * filling is limited to that person.
  */
 export async function loadRunLoginRedactions(
   prisma: PrismaClient,
@@ -842,7 +843,7 @@ export async function loadRunLoginRedactions(
   runId: string,
 ): Promise<string[]> {
   const rows = await prisma.runLogin.findMany({
-    where: { runId, spaceId: scope.spaceId, userId: scope.userId, endedAt: null },
+    where: { runId, spaceId: scope.spaceId, endedAt: null },
     select: { id: true, ciphertext: true },
   });
   const redactions: string[] = [];
