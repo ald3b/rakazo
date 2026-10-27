@@ -155,7 +155,6 @@ describe("live page helper saved-login fill", () => {
       field.dispatchEvent(event);
       return event.defaultPrevented;
     };
-    // A press, a double or triple click's included, only puts the caret at the end.
     for (const detail of [1, 2, 3]) {
       expect(
         dispatch(new domWindow.MouseEvent("mousedown", { button: 0, detail, cancelable: true })),
@@ -180,7 +179,6 @@ describe("live page helper saved-login fill", () => {
         key.key,
       ).toBe(true);
     }
-    // Moving the caret and typing still work.
     expect(
       dispatch(new domWindow.KeyboardEvent("keydown", { key: "ArrowLeft", cancelable: true })),
     ).toBe(false);
@@ -194,7 +192,6 @@ describe("live page helper saved-login fill", () => {
         true,
       );
     }
-    // A selection made anyway is collapsed at once.
     field.select();
     field.dispatchEvent(new domWindow.Event("select", { bubbles: true }));
     expect([field.selectionStart, field.selectionEnd]).toEqual([13, 13]);
@@ -211,7 +208,6 @@ describe("live page helper saved-login fill", () => {
     expect(press()).toBe(false);
     browser.fill(refFor("Email", browser.snapshot().elements), "fake-user", origin, "username");
     expect(press()).toBe(true);
-    // Filled with ordinary text, or typed over, the field is the page's again.
     browser.fill(refFor("Email", browser.snapshot().elements), "someone else");
     expect(press()).toBe(false);
     browser.fill(refFor("Email", browser.snapshot().elements), "fake-user", origin, "username");

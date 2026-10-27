@@ -256,7 +256,6 @@ test("live page helper keeps a filled saved login from being selected", async ()
     await field.focus();
     await page.keyboard.press("ControlOrMeta+A");
     await page.keyboard.press("Shift+Home");
-    // The username field too, and a click on the password field's label.
     await page.locator("#email").dblclick();
     await page.locator("label").click();
     expect(await page.evaluate(() => (window as { widest?: number }).widest)).toBe(0);
@@ -268,7 +267,6 @@ test("live page helper keeps a filled saved login from being selected", async ()
     await page.keyboard.press("Shift+Tab");
     expect(await page.evaluate(() => document.activeElement?.id)).not.toBe("password");
     expect(await page.evaluate(() => (window as { widest?: number }).widest)).toBe(0);
-    // A click still puts the caret in the field, and the person can still type.
     await field.click();
     await page.keyboard.press("End");
     await page.keyboard.type("!");
@@ -287,7 +285,6 @@ test("live page helper keeps a filled saved login from being selected", async ()
     await expect(field).toHaveValue("");
     // Undo is off on the whole page now, so the person's own note there stays as typed.
     await expect(page.locator("#after")).toHaveValue("note");
-    // At no point did undo put any of the login back, even for a moment.
     expect(await page.evaluate(() => (window as { restored?: number }).restored)).toBe(0);
     expect(await page.evaluate(() => (window as { widest?: number }).widest)).toBe(0);
   } finally {

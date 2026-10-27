@@ -385,14 +385,9 @@ EVAL_HELPERS = r"""
   // Fields holding a saved login: snapshots never report their values, whatever their type.
   const loginFilled = new WeakSet();
   // Selecting text in a field, a password field too, hands it to the desktop's selection, which a
-  // middle click pastes anywhere visible. So the page browser keeps a field it filled with a saved
-  // login from starting a selection: a press only focuses it with the caret at the end, keyboard
-  // focus skips it (focusing a field by keyboard selects all of it), and keyboard selection, the
-  // context menu and the start of a selection are turned down. A selection made some other way is
-  // collapsed, but by then the desktop may have it, so that is a backstop, not the guard. Undo and
-  // redo are turned down too, since they would bring the value back. All of it lasts until the
-  // page browser fills the field again or types into it. When the field is emptied, by the person
-  // or the page, the person's own text in it can be selected again; undo stays turned down.
+  // middle click pastes anywhere visible, so a field holding a saved login never starts one.
+  // Keyboard focus skips it, since focusing a field by keyboard selects all of it. Collapsing a
+  // selection made some other way is only a backstop: by then the desktop may have it.
   const selectionGuards = new WeakMap();
   const guardedFields = new WeakSet();
   function unguardSelection(el) {
@@ -403,12 +398,10 @@ EVAL_HELPERS = r"""
   document.addEventListener("selectstart", (event) => {
     if (event.composedPath().some((node) => guardedFields.has(node))) event.preventDefault();
   }, true);
-  // The page's undo history is shared by its fields and keeps a login the person erased, even after
-  // the field is filled with something else, and the page browser's own fills. So once the page
-  // browser has typed a login into this page, undo and redo are turned down on the whole page until
-  // it is left: cancelled as edits, which the computer's browser honours, and also by key and in
-  // the context menu of any field, since some browser builds don't honour that and put the value
-  // back selected, which reaches the desktop's selection.
+  // The page's undo history is shared by its fields and keeps a login even after it is erased or
+  // typed over, so once a login is typed into this page, undo and redo stay off on the whole page.
+  // Some browser builds ignore a cancelled history edit and put the value back selected, so the
+  // keys and the context menu are turned down too.
   let undoGuarded = false;
   const undoKey = (event) => (event.ctrlKey || event.metaKey) &&
     (event.code === "KeyZ" || event.code === "KeyY" || event.keyCode === 90 || event.keyCode === 89);
@@ -463,7 +456,7 @@ EVAL_HELPERS = r"""
     const collapse = () => {
       if (!selectable && el.selectionStart !== el.selectionEnd) end();
     };
-    // A fallback: a value undo or redo brings back anyway, from a path not turned down, is emptied.
+    // Fallback for an undo that gets past the rest: empty what it brings back.
     const undone = (event) => {
       if (/^history/.test(event.inputType)) {
         Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), "value").set.call(el, "");
