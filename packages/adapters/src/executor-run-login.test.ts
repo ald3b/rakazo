@@ -326,11 +326,12 @@ describe("another run's login on the same computer", () => {
     };
     const { toolResults } = await runTool(
       { name: "shell", args: { command: "read-page" } },
-      { runLogins: [held, ended], printed: "field=fake-password-1 other=kept" },
+      { runLogins: [held, ended], printed: "field=fake-password-1 user=fake-user other=kept" },
     );
     const text = JSON.stringify(toolResults);
     expect(text).not.toContain("fake-password-1");
-    expect(text).toContain("other=kept");
+    // Only its password, as for a saved login: a username may be text this run needs.
+    expect(text).toContain("user=fake-user other=kept");
   });
 });
 

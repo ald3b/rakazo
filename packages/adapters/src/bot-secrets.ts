@@ -860,7 +860,8 @@ export async function loadRunLoginRedactions(
 
 /**
  * Redactions for logins other runs typed on this computer and still hold. Their pages may be open
- * in the same browser, so a run on the computer hides them too, as every run hides saved logins.
+ * in the same browser, so a run on the computer hides their passwords too, as every run hides
+ * saved ones: long enough to hide everywhere, without the usernames other runs may well need.
  */
 export async function loadComputerRunLoginRedactions(
   prisma: PrismaClient,
@@ -874,9 +875,10 @@ export async function loadComputerRunLoginRedactions(
   });
   const redactions: string[] = [];
   for (const row of rows) {
-    redactions.push(
-      ...loginRedactions(decodeLoginSecret(await secretStore.load(row.ciphertext, row.id))),
-    );
+    const { password } = decodeLoginSecret(await secretStore.load(row.ciphertext, row.id));
+    if (password.length >= MIN_REDACTED_PASSWORD_EVERY_RUN) {
+      redactions.push(...passwordRedactionForms(password));
+    }
   }
   return redactions;
 }
