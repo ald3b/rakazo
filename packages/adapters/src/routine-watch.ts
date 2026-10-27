@@ -25,7 +25,7 @@ import { scheduleComputerSleep } from "./computer-idle.js";
 import { ComputerBusyError, provisionComputer } from "./computer-lifecycle.js";
 import { resolveBotWorkspaceCwd, teamBotWorkspaceDirectory } from "./computer-support.js";
 import { connectedContext, selectRunConnections } from "./connection-context.js";
-import { cleanUpEndedRunLogins } from "./run-login-cleanup.js";
+import { cleanUpEndedRunLogins, liveRunLoginOn } from "./run-login-cleanup.js";
 
 /**
  * The checker behind a routine's "when something changes" trigger. It never
@@ -416,6 +416,9 @@ async function readComputer(
     bot: { id: bot.id, spaceId: routine.spaceId },
   }).catch(() => false);
   if (!cleaned) throw new RoutineWatchRetry();
+  // A run that is signed in on this computer hides its login from what it reads; this check
+  // can't, so it waits for that run to end.
+  if (await liveRunLoginOn(deps.prisma, computerId)) throw new RoutineWatchRetry();
   // The check's own time budget starts once the computer is up.
   const botFolder = watchFolder(mode, bot.id);
   const cwd = resolveBotWorkspaceCwd(mode, bot.id, undefined);

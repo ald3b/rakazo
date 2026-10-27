@@ -145,6 +145,7 @@ describe("tickRoutineWatch", () => {
         runLogin: {
           findMany: vi.fn(async () => []),
           deleteMany: vi.fn(async () => ({ count: 0 })),
+          count: vi.fn(async () => 0),
         },
         routine: { updateMany },
         connection: { findMany: vi.fn(async () => []) },
@@ -396,6 +397,7 @@ describe("tool results", () => {
         runLogin: {
           findMany: vi.fn(async () => []),
           deleteMany: vi.fn(async () => ({ count: 0 })),
+          count: vi.fn(async () => 0),
         },
         connection: { findMany: vi.fn(async () => []) },
         spaceSettingOverride: { findUnique: vi.fn(async () => null) },
@@ -457,6 +459,7 @@ describe("tickRoutineWatch on a computer", () => {
         runLogin: {
           findMany: vi.fn(async () => []),
           deleteMany: vi.fn(async () => ({ count: 0 })),
+          count: vi.fn(async () => 0),
         },
         routine: { updateMany },
         bot: {
@@ -517,6 +520,18 @@ describe("tickRoutineWatch on a computer", () => {
       pageBrowser: vi.fn(async () => ({ ok: false, error: "unknown command: close_site" })),
     });
     await expect(checkRoutineWatch(deps, routine)).rejects.toBeInstanceOf(RoutineWatchRetry);
+    expect(execute).not.toHaveBeenCalled();
+  });
+
+  it("waits, running nothing, while a run is signed in on the computer", async () => {
+    const vm = { id: "sandbox-1", botId: "home-1", kind: "e2b" as const, providerRef: "sandbox-1" };
+    vi.mocked(provisionComputer).mockResolvedValueOnce(vm);
+    const { deps, routine, execute } = setupComputer({ kind: "command", command: "cat page" });
+    vi.mocked(deps.prisma.runLogin.count).mockResolvedValueOnce(1);
+    await expect(checkRoutineWatch(deps, routine)).rejects.toBeInstanceOf(RoutineWatchRetry);
+    expect(deps.prisma.runLogin.count).toHaveBeenCalledWith({
+      where: { filledComputerId: expect.any(String), filledAt: { not: null }, endedAt: null },
+    });
     expect(execute).not.toHaveBeenCalled();
   });
 
@@ -899,6 +914,7 @@ describe("watch tool guard", () => {
         runLogin: {
           findMany: vi.fn(async () => []),
           deleteMany: vi.fn(async () => ({ count: 0 })),
+          count: vi.fn(async () => 0),
         },
         connection: { findMany: vi.fn(async () => []) },
         spaceSettingOverride: { findUnique: vi.fn(async () => null) },
@@ -1016,7 +1032,11 @@ it("loads authorized connection context for discovery, creation validation and c
   });
   const deps = {
     prisma: {
-      runLogin: { findMany: vi.fn(async () => []), deleteMany: vi.fn(async () => ({ count: 0 })) },
+      runLogin: {
+        findMany: vi.fn(async () => []),
+        deleteMany: vi.fn(async () => ({ count: 0 })),
+        count: vi.fn(async () => 0),
+      },
       connection: {
         findMany: vi.fn(async () => [
           connection,

@@ -56,3 +56,18 @@ export async function cleanUpEndedRunLogins(input: {
   }
   return allCleaned;
 }
+
+/**
+ * Whether a run login is typed on this computer while its run is still going. Its page may still
+ * hold the password, which only that run hides from what it reads, so a check that isn't that
+ * run waits instead of reading the computer.
+ */
+export async function liveRunLoginOn(
+  prisma: Pick<PrismaClient, "runLogin">,
+  computerId: string,
+): Promise<boolean> {
+  const live = await prisma.runLogin.count({
+    where: { filledComputerId: computerId, filledAt: { not: null }, endedAt: null },
+  });
+  return live > 0;
+}
