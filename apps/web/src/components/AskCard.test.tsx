@@ -433,7 +433,6 @@ it.each([false, true])(
     await render({ ...loginCard, notPassword: "offered" }, async () => undefined, onAnswer);
     const toggle = container.querySelector<HTMLElement>('[role="switch"]')!;
     expect(toggle.getAttribute("aria-checked")).toBe("false");
-    // The switch is named by its visible label.
     const label = toggle.getAttribute("aria-labelledby")!;
     expect(container.querySelector(`[id="${label}"]`)?.textContent).toBe("Not a password");
     if (markOn) await act(async () => toggle.click());

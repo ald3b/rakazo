@@ -479,14 +479,10 @@ const NATIONAL_DIGITS = 9;
 
 /**
  * Redaction entries for a value made of digits and separators, such as a phone number marked as
- * not a password. Pages show such a value reformatted ("050-123-4567", "+972 50 123 4567",
- * URL-encoded in an address), so an entry matches its digits with up to nine non-alphanumeric
- * characters or URL-encoded bytes between each ("%20" is one, "%E2%80%91" three). One entry is
- * the digits without leading zeros; one more is the last nine, which is how a number saved in its
- * international form is shown nationally. Only 6 to 20 ASCII digits get entries: shorter would
- * hide unrelated numbers, longer is no phone number. Six or seven digits allow only spaces and
- * dashes between, as they would otherwise match too much.
- * Digits in other scripts, such as Arabic-Indic, aren't matched this way.
+ * not a password, which pages show reformatted ("050-123-4567", URL-encoded in an address). An
+ * entry matches the digits without leading zeros, with up to nine separators or encoded bytes
+ * between each; a second matches the last nine, as a number saved internationally is shown
+ * nationally. Only 6 to 20 ASCII digits get entries: fewer would hide unrelated numbers.
  */
 export function digitsRedactions(value: string): string[] {
   if (!/^[\p{N}\s\-().+/\u200e\u200f\u2011\u2013]+$/u.test(value)) return [];
@@ -497,7 +493,6 @@ export function digitsRedactions(value: string): string[] {
   return entries;
 }
 
-/** The pattern a digits entry matches, or undefined for a plain value. */
 export function digitsRedactionPattern(secret: string): RegExp | undefined {
   if (!secret.startsWith(DIGITS_SECRET)) return undefined;
   const digits = secret.slice(DIGITS_SECRET.length);

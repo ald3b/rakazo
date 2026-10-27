@@ -56,7 +56,6 @@ export function VaultCredentialSheet({
   const [secret, setSecret] = useState<CredentialSecret>(EMPTY_SECRET);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  // A replacement keeps the saved login's mark unless the owner changes it.
   const [notPassword, setNotPassword] = useState(replacing?.secondValue === "text");
   const clear = () => setSecret(EMPTY_SECRET);
   const { close, closing, endEditing } = useSecretSheetClose(

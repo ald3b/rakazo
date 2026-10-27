@@ -21,7 +21,7 @@ export const BROWSER_ACT_KINDS = [
   "fill_card",
 ] as const;
 const NAVIGATE_URL_REQUIRED = "An HTTP(S) URL without embedded credentials is required";
-/** The page helper's refusal for a saved password on a page that has no password field. */
+/** Matches the page helper's NO_PASSWORD_FIELD text word for word. */
 export const NO_PASSWORD_FIELD_REFUSAL =
   "This page has no password field. If this login's second value isn't a password, such as a phone number, ask for the login again with request_secret and replace: true, so the person can mark it.";
 
@@ -118,7 +118,6 @@ export async function browserActFromTool(
     resolveUploadPath?: (path: string) => string;
     /** Trusted upload roots relative to the computer home, set by the executor. */
     uploadRoots?: string[];
-    /** A saved login's password was refused because the page has no password field. */
     onNoPasswordField?: (login: string) => void;
   } = {},
 ) {

@@ -219,7 +219,6 @@ describe("live page helper saved-login fill", () => {
         // selection and form history, whatever the page's listeners do.
         expect(field.type).toBe("password");
         expect(field.value).toBe("fake-phone-0501234");
-        // It was a password field before the value was set.
         expect(types).toEqual(["password"]);
         expect(JSON.stringify(browser.snapshot())).not.toContain("fake-phone");
         // Only fills of this helper's own make the page "have" a password field: a later fill of
@@ -237,7 +236,6 @@ describe("live page helper saved-login fill", () => {
         <form action="/results"><input aria-label="Lookup" name="q" /><input aria-label="Area" /></form>
       `;
       const { domWindow, browser } = installPageHelper(`${origin}/signin`, page);
-      // Before its username is typed, nothing.
       expect(() => marked(browser)).toThrow(/form its username was typed into/);
       // Another login's username doesn't open the form for this one.
       fillId(browser, "ID number", "other_login");
@@ -551,7 +549,6 @@ describe("live page helper saved-login fill", () => {
       });
       field.dispatchEvent(undo);
       expect(undo.defaultPrevented).toBe(true);
-      // Filled with something else, it is the page's again.
       browser.fill(refFor("Phone", browser.snapshot().elements), "0501234567");
       expect(field.hasAttribute("tabindex")).toBe(false);
     });
@@ -654,7 +651,6 @@ describe("live page helper saved-login fill", () => {
       expect((browser.snapshot() as unknown as { url: string }).url).toBe(
         `${origin}/sent?to=0[redacted]&id=fake-id`,
       );
-      // Other numbers stay readable.
       echo.textContent = "Order 4471";
       expect(JSON.stringify(browser.snapshot())).toContain("Order 4471");
     });
@@ -787,7 +783,6 @@ describe("live page helper saved-login fill", () => {
         `Refused: ${NO_PASSWORD_FIELD_REFUSAL}`,
       );
       expect(phoneField(domWindow).value).toBe("");
-      // With a password field on the page, the usual refusal.
       domWindow.document.body.insertAdjacentHTML("beforeend", '<input type="password" />');
       expect(() => browser.fill(ref, "fake-phone-0501234", origin, "password")).toThrow(
         "Refused: A saved password can only be typed into a password field.",

@@ -385,16 +385,10 @@ EVAL_HELPERS = r"""
   // Fields holding a saved login: snapshots never report their values, whatever their type.
   const loginFilled = new WeakSet();
   // Selecting text in a field, a password field too, hands it to the desktop's selection, which a
-  // middle click pastes anywhere visible. So the page browser keeps a field holding a marked login
-  // value from starting a selection: a press only focuses it with the caret at the end, keyboard
-  // focus skips it (focusing a field by keyboard selects all of it), and keyboard selection, the
-  // context menu and the start of a selection are turned down. A selection made some other way is
-  // collapsed, but by then the desktop may have it, so that is a backstop, not the guard. Undo and
-  // redo are turned down too, since they would bring the value back. All of it lasts until the
-  // page browser fills the field again or types into it. When the field is emptied, by the person
-  // or the page, the person's own text in it can be selected again; undo stays turned down. If the
-  // value comes back, as when a phone widget empties the field and puts the number back, all of it
-  // applies again.
+  // middle click pastes anywhere visible, so a field holding a marked login value never starts one.
+  // Keyboard focus skips it, since focusing a field by keyboard selects all of it. Collapsing a
+  // selection made some other way is only a backstop: by then the desktop may have it. A phone
+  // widget may empty the field and put the number back, so the guard comes back with the value.
   const selectionGuards = new WeakMap();
   const guardedFields = new WeakSet();
   function unguardSelection(el) {
@@ -405,12 +399,10 @@ EVAL_HELPERS = r"""
   document.addEventListener("selectstart", (event) => {
     if (event.composedPath().some((node) => guardedFields.has(node))) event.preventDefault();
   }, true);
-  // The page's undo history is shared by its fields and keeps a login the person erased, even after
-  // the field is filled with something else, and the page browser's own fills. So once the page
-  // browser has typed a login into this page, undo and redo are turned down on the whole page until
-  // it is left: cancelled as edits, which the computer's browser honours, and also by key and in
-  // the context menu of any field, since some browser builds don't honour that and put the value
-  // back selected, which reaches the desktop's selection.
+  // The page's undo history is shared by its fields and keeps a login even after it is erased or
+  // typed over, so once a login is typed into this page, undo and redo stay off on the whole page.
+  // Some browser builds ignore a cancelled history edit and put the value back selected, so the
+  // keys and the context menu are turned down too.
   let undoGuarded = false;
   const undoKey = (event) => (event.ctrlKey || event.metaKey) &&
     (event.code === "KeyZ" || event.code === "KeyY" || event.keyCode === 90 || event.keyCode === 89);
@@ -438,8 +430,7 @@ EVAL_HELPERS = r"""
       guardedFields.add(el);
       el.setAttribute("tabindex", "-1");
     };
-    // Once the field holds the value again. Returned, so the caller also catches a value put back
-    // without an input event.
+    // Returned so the caller also catches a value put back without an input event.
     const rearm = () => {
       if (selectable && holding()) arm();
     };
@@ -473,7 +464,7 @@ EVAL_HELPERS = r"""
     const collapse = () => {
       if (!selectable && el.selectionStart !== el.selectionEnd) end();
     };
-    // A fallback: a value undo or redo brings back anyway, from a path not turned down, is emptied.
+    // Fallback for an undo that gets past the rest: empty what it brings back.
     const undone = (event) => {
       if (/^history/.test(event.inputType)) {
         Object.getOwnPropertyDescriptor(Object.getPrototypeOf(el), "value").set.call(el, "");
@@ -700,12 +691,10 @@ EVAL_HELPERS = r"""
   // The refusal for a password the page has nowhere to put. The backend reads it to offer the person
   // the "Not a password" choice when the bot asks for the login again.
   const NO_PASSWORD_FIELD = "This page has no password field. If this login's second value isn't a password, such as a phone number, ask for the login again with request_secret and replace: true, so the person can mark it.";
-  // Where each login's username went in this document: its marked second value goes only beside
-  // it, in a small sign-in form, so it can't be typed into a search box, a comment or contact form,
-  // or a field elsewhere on the site. A page that moved to another address since, its query or
-  // fragment included, starts again, as does a field filled or typed over since, so the value is
-  // never paired with another account's username. Only the latest saved username counts, since a
-  // page may have re-rendered the field an earlier one went into.
+  // Where each login's username went in this document. Its marked second value goes only beside it,
+  // in a small sign-in form, so it can't land in a search box, a contact form or elsewhere on the
+  // site, and only while the field still holds that username, so it is never paired with another
+  // account. A page that moved to another address since starts again.
   const usernameTargets = new Map();
   // How a username reads after a page reformats it when it loses focus: case, spaces and separators
   // aside, and a number without its leading zeros.
@@ -753,8 +742,6 @@ EVAL_HELPERS = r"""
         .every((field) => field === target.field || field === el);
   }
   const SEARCH_NAMES = ["q", "query", "search", "s"];
-  // What names an element for a person: its own label attributes, its labels and the elements
-  // aria-labelledby points to.
   function labelText(el) {
     const root = el.getRootNode();
     const referenced = String(el.getAttribute("aria-labelledby") || "").split(/\s+/).filter(Boolean)
@@ -774,15 +761,13 @@ EVAL_HELPERS = r"""
       /search/i.test([form.getAttribute("action"), labelText(form)].join(" ")) ||
       [...form.elements].some((field) => field instanceof HTMLInputElement &&
         (field.type === "search" || SEARCH_NAMES.includes(String(field.name || "").toLowerCase()))) ||
-      // Or a field or button labelled as one ("Search", or a Search button that submits it).
       [...form.elements].some((field) => (field instanceof HTMLInputElement || field instanceof HTMLButtonElement) &&
         /search/i.test([labelText(field), field.placeholder, field instanceof HTMLButtonElement ? field.textContent : "",
           ["submit", "button"].includes(field.type) ? field.value : ""].join(" ")));
   }
-  // Marked values typed into this document. A page may show one reformatted (050-123-4567,
-  // +972 50 123 4567), so a value made of digits and separators, 6 to 20 of them after leading
-  // zeros, is matched by its digits, and by its last nine for a number saved internationally and
-  // shown nationally; anything else only as it is.
+  // Marked values typed into this document. Pages reformat numbers, so one made of 6 to 20 digits
+  // is matched by its digits, and by its last nine for a number saved internationally and shown
+  // nationally.
   const markedValues = [];
   const markedDigits = (value) => {
     if (!/^[\p{N}\s\-().+\/\u200e\u200f\u2011\u2013]+$/u.test(value)) return [];
@@ -810,8 +795,7 @@ EVAL_HELPERS = r"""
     }
     return hidden;
   }
-  // Fields this helper made password fields to hold a marked value, not the page's own, and the
-  // type each had before.
+  // Fields this helper made password fields, which don't count as the page's own.
   const madePassword = new WeakSet();
   const madeFrom = new WeakMap();
   function hasPasswordField(root = document) {
@@ -821,14 +805,11 @@ EVAL_HELPERS = r"""
     }
     return false;
   }
-  // A marked value is held in a password field: the text or telephone field becomes one before the
-  // value is set, so the browser itself draws dots and keeps the text out of copying, the desktop's
-  // selection, form history and the accessibility tree, whatever the page's own listeners do. It
-  // stays one while it holds the value, until the person edits it. If the page turns it back into
-  // text, the value is emptied and the page told; from then on the field is the page's, emptied
-  // again only if the page puts the value back. A later fill of the field ends the watch and gives
-  // the field back its own type, after emptying it, as does the page removing the field. Returns
-  // "detached" if the page replaced the field, or whether it still holds the value hidden.
+  // A marked value is held in a password field, made one before the value is set, so the browser
+  // itself keeps it out of view, copying, the desktop's selection, form history and the
+  // accessibility tree, whatever the page's own listeners do. If the page turns it back into text,
+  // the value is emptied. Returns "detached" if the page replaced the field, or whether it still
+  // holds the value hidden.
   const maskWatchers = new WeakMap();
   function stopMasking(el) {
     maskWatchers.get(el)?.();
@@ -867,7 +848,6 @@ EVAL_HELPERS = r"""
     madePassword.add(el);
     let frame = 0;
     const guard = () => {
-      // A removed field is left to go, with nothing of this helper keeping it.
       if (check() === "detached") return stopMasking(el);
       rearm();
       frame = requestAnimationFrame(guard);
@@ -1009,9 +989,8 @@ EVAL_HELPERS = r"""
         }
         const prototype = el instanceof HTMLInputElement ? HTMLInputElement.prototype
           : el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLSelectElement.prototype;
-        // Any fill replaces an earlier fill's watcher, so a field filled with something else is
-        // no longer held, and ends any login's username record in it, also for the same text. A
-        // saved username ends them all.
+        // A saved username ends every login's record, as the field an earlier one went into may
+        // have been re-rendered since.
         stopMasking(el);
         for (const [name, target] of usernameTargets) {
           if (target.field === el || (origin && !card && !password)) usernameTargets.delete(name);

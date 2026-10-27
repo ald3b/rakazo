@@ -392,7 +392,6 @@ export function VaultSettings({
                                 data-testid={`credential-replace-${secret.name}`}
                                 onClick={() => {
                                   clearProtectedFields();
-                                  // A replacement keeps the saved login's mark unless the owner changes it.
                                   setNotPassword(secret.secondValue === "text");
                                   setConfirmingRemove(null);
                                   setAdding(false);
