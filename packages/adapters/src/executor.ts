@@ -818,9 +818,10 @@ export function createRunExecutor(deps: ExecutorDeps) {
         const pendingTurnFiles: MessageBlock[][] = [turnBlocks ?? []];
         let copyingTurnFiles = Promise.resolve();
         // Serialize copies before each tool, including attachments received while a boot is in flight.
-        // Sites whose run login ended, possibly in a run that stopped without cleaning up: their
-        // tabs close before this run's first computer tool can read them, and until they do,
-        // computer tools wait (their login is no longer there to hide).
+        // Sites whose run login ended, possibly in a run that stopped without cleaning up or while
+        // this one was going: their tabs close before each computer tool can read them, and until
+        // they do, computer tools wait (their login is no longer there to hide). Tools that start
+        // together share one cleanup.
         let endedLoginCleanup: Promise<boolean> | undefined;
         const cleanUpEndedLogins = (computer: ComputerRef) =>
           cleanUpEndedRunLogins({
@@ -849,12 +850,12 @@ export function createRunExecutor(deps: ExecutorDeps) {
             },
             async () => {
               const computer = await runComputer.get();
-              endedLoginCleanup ??= cleanUpEndedLogins(computer);
-              if (!(await endedLoginCleanup)) {
+              endedLoginCleanup ??= cleanUpEndedLogins(computer).finally(() => {
                 endedLoginCleanup = undefined;
-                // The person taking over may see the page; the bot's tools may not read it.
-                if (reason === "tool") throw new Error(ENDED_LOGIN_CLEANUP_PENDING);
-              }
+              });
+              // The person taking over may see the page; the bot's tools may not read it.
+              if (!(await endedLoginCleanup) && reason === "tool")
+                throw new Error(ENDED_LOGIN_CLEANUP_PENDING);
               // Another run's login typed on this computer may be on an open page there; this run
               // hides it as that run does.
               addRunSecrets(

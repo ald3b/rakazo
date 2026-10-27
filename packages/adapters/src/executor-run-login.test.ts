@@ -97,6 +97,8 @@ async function runTool(
     onExecute?: () => void;
     /** What the shell prints. */
     printed?: string;
+    /** A second tool the bot calls in the same run, after `before`. */
+    next?: { call: { name: string; args: Record<string, unknown> }; before: () => void };
     /** What finishing the run does and returns. */
     finalize?: () => { continuationRunId: string | null };
   } = {},
@@ -117,11 +119,14 @@ async function runTool(
   const calls: unknown[] = [];
   const toolResults: unknown[] = [];
   const runtimeRun = vi.fn(async function* (request: { executeTool?: ExecuteTool }) {
-    toolResults.push(
-      await request
-        .executeTool?.(call.name, call.args, "exec-1")
-        .catch((error: unknown) => ({ thrown: (error as Error).message })),
-    );
+    for (const [index, step] of [call, ...(options.next ? [options.next.call] : [])].entries()) {
+      if (index > 0) options.next?.before();
+      toolResults.push(
+        await request
+          .executeTool?.(step.name, step.args, `exec-${index + 1}`)
+          .catch((error: unknown) => ({ thrown: (error as Error).message })),
+      );
+    }
     yield { type: "done" as const, text: "" };
   });
   const runLogins = options.runLogins ?? [];
@@ -452,6 +457,27 @@ describe("a run whose login ends while it is on the computer", () => {
       },
     );
     expect(order).toEqual(["shell", "closeSite"]);
+  });
+
+  it("closes a site whose login ended after this run's first computer tool", async () => {
+    const order: string[] = [];
+    const browser = closingBrowser(order);
+    const runLogins: Array<Record<string, unknown>> = [];
+    // Another run's login on this computer ends, and that run couldn't close its site.
+    const ended = { ...(await runLogin("run-0")), ciphertext: "", endedAt: new Date() };
+    await runTool(
+      { name: "shell", args: { command: "true" } },
+      {
+        runLogins,
+        browser,
+        onExecute: () => order.push("shell"),
+        next: {
+          call: { name: "shell", args: { command: "cat page.html" } },
+          before: () => runLogins.push(ended),
+        },
+      },
+    );
+    expect(order).toEqual(["shell", "closeSite", "shell"]);
   });
 });
 
