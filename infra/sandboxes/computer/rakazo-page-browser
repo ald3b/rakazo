@@ -693,8 +693,15 @@ EVAL_HELPERS = r"""
   // it, in a small sign-in form, so it can't be typed into a search box, a comment or contact form,
   // or a field elsewhere on the site. A page that moved to another address since, its query or
   // fragment included, starts again, as does a field filled or typed over since, so the value is
-  // never paired with another account's username.
+  // never paired with another account's username. Only the latest saved username counts, since a
+  // page may have re-rendered the field an earlier one went into.
   const usernameTargets = new Map();
+  // How a username reads after a page reformats it when it loses focus: case, spaces and separators
+  // aside, and a number without its leading zeros.
+  const usernameKey = (text) => {
+    const key = text.normalize("NFKC").toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
+    return /^\d+$/.test(key) ? key.replace(/^0+/, "") : key;
+  };
   const formKey = (form) => {
     const key = form && [form.id, form.name, form.getAttribute("action")].join("|");
     return key && key !== "||" ? key : "";
@@ -711,7 +718,7 @@ EVAL_HELPERS = r"""
   function besideUsername(el, login) {
     const target = login && usernameTargets.get(login);
     if (!target || el === target.field || el.getRootNode() !== target.root) return false;
-    if (location.href !== target.address || target.field.value !== target.value) return false;
+    if (location.href !== target.address || usernameKey(target.field.value) !== target.key) return false;
     if (searchField(target.field)) return false;
     if (target.form) {
       // A page that re-renders its form after the username keeps the same form, not the same node.
@@ -977,9 +984,12 @@ EVAL_HELPERS = r"""
         const prototype = el instanceof HTMLInputElement ? HTMLInputElement.prototype
           : el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLSelectElement.prototype;
         // Any fill replaces an earlier fill's watcher, so a field filled with something else is
-        // no longer held, and ends any login's username record in it, also for the same text.
+        // no longer held, and ends any login's username record in it, also for the same text. A
+        // saved username ends them all.
         stopMasking(el);
-        for (const [name, target] of usernameTargets) if (target.field === el) usernameTargets.delete(name);
+        for (const [name, target] of usernameTargets) {
+          if (target.field === el || (origin && !password)) usernameTargets.delete(name);
+        }
         // Held in a password field before the value is set, so it is never drawn as text.
         const kept = maskedText ? keepHidden(el, String(value)) : null;
         Object.getOwnPropertyDescriptor(prototype, "value").set.call(el, String(value));
@@ -1004,7 +1014,7 @@ EVAL_HELPERS = r"""
         if (hidden === false) throw refused("The page showed this field as text, so it was cleared.");
         if (origin && !password && login) {
           usernameTargets.set(login, {
-            field: el, value: el.value, form: el.form, root: el.getRootNode(), address: location.href,
+            field: el, key: usernameKey(el.value), form: el.form, root: el.getRootNode(), address: location.href,
           });
         }
       } else if (el.isContentEditable) {

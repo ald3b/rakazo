@@ -293,6 +293,54 @@ describe("live page helper saved-login fill", () => {
       expect(phoneField(domWindow).value).toBe("fake-phone-0501234");
     });
 
+    it("goes beside only the latest saved username, also after the page re-renders the form", () => {
+      const form =
+        '<form id="signin" action="/signin"><input aria-label="ID number" /><input aria-label="Phone" type="tel" /></form>';
+      for (const rerender of ["form", "input"]) {
+        const { domWindow, browser } = installPageHelper(`${origin}/signin`, form);
+        fillId(browser);
+        const fresh = domWindow.document.createElement("input");
+        fresh.setAttribute("aria-label", "ID number");
+        if (rerender === "form") domWindow.document.body.innerHTML = form;
+        else phoneField(domWindow, "ID number").replaceWith(fresh);
+        // Another saved login's username goes into the new field.
+        browser.fill(
+          refFor("ID number", browser.snapshot().elements),
+          "fake-id-b",
+          origin,
+          "username",
+          undefined,
+          "other_login",
+        );
+        expect(() => marked(browser), rerender).toThrow(/form its username was typed into/);
+        expect(phoneField(domWindow).value).toBe("");
+      }
+    });
+
+    it.each([
+      ["trims", " fake-id ", (text: string) => text.trim()],
+      ["lowercases", "Fake.User@Example.test", (text: string) => text.toLowerCase()],
+      ["uppercases", "fake-id", (text: string) => text.toUpperCase()],
+      ["formats", "0501234567", (text: string) => text.replace(/^(\d{3})(\d{3})/, "$1-$2-")],
+    ])("follows a username the page %s when it loses focus", (_how, username, reformat) => {
+      const { domWindow, browser } = installPageHelper(`${origin}/signin`, idPage);
+      const idField = phoneField(domWindow, "ID number");
+      idField.addEventListener("blur", () => {
+        idField.value = reformat(idField.value);
+      });
+      browser.fill(
+        refFor("ID number", browser.snapshot().elements),
+        username,
+        origin,
+        "username",
+        undefined,
+        "site_login",
+      );
+      marked(browser);
+      expect(idField.value).toBe(reformat(username));
+      expect(phoneField(domWindow).value).toBe("fake-phone-0501234");
+    });
+
     it("never goes into a field or form labelled as a search", () => {
       const page = `
         <form id="a"><input aria-label="ID number" /><label for="b">Search</label><input id="b" type="tel" /></form>
