@@ -45,6 +45,7 @@ export function useApprovalSettings(target: SettingsTarget, enabled = true): App
         resets.current += 1;
         setSettings(null);
         setRuleCount(0);
+        setLoadError(null);
         return;
       }
       if (saving.current) {
@@ -55,9 +56,11 @@ export function useApprovalSettings(target: SettingsTarget, enabled = true): App
       const savesAtRead = saves.current;
       void Promise.all([rpc("autoReview/get", { scope }), rpc("approvalRules/list", { scope })])
         .then(([nextSettings, rules]) => {
-          if (!current || saves.current !== savesAtRead) return;
-          setSettings(nextSettings);
+          if (!current) return;
+          // A save doesn't change the rules, so a read it overtook still brings a fresh count.
           setRuleCount(rules.length);
+          if (saves.current !== savesAtRead) return;
+          setSettings(nextSettings);
           setLoadError(null);
         })
         .catch((err: unknown) => {

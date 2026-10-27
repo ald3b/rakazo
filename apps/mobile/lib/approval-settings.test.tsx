@@ -161,7 +161,13 @@ function slowSaves({ storedAtOnce = false } = {}) {
 }
 
 function Harness({ target, enabled }: { target: SettingsTarget; enabled?: boolean }) {
-  return createElement(ApprovalModeRow, { approvals: useApprovalSettings(target, enabled) });
+  const approvals = useApprovalSettings(target, enabled);
+  return createElement(
+    "div",
+    null,
+    createElement(ApprovalModeRow, { approvals }),
+    createElement("output", null, approvals.ruleCount),
+  );
 }
 
 async function render(target: SettingsTarget = ACCOUNT_SETTINGS, enabled?: boolean) {
@@ -371,10 +377,13 @@ it("keeps a saved mode when a read that started before the save lands after it",
   const stale = { ...state.settings };
 
   // Coming back starts a refresh; the owner picks Never ask before it lands with the old mode.
+  state.rules = [{ id: "rule-1" }];
   await act(async () => state.refocus());
   await act(async () => choice("Never ask").click());
   await act(async () => resolveRead(stale));
   expect(row()).toBe("Approvals | Never ask");
+  // The rules it read are still current, so the count follows them.
+  expect(container.querySelector("output")?.textContent).toBe("1");
 });
 
 it("reads and saves a Space's own copy, and nothing while the Space follows the account", async () => {
