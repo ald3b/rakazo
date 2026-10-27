@@ -1,6 +1,7 @@
 import type {
   CacheCapabilities as ConnectionCacheCapabilities,
   ConnectionCatalogItem,
+  PurchaseCardField,
   SandboxKind,
 } from "@rakazo/contracts";
 
@@ -798,6 +799,7 @@ export interface TransactionalEmail {
   subject: string;
   text: string;
   html?: string;
+  headers?: Record<string, string>;
 }
 
 export type MessagingReceipt = "typing" | "reaction";
@@ -1038,6 +1040,21 @@ export type BrowserActStep =
        * an approved purchase's card detail. A card fill always carries `origin`.
        */
       field?: "username" | "password" | "card";
+    }
+  | {
+      kind: "fill";
+      ref?: undefined;
+      text: string;
+      origin: string;
+      field: "card";
+      cardField: PurchaseCardField;
+    }
+  | {
+      kind: "pay_token";
+      ref?: undefined;
+      text: string;
+      origin: string;
+      merchantAccountId: string;
     };
 
 export interface BrowserActRequest {

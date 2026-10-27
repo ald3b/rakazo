@@ -103,7 +103,7 @@ import {
 import { modelAcceptsImageInput } from "./model-vision.js";
 import { paymentWalletConnected } from "./payment-wallets.js";
 import { isRetiredModelCredentialError } from "./pi-oauth.js";
-import { loadPurchaseCardRedactions } from "./purchase-service.js";
+import { loadPurchaseRedactions } from "./purchase-service.js";
 import { loadReplyContext, messageToAgentHistoryText } from "./reply-context.js";
 import { backOffRoutineAfterAccountError } from "./routine-backoff.js";
 import { lateRoutineRunInstruction } from "./routine-lateness.js";
@@ -422,7 +422,7 @@ export function createRunExecutor(deps: ExecutorDeps) {
           agentSkills,
           initialBotCommandEnvironment,
           savedLoginPasswordRedactions,
-          purchaseCardRedactions,
+          purchaseRedactions,
           runLoginRedactions,
         ] = await Promise.all([
           deps.prisma.bot.findUniqueOrThrow({
@@ -460,7 +460,7 @@ export function createRunExecutor(deps: ExecutorDeps) {
           }),
           loadBotCommandEnvironment(deps.prisma, deps.secretStore, run),
           loadLoginPasswordRedactions(deps.prisma, deps.secretStore, run),
-          deps.paymentWallet ? loadPurchaseCardRedactions(deps, run) : [],
+          deps.paymentWallet ? loadPurchaseRedactions(deps, run) : [],
           loadRunLoginRedactions(deps.prisma, deps.secretStore, run, run.id),
         ]);
         const historySearchBeforeSeq =
@@ -478,7 +478,7 @@ export function createRunExecutor(deps: ExecutorDeps) {
         runSecrets.push(...commandCredentialRedactions(initialBotCommandEnvironment));
         // A login filled in an earlier run may still be on its page, and anything this run reads
         // or is given may contain it, so every run hides its saved passwords before the model runs.
-        runSecrets.push(...savedLoginPasswordRedactions, ...purchaseCardRedactions);
+        runSecrets.push(...savedLoginPasswordRedactions, ...purchaseRedactions);
         // A login this run took over from the run before it may already be on a page.
         runSecrets.push(...runLoginRedactions);
         const agentEnvironmentInstruction = formatAgentEnvironmentInstruction(
