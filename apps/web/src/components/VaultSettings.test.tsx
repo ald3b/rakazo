@@ -370,6 +370,43 @@ describe("VaultSettings", () => {
     },
   );
 
+  it.each(["save", "list reload"])(
+    "keeps the Not a password switch on through a failed %s, until the form closes",
+    async (failure) => {
+      vault.list.mockResolvedValueOnce(
+        rows.map((row) => (row.name === "portal" ? { ...row, secondValue: "text" } : row)),
+      );
+      if (failure === "save") vault.put.mockRejectedValueOnce(new Error("save failed"));
+      else vault.list.mockRejectedValueOnce(new Error("list failed"));
+      vault.put.mockResolvedValue(rows[3]);
+      await render();
+      await click("credential-replace-portal");
+      await type("credential-replace-username", "fake-id");
+      await type("credential-replace-value", FAKE_VALUE);
+      await click("credential-replace-save");
+
+      const toggle = byTestId("credential-replace-not-password");
+      expect(toggle.getAttribute("aria-checked")).toBe("true");
+      await type("credential-replace-username", "fake-id");
+      await type("credential-replace-value", FAKE_VALUE);
+      await click("credential-replace-save");
+      expect(vault.put).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          value: encodeLoginSecret({
+            username: "fake-id",
+            password: FAKE_VALUE,
+            secondValue: "text",
+          }),
+        }),
+      );
+
+      // A new login added after it starts with the switch off.
+      await click("credential-add");
+      await type("credential-auth-type", "login");
+      expect(byTestId("credential-not-password").getAttribute("aria-checked")).toBe("false");
+    },
+  );
+
   it("offers the not-a-password switch only for website logins", async () => {
     await render();
     await click("credential-add");

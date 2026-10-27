@@ -111,9 +111,13 @@ export function VaultSettings({
   }
 
   function clearProtectedFields() {
+    clearValues();
+    setNotPassword(false);
+  }
+
+  function clearValues() {
     setValue("");
     setLoginUsername("");
-    setNotPassword(false);
     hideRevealed();
   }
 
@@ -186,7 +190,8 @@ export function VaultSettings({
     const username = loginUsername.trim();
     const secretValue = value;
     const secondValueNotPassword = notPassword;
-    clearProtectedFields();
+    // The switch is the person's choice, kept for a retry until the form closes.
+    clearValues();
     setError(null);
     let plaintext: string;
     try {
@@ -207,6 +212,7 @@ export function VaultSettings({
         setError(t`Could not load credentials.`);
         return false;
       }
+      setNotPassword(false);
       return true;
     } catch (err) {
       setError(errorText(err, t`Could not save the credential`));
