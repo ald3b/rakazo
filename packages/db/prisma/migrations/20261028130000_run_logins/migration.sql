@@ -32,3 +32,6 @@ CREATE POLICY run_logins_system ON "run_logins"
   USING (current_setting('app.rls_bypass', true) = 'on');
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON "run_logins" TO rakazo_app;
+
+-- Counts the run logins typed on a computer, for checks that read it outside the run.
+ALTER TABLE "computers" ADD COLUMN "runLoginsTyped" INTEGER NOT NULL DEFAULT 0;

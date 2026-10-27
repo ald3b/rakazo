@@ -147,6 +147,7 @@ describe("tickRoutineWatch", () => {
           deleteMany: vi.fn(async () => ({ count: 0 })),
           count: vi.fn(async () => 0),
         },
+        computer: { findUnique: vi.fn(async () => ({ runLoginsTyped: 0 })) },
         routine: { updateMany },
         connection: { findMany: vi.fn(async () => []) },
         spaceSettingOverride: { findUnique: vi.fn(async () => null) },
@@ -461,6 +462,7 @@ describe("tickRoutineWatch on a computer", () => {
           deleteMany: vi.fn(async () => ({ count: 0 })),
           count: vi.fn(async () => 0),
         },
+        computer: { findUnique: vi.fn(async () => ({ runLoginsTyped: 0 })) },
         routine: { updateMany },
         bot: {
           findUnique: vi.fn(async () => ({
@@ -535,36 +537,56 @@ describe("tickRoutineWatch on a computer", () => {
     expect(execute).not.toHaveBeenCalled();
   });
 
-  /** One run login on the computer, as the check's reads of the run logins see it. */
+  /**
+   * One run login on the computer, as the check's reads see it: its row until it is cleaned up,
+   * and the computer's count of typed logins.
+   */
+  type LoginOnComputer = { typedAt?: Date; ended: boolean; cleanedUp?: boolean; typed: number };
   function loginOnComputer(
     deps: RoutineWatchTickDeps,
-    login: { typedAt?: Date; ended: boolean },
+    login: LoginOnComputer,
     afterRead: () => void = () => undefined,
   ) {
-    type Where = { endedAt?: unknown; OR?: Array<{ filledAt?: { gte: Date } }> };
-    const runLogin = deps.prisma.runLogin as unknown as {
-      findMany: ReturnType<typeof vi.fn>;
-      count: ReturnType<typeof vi.fn>;
+    type Where = { OR?: Array<{ filledAt?: { gte: Date } }> };
+    const prisma = deps.prisma as unknown as {
+      runLogin: { findMany: ReturnType<typeof vi.fn>; count: ReturnType<typeof vi.fn> };
+      computer: { findUnique: ReturnType<typeof vi.fn> };
     };
-    runLogin.findMany.mockImplementation(async () => {
-      const ended = login.typedAt && login.ended;
+    const row = () => login.typedAt && !login.cleanedUp;
+    prisma.runLogin.findMany.mockImplementation(async () => {
+      const ended = row() && login.ended;
       afterRead();
       return ended ? [{ id: "login-1", origin: "https://login.example.test" }] : [];
     });
-    runLogin.count.mockImplementation(async ({ where }: { where: Where }) => {
+    prisma.runLogin.count.mockImplementation(async ({ where }: { where: Where }) => {
+      // An earlier check also counted logins typed since it started, by the typing worker's clock.
       const since = where.OR?.find((branch) => branch.filledAt)?.filledAt?.gte;
-      const counted =
-        login.typedAt && (!login.ended || (since !== undefined && login.typedAt >= since));
+      const counted = row() && (!login.ended || (since !== undefined && login.typedAt! >= since));
       afterRead();
       return counted ? 1 : 0;
     });
+    prisma.computer.findUnique.mockImplementation(async () => ({ runLoginsTyped: login.typed }));
+  }
+
+  /** A watch whose command runs while `during` happens to the login. */
+  function watchWhile(login: LoginOnComputer, during: () => void) {
+    const vm = { id: "sandbox-1", botId: "home-1", kind: "e2b" as const, providerRef: "sandbox-1" };
+    vi.mocked(provisionComputer).mockResolvedValueOnce(vm);
+    const { deps, routine, execute } = setupComputer({ kind: "command", command: "cat page" });
+    loginOnComputer(deps, login);
+    execute.mockImplementationOnce(async function* () {
+      during();
+      yield { type: "stdout", data: "field=fake-password-1" };
+      yield { type: "exit", code: 0 };
+    });
+    return checkRoutineWatch(deps, routine);
   }
 
   it("waits, running nothing, when a run's login ends between its looks at the computer", async () => {
     const vm = { id: "sandbox-1", botId: "home-1", kind: "e2b" as const, providerRef: "sandbox-1" };
     vi.mocked(provisionComputer).mockResolvedValueOnce(vm);
     const { deps, routine, execute } = setupComputer({ kind: "command", command: "cat page" });
-    const login = { typedAt: new Date(0), ended: false };
+    const login = { typedAt: new Date(0), ended: false, typed: 1 };
     // The run is stopped right after the check's first look at the run logins.
     loginOnComputer(deps, login, () => {
       login.ended = true;
@@ -580,18 +602,29 @@ describe("tickRoutineWatch on a computer", () => {
   });
 
   it("drops what it read when a run types a login on the computer during the check", async () => {
-    const vm = { id: "sandbox-1", botId: "home-1", kind: "e2b" as const, providerRef: "sandbox-1" };
-    vi.mocked(provisionComputer).mockResolvedValueOnce(vm);
-    const { deps, routine, execute } = setupComputer({ kind: "command", command: "cat page" });
-    const login: { typedAt?: Date; ended: boolean } = { ended: false };
-    loginOnComputer(deps, login);
-    execute.mockImplementationOnce(async function* () {
-      // Typed while the command runs, and that run ends before the command does.
-      Object.assign(login, { typedAt: new Date(), ended: true });
-      yield { type: "stdout", data: "field=fake-password-1" };
-      yield { type: "exit", code: 0 };
-    });
-    await expect(checkRoutineWatch(deps, routine)).rejects.toBeInstanceOf(RoutineWatchRetry);
+    const login: LoginOnComputer = { ended: false, typed: 0 };
+    // Typed while the command runs, and that run ends before the command does.
+    const watch = watchWhile(login, () =>
+      Object.assign(login, { typedAt: new Date(), ended: true, typed: 1 }),
+    );
+    await expect(watch).rejects.toBeInstanceOf(RoutineWatchRetry);
+  });
+
+  it("drops it even when that login is cleaned up before the command finishes", async () => {
+    const login: LoginOnComputer = { ended: false, typed: 0 };
+    const watch = watchWhile(login, () =>
+      Object.assign(login, { typedAt: new Date(), ended: true, cleanedUp: true, typed: 1 }),
+    );
+    await expect(watch).rejects.toBeInstanceOf(RoutineWatchRetry);
+  });
+
+  it("drops it even when the worker that typed the login has a slower clock", async () => {
+    const login: LoginOnComputer = { ended: false, typed: 0 };
+    const behind = new Date(Date.now() - 60_000);
+    const watch = watchWhile(login, () =>
+      Object.assign(login, { typedAt: behind, ended: true, typed: 1 }),
+    );
+    await expect(watch).rejects.toBeInstanceOf(RoutineWatchRetry);
   });
 
   it.each(["team", "dedicated"])("checks files in a %s desktop workspace", async (scope) => {

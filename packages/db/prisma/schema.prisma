@@ -1188,6 +1188,9 @@ model Computer {
   screenUrl               String?
   /// When the computer last started running; bounds how long it can stay up in one stretch.
   runningSince            DateTime?
+  /// Counts the run logins typed on this computer, so a check that reads it outside the run can
+  /// tell one was typed while it read.
+  runLoginsTyped          Int                      @default(0)
   createdAt               DateTime                 @default(now())
   updatedAt               DateTime                 @updatedAt
   bots                    Bot[]

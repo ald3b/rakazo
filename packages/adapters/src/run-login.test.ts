@@ -32,6 +32,7 @@ function database(tables: Record<string, Row[]> = {}) {
       "run",
       "message",
       "runLogin",
+      "computer",
     ].map((name) => [name, tables[name] ?? []]),
   );
   const matches = (row: Row, where: Row = {}): boolean =>
@@ -70,7 +71,14 @@ function database(tables: Record<string, Row[]> = {}) {
       },
       updateMany: async ({ where, data: change }: { where?: Row; data: Row }) => {
         const hit = rows.filter((row) => matches(row, where));
-        for (const row of hit) Object.assign(row, change);
+        for (const row of hit) {
+          for (const [key, value] of Object.entries(change)) {
+            row[key] =
+              value && typeof value === "object" && "increment" in value
+                ? Number(row[key] ?? 0) + Number(value.increment)
+                : value;
+          }
+        }
         return { count: hit.length };
       },
       delete: async ({ where }: { where: Row }) => {
@@ -450,7 +458,10 @@ describe("when a login's run ends", () => {
   });
 
   it("is marked filled when it is handed to the page browser", async () => {
-    const db = database({ runLogin: [{ ...(await runLogin("run-1")), filledAt: null }] });
+    const db = database({
+      runLogin: [{ ...(await runLogin("run-1")), filledAt: null }],
+      computer: [{ id: "computer-1", runLoginsTyped: 2 }],
+    });
     await resolveLoginFill({
       computerId: "computer-1",
       prisma: db.prisma,
@@ -463,6 +474,8 @@ describe("when a login's run ends", () => {
     expect(db.data.get("runLogin")).toMatchObject([
       { filledAt: expect.any(Date), filledComputerId: "computer-1" },
     ]);
+    // Counted on the computer, so a check reading it meanwhile drops what it read.
+    expect(db.data.get("computer")).toEqual([{ id: "computer-1", runLoginsTyped: 3 }]);
   });
 
   it("isn't typed on a second computer, whose cleanup wouldn't close the first's page", async () => {

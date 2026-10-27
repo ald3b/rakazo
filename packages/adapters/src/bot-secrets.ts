@@ -997,6 +997,11 @@ export async function resolveLoginFill(input: {
     if (marked.count !== 1) {
       return { error: "Login is unavailable. Use request_secret to save it first." };
     }
+    // Before it is typed, so a check reading the computer meanwhile drops what it read.
+    await input.prisma.computer.updateMany({
+      where: { id: input.computerId },
+      data: { runLoginsTyped: { increment: 1 } },
+    });
     origin = checked.origin;
     login = runLogin;
   } else {

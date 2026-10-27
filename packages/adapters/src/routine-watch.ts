@@ -25,7 +25,7 @@ import { scheduleComputerSleep } from "./computer-idle.js";
 import { ComputerBusyError, provisionComputer } from "./computer-lifecycle.js";
 import { resolveBotWorkspaceCwd, teamBotWorkspaceDirectory } from "./computer-support.js";
 import { connectedContext, selectRunConnections } from "./connection-context.js";
-import { cleanUpEndedRunLogins, liveRunLoginOn } from "./run-login-cleanup.js";
+import { cleanUpEndedRunLogins, liveRunLoginOn, runLoginsTypedOn } from "./run-login-cleanup.js";
 
 /**
  * The checker behind a routine's "when something changes" trigger. It never
@@ -408,7 +408,7 @@ async function readComputer(
   // A run that is signed in on this computer hides its login from what it reads; this check
   // can't, so it waits for that run to end. Checked before closing ended logins' pages below, so
   // a login that ends in between is closed there.
-  const checkedFrom = new Date();
+  const typedBefore = await runLoginsTypedOn(deps.prisma, computerId);
   if (await liveRunLoginOn(deps.prisma, computerId)) throw new RoutineWatchRetry();
   // A page from a login that has ended may still be open, and a check can be bot-written code on
   // the computer: close those tabs first, as a run would, and wait until they are closed.
@@ -427,8 +427,10 @@ async function readComputer(
   ctx.signal = AbortSignal.timeout(CHECK_TIMEOUT_MS);
   const readOnComputer = async (argv: string[]) => {
     const result = await run(deps, computer, ctx, argv, cwd);
-    // A login typed here while the check ran may be in what it read, error output included.
-    if (await liveRunLoginOn(deps.prisma, computerId, checkedFrom)) throw new RoutineWatchRetry();
+    // A login typed here since the checks above may be in what it read, error output included.
+    if ((await runLoginsTypedOn(deps.prisma, computerId)) !== typedBefore) {
+      throw new RoutineWatchRetry();
+    }
     return result;
   };
 
