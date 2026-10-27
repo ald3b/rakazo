@@ -400,6 +400,20 @@ describe("live page helper saved-login fill", () => {
       expect(phoneField(domWindow).value).toBe("fake-phone-0501234");
     });
 
+    it("takes no card fill for its username, even one carrying the login's name", () => {
+      const { domWindow, browser } = installPageHelper(`${origin}/signin`, idPage);
+      browser.fill(
+        refFor("ID number", browser.snapshot().elements),
+        "4242424242424242",
+        origin,
+        "card",
+        undefined,
+        "site_login",
+      );
+      expect(() => marked(browser)).toThrow(/form its username was typed into/);
+      expect(phoneField(domWindow).value).toBe("");
+    });
+
     it("never goes into a card field beside its username", () => {
       const page = `<form id="pay"><input aria-label="ID number" /><input aria-label="Phone" type="tel" />
         <input aria-label="Card number" autocomplete="billing cc-number" /></form>`;

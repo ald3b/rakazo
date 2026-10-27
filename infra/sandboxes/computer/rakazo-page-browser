@@ -1025,7 +1025,7 @@ EVAL_HELPERS = r"""
         // The page replaced the field while the value went in: what the new one holds is unknown.
         if (hidden === "detached") throw new Error("The page replaced this field as the login was typed. Check it with browser_snapshot before trying again.");
         if (hidden === false) throw refused("The page showed this field as text, so it was cleared.");
-        if (origin && !password && login) {
+        if (origin && !card && !password && login) {
           usernameTargets.set(login, {
             field: el, key: usernameKey(el.value), form: el.form, root: el.getRootNode(), address: location.href,
           });
