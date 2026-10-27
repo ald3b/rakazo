@@ -97,6 +97,8 @@ async function runTool(
     onExecute?: () => void;
     /** What the shell prints. */
     printed?: string;
+    /** What finishing the run does and returns. */
+    finalize?: () => { continuationRunId: string | null };
   } = {},
 ) {
   const run = {
@@ -231,7 +233,7 @@ async function runTool(
   );
   const events = {
     append: vi.fn(async () => undefined),
-    finalizeRun: vi.fn(async () => ({ continuationRunId: null })),
+    finalizeRun: vi.fn(async () => options.finalize?.() ?? { continuationRunId: null }),
     pauseRunForTakeover: vi.fn(async () => false),
     pauseRunForInput: vi.fn(async () => true),
   };
@@ -416,6 +418,40 @@ describe("a run after a login ended", () => {
       "deleteMany",
       [{ where: { id: { in: [ended.id] }, endedAt: { not: null } } }],
     ]);
+  });
+});
+
+describe("a run whose login ends while it is on the computer", () => {
+  const closingBrowser = (order: string[]) => ({
+    describe: () => ({ id: "fake", capabilities: {} }),
+    closeSite: vi.fn(async () => {
+      order.push("closeSite");
+      return { ok: true };
+    }),
+    snapshot: vi.fn(),
+    navigate: vi.fn(),
+    act: vi.fn(),
+  });
+
+  it("closes another member's login's site when it ends, even with a continuation", async () => {
+    const order: string[] = [];
+    const browser = closingBrowser(order);
+    // Another member gave it on this run; a continuation for that member's message doesn't take
+    // it over, so it ends with this run.
+    const othersLogin = { ...(await runLogin("run-1")), userId: "user-2", filledAt: new Date(0) };
+    await runTool(
+      { name: "shell", args: { command: "true" } },
+      {
+        runLogins: [othersLogin],
+        browser,
+        onExecute: () => order.push("shell"),
+        finalize: () => {
+          Object.assign(othersLogin, { ciphertext: "", endedAt: new Date() });
+          return { continuationRunId: "run-2" };
+        },
+      },
+    );
+    expect(order).toEqual(["shell", "closeSite"]);
   });
 });
 

@@ -646,9 +646,9 @@ export async function completeRun(ctx: RunContext) {
     ),
   });
   if (!completed) return;
-  // This run's logins ended with it unless a continuation took them over.
-  if (ctx.computer.lazy.ready && !completed.continuationRunId)
-    await ctx.computer.cleanUpEndedLogins(ctx.computer.lazy.ready);
+  // Logins that ended with this run close their sites now; any a continuation took over are still
+  // going and stay open.
+  if (ctx.computer.lazy.ready) await ctx.computer.cleanUpEndedLogins(ctx.computer.lazy.ready);
   ctx.stopHeartbeatAfterCompletion();
   if (run.trigger === "routine" && run.routineId) {
     await clearRoutineBackoff(deps, run.routineId);
@@ -767,8 +767,7 @@ export async function failRun(
     ...(partialReply.length > 0 ? { partialReply } : {}),
   });
   if (!failed) return;
-  if (ctx.computer.lazy.ready && !failed.continuationRunId)
-    await ctx.computer.cleanUpEndedLogins(ctx.computer.lazy.ready);
+  if (ctx.computer.lazy.ready) await ctx.computer.cleanUpEndedLogins(ctx.computer.lazy.ready);
   if (
     error instanceof TransientModelError ||
     error instanceof ModelAccountError ||
