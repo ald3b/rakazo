@@ -858,6 +858,18 @@ describe("live page helper saved-login fill", () => {
       expect(field.value).toBe("0501234567");
       expect(field.type).toBe("tel");
     });
+
+    it("is emptied and given back its own type before a card detail is typed into its field", () => {
+      const page = `<form id="signin"><input aria-label="ID number" />
+        <input aria-label="Postal" autocomplete="postal-code" /></form>`;
+      const { domWindow, browser } = installPageHelper(`${origin}/signin`, page);
+      const field = phoneField(domWindow, "Postal");
+      fillPhone(browser, "Postal");
+      expect(field.type).toBe("password");
+      expect(browser.findCard("postal-code")).toBe(1);
+      expect(browser.focusCard()).toBe(true);
+      expect([field.value, field.type]).toEqual(["", "text"]);
+    });
   });
 
   it("refuses a password field that the page turns into text when it is focused", () => {

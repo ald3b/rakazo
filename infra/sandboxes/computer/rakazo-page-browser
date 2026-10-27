@@ -986,6 +986,8 @@ EVAL_HELPERS = r"""
     focusCard() {
       const el = cardTarget;
       if (!el?.isConnected) return false;
+      // Before the select below, so a marked login value held here is emptied, never selected.
+      stopMasking(el);
       maskCard(el);
       loginFilled.add(el);
       el.focus();
