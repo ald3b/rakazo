@@ -313,6 +313,21 @@ describe("list_secrets", () => {
   });
 });
 
+describe("this run's own login already on a page", () => {
+  it("is hidden from what the run reads before the bot fills anything", async () => {
+    // Taken over from the run before it, which typed it into a page that is still open.
+    const own = { ...(await runLogin("run-1")), filledAt: new Date(0) };
+    const { toolResults } = await runTool(
+      { name: "shell", args: { command: "read-page" } },
+      { runLogins: [own], printed: "field=fake-password-1 user=fake-user other=kept" },
+    );
+    const text = JSON.stringify(toolResults);
+    expect(text).not.toContain("fake-password-1");
+    expect(text).not.toContain("fake-user");
+    expect(text).toContain("other=kept");
+  });
+});
+
 describe("another run's login on the same computer", () => {
   it("is hidden from this run's tools while that run holds it", async () => {
     // Run A filled its login here, then paused for the person; this run uses the same browser.
