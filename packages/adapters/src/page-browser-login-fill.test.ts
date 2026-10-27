@@ -348,6 +348,23 @@ describe("live page helper saved-login fill", () => {
         });
         expect(() => marked(typed.browser), rerender).toThrow(notBeside);
         expect(phoneField(typed.domWindow).value).toBe("");
+        // Other digits in a field the page now draws as a number field.
+        const number = rerendered(rerender, (field) => {
+          field.type = "number";
+          field.value = "123456";
+        });
+        expect(() => marked(number.browser), rerender).toThrow(notBeside);
+        // A masked username shown where no one can type, read-only or disabled, follows.
+        for (const lock of ["readOnly", "disabled"] as const) {
+          const shown = rerendered(rerender, (field) => {
+            field.value = "f*****d";
+            field[lock] = true;
+          });
+          marked(shown.browser);
+          expect(phoneField(shown.domWindow).value, `${rerender} ${lock}`).toBe(
+            "fake-phone-0501234",
+          );
+        }
         // Kept as it was, reformatted, or still empty, it follows.
         for (const value of ["fake-id", "FAKE-ID", ""]) {
           const kept = rerendered(rerender, (field) => {
