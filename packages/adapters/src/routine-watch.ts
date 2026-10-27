@@ -405,6 +405,11 @@ async function readComputer(
     throw new RoutineWatchError(`Could not start the bot's computer: ${errorText(error)}`);
   }
   scheduleComputerSleep(deps.jobs, bot.computer.id);
+  // A run that is signed in on this computer hides its login from what it reads; this check
+  // can't, so it waits for that run to end. Checked before closing ended logins' pages below, so
+  // a login that ends in between is closed there.
+  const checkedFrom = new Date();
+  if (await liveRunLoginOn(deps.prisma, computerId)) throw new RoutineWatchRetry();
   // A page from a login that has ended may still be open, and a check can be bot-written code on
   // the computer: close those tabs first, as a run would, and wait until they are closed.
   const cleaned = await cleanUpEndedRunLogins({
@@ -416,18 +421,21 @@ async function readComputer(
     bot: { id: bot.id, spaceId: routine.spaceId },
   }).catch(() => false);
   if (!cleaned) throw new RoutineWatchRetry();
-  // A run that is signed in on this computer hides its login from what it reads; this check
-  // can't, so it waits for that run to end.
-  if (await liveRunLoginOn(deps.prisma, computerId)) throw new RoutineWatchRetry();
   // The check's own time budget starts once the computer is up.
   const botFolder = watchFolder(mode, bot.id);
   const cwd = resolveBotWorkspaceCwd(mode, bot.id, undefined);
   ctx.signal = AbortSignal.timeout(CHECK_TIMEOUT_MS);
+  const readOnComputer = async (argv: string[]) => {
+    const result = await run(deps, computer, ctx, argv, cwd);
+    // A login typed here while the check ran may be in what it read, error output included.
+    if (await liveRunLoginOn(deps.prisma, computerId, checkedFrom)) throw new RoutineWatchRetry();
+    return result;
+  };
 
   if (watch.kind === "command") {
     // Runs this shell command on the bot's computer every interval, in its folder,
     // without a model or per-run approval: equivalent to the bot running it itself.
-    const result = await run(deps, computer, ctx, ["sh", "-lc", watch.command ?? ""], cwd);
+    const result = await readOnComputer(["sh", "-lc", watch.command ?? ""]);
     if (result.code !== 0) {
       throw new RoutineWatchError(
         `The check command exited with ${result.code}${result.stderr ? `: ${clip(result.stderr)}` : "."}`,
@@ -447,13 +455,14 @@ async function readComputer(
     // `./` keeps a name such as `-reports` from being read as a `find` option.
     return !relative ? "." : outside ? relative : `./${relative}`;
   });
-  const result = await run(
-    deps,
-    computer,
-    ctx,
-    ["sh", "-c", FILES_SCRIPT, "watch", mode === "team" ? "." : "", ...paths],
-    cwd,
-  );
+  const result = await readOnComputer([
+    "sh",
+    "-c",
+    FILES_SCRIPT,
+    "watch",
+    mode === "team" ? "." : "",
+    ...paths,
+  ]);
   if (result.code !== 0) {
     throw new RoutineWatchError(
       `Could not list the watched files (exit ${result.code})${result.stderr ? `: ${clip(result.stderr)}` : "."}`,

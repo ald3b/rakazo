@@ -535,6 +535,65 @@ describe("tickRoutineWatch on a computer", () => {
     expect(execute).not.toHaveBeenCalled();
   });
 
+  /** One run login on the computer, as the check's reads of the run logins see it. */
+  function loginOnComputer(
+    deps: RoutineWatchTickDeps,
+    login: { typedAt?: Date; ended: boolean },
+    afterRead: () => void = () => undefined,
+  ) {
+    type Where = { endedAt?: unknown; OR?: Array<{ filledAt?: { gte: Date } }> };
+    const runLogin = deps.prisma.runLogin as unknown as {
+      findMany: ReturnType<typeof vi.fn>;
+      count: ReturnType<typeof vi.fn>;
+    };
+    runLogin.findMany.mockImplementation(async () => {
+      const ended = login.typedAt && login.ended;
+      afterRead();
+      return ended ? [{ id: "login-1", origin: "https://login.example.test" }] : [];
+    });
+    runLogin.count.mockImplementation(async ({ where }: { where: Where }) => {
+      const since = where.OR?.find((branch) => branch.filledAt)?.filledAt?.gte;
+      const counted =
+        login.typedAt && (!login.ended || (since !== undefined && login.typedAt >= since));
+      afterRead();
+      return counted ? 1 : 0;
+    });
+  }
+
+  it("waits, running nothing, when a run's login ends between its looks at the computer", async () => {
+    const vm = { id: "sandbox-1", botId: "home-1", kind: "e2b" as const, providerRef: "sandbox-1" };
+    vi.mocked(provisionComputer).mockResolvedValueOnce(vm);
+    const { deps, routine, execute } = setupComputer({ kind: "command", command: "cat page" });
+    const login = { typedAt: new Date(0), ended: false };
+    // The run is stopped right after the check's first look at the run logins.
+    loginOnComputer(deps, login, () => {
+      login.ended = true;
+    });
+    const pageBrowser = vi.fn(async () => ({ ok: true }));
+    Object.assign(deps.sandbox, { pageBrowser });
+    await checkRoutineWatch(deps, routine).catch(() => undefined);
+    // Either it waited, or it closed the page before reading the computer.
+    const closedFirst =
+      pageBrowser.mock.invocationCallOrder[0] !== undefined &&
+      pageBrowser.mock.invocationCallOrder[0] < (execute.mock.invocationCallOrder[0] ?? Infinity);
+    expect(execute.mock.calls.length === 0 || closedFirst).toBe(true);
+  });
+
+  it("drops what it read when a run types a login on the computer during the check", async () => {
+    const vm = { id: "sandbox-1", botId: "home-1", kind: "e2b" as const, providerRef: "sandbox-1" };
+    vi.mocked(provisionComputer).mockResolvedValueOnce(vm);
+    const { deps, routine, execute } = setupComputer({ kind: "command", command: "cat page" });
+    const login: { typedAt?: Date; ended: boolean } = { ended: false };
+    loginOnComputer(deps, login);
+    execute.mockImplementationOnce(async function* () {
+      // Typed while the command runs, and that run ends before the command does.
+      Object.assign(login, { typedAt: new Date(), ended: true });
+      yield { type: "stdout", data: "field=fake-password-1" };
+      yield { type: "exit", code: 0 };
+    });
+    await expect(checkRoutineWatch(deps, routine)).rejects.toBeInstanceOf(RoutineWatchRetry);
+  });
+
   it.each(["team", "dedicated"])("checks files in a %s desktop workspace", async (scope) => {
     const computer = {
       id: "desktop-computer-1",

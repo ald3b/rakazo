@@ -58,16 +58,24 @@ export async function cleanUpEndedRunLogins(input: {
 }
 
 /**
- * Whether a run login is typed on this computer while its run is still going. Its page may still
- * hold the password, which only that run hides from what it reads, so a check that isn't that
- * run waits instead of reading the computer.
+ * Whether a run login is typed on this computer while its run is still going, or, with
+ * `typedSince`, was typed here since then. Its page may still hold the password, which only that
+ * run hides from what it reads, so a check that isn't that run waits instead of reading the
+ * computer, and drops what it read meanwhile.
  */
 export async function liveRunLoginOn(
   prisma: Pick<PrismaClient, "runLogin">,
   computerId: string,
+  typedSince?: Date,
 ): Promise<boolean> {
   const live = await prisma.runLogin.count({
-    where: { filledComputerId: computerId, filledAt: { not: null }, endedAt: null },
+    where: {
+      filledComputerId: computerId,
+      filledAt: { not: null },
+      ...(typedSince
+        ? { OR: [{ endedAt: null }, { filledAt: { gte: typedSince } }] }
+        : { endedAt: null }),
+    },
   });
   return live > 0;
 }
