@@ -798,7 +798,6 @@ export async function loadLoginPasswordRedactions(
   return [...forms];
 }
 
-/** This run's unremembered login under `name`, with the site its card was for. */
 export async function findRunLogin(
   prisma: PrismaClient,
   secretStore: Pick<SecretStore, "load">,
@@ -821,7 +820,6 @@ export async function findRunLogin(
   };
 }
 
-/** This run's unremembered logins, as the bot's tools show them. */
 export async function listRunLogins(prisma: PrismaClient, scope: BotSecretScope, runId: string) {
   const rows = await prisma.runLogin.findMany({
     where: { runId, spaceId: scope.spaceId, userId: scope.userId, endedAt: null },
@@ -880,7 +878,6 @@ export async function loadComputerRunLoginRedactions(
   return redactions;
 }
 
-/** End this run's unremembered login under `name`, as its run ending would. */
 export async function forgetRunLogin(
   prisma: PrismaClient,
   scope: BotSecretScope,
@@ -914,7 +911,6 @@ function loginRedactions(login: LoginSecretValue): string[] {
   ];
 }
 
-/** The site a login may be filled on, or why it can't be filled at all. */
 function loginFillOrigin(row: {
   name: string;
   origin: string;
@@ -940,11 +936,9 @@ function loginFillOrigin(row: {
   return { origin: destination.origin };
 }
 
-/** What generate_secret gets for a name this run already has a login for. */
 export const RUN_LOGIN_NAME_TAKEN =
   "A login with this name was saved for this run only; fill it with browser_act fill_secret, or use another name.";
 
-/** What filling a run login gets once it has been typed on a computer other than this run's. */
 export const RUN_LOGIN_ON_ANOTHER_COMPUTER =
   "This login was used on another computer. Use request_secret to ask for it again.";
 

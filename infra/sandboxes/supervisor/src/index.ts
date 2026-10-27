@@ -510,7 +510,6 @@ app.post("/computers/:id/browser", async (c) => {
           }),
       }),
       z.object({ command: z.literal("snapshot") }),
-      // Closes the tabs on a site whose run login has ended.
       z.object({
         command: z.literal("close_site"),
         origin: z

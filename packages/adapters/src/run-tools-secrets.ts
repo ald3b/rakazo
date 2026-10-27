@@ -54,7 +54,6 @@ export const secretTools: ToolHandlers = {
     const { args } = call;
     const parsed = BotSecretName.safeParse(args.name);
     if (!parsed.success) return call.finish({ error: "A valid credential name is required." });
-    // This run's unremembered login under the name goes too.
     await forgetRunLogin(deps.prisma, run, run.id, parsed.data);
     return call.finish(await forgetBotSecret(deps.prisma, run, parsed.data));
   },
