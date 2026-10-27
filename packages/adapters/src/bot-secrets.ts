@@ -858,6 +858,29 @@ export async function loadRunLoginRedactions(
   return redactions;
 }
 
+/**
+ * Redactions for logins other runs typed on this computer and still hold. Their pages may be open
+ * in the same browser, so a run on the computer hides them too, as every run hides saved logins.
+ */
+export async function loadComputerRunLoginRedactions(
+  prisma: PrismaClient,
+  secretStore: Pick<SecretStore, "load">,
+  computerId: string,
+  runId: string,
+): Promise<string[]> {
+  const rows = await prisma.runLogin.findMany({
+    where: { filledComputerId: computerId, endedAt: null, runId: { not: runId } },
+    select: { id: true, ciphertext: true },
+  });
+  const redactions: string[] = [];
+  for (const row of rows) {
+    redactions.push(
+      ...loginRedactions(decodeLoginSecret(await secretStore.load(row.ciphertext, row.id))),
+    );
+  }
+  return redactions;
+}
+
 /** End this run's unremembered login under `name`, as its run ending would. */
 export async function forgetRunLogin(
   prisma: PrismaClient,

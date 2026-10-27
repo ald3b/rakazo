@@ -46,6 +46,7 @@ import { loadBotMessageContext } from "./bot-messages.js";
 import {
   commandCredentialRedactions,
   loadBotCommandEnvironment,
+  loadComputerRunLoginRedactions,
   loadLoginPasswordRedactions,
   loadRunLoginRedactions,
 } from "./bot-secrets.js";
@@ -112,7 +113,11 @@ import type {
   RunningHelper,
   RunState,
 } from "./run-context.js";
-import { restoreTurnCheckpointEffects, settleRunningHelpers } from "./run-context.js";
+import {
+  addRunSecrets,
+  restoreTurnCheckpointEffects,
+  settleRunningHelpers,
+} from "./run-context.js";
 import { APPROVED_EFFECT_REPLAY_ORDER, buildApprovalContinuation } from "./run-effects.js";
 import {
   BOT_DIRECTORY_LIMIT,
@@ -861,6 +866,17 @@ export function createRunExecutor(deps: ExecutorDeps) {
                 // The person taking over may see the page; the bot's tools may not read it.
                 if (reason === "tool") throw new Error(ENDED_LOGIN_CLEANUP_PENDING);
               }
+              // Another run's login typed on this computer may be on an open page there; this run
+              // hides it as that run does.
+              addRunSecrets(
+                ctx,
+                await loadComputerRunLoginRedactions(
+                  deps.prisma,
+                  deps.secretStore,
+                  storedComputer.id,
+                  run.id,
+                ),
+              );
               copyingTurnFiles = copyingTurnFiles
                 .catch(() => undefined)
                 .then(async () => {

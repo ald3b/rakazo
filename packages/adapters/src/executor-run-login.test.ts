@@ -95,6 +95,8 @@ async function runTool(
     runLogins?: Array<Record<string, unknown>>;
     browser?: Record<string, unknown>;
     onExecute?: () => void;
+    /** What the shell prints. */
+    printed?: string;
   } = {},
 ) {
   const run = {
@@ -242,6 +244,7 @@ async function runTool(
       releaseScreen: vi.fn(async () => undefined),
       execute: vi.fn(async function* () {
         options.onExecute?.();
+        if (options.printed) yield { type: "stdout" as const, data: options.printed };
         yield { type: "exit" as const, code: 0 };
       }),
       async *exportWorkspace() {
@@ -307,6 +310,27 @@ describe("list_secrets", () => {
     expect(toolResults).toEqual([
       [{ name: "site_login", origin: ORIGIN, auth: { type: "login" }, remembered: false }],
     ]);
+  });
+});
+
+describe("another run's login on the same computer", () => {
+  it("is hidden from this run's tools while that run holds it", async () => {
+    // Run A filled its login here, then paused for the person; this run uses the same browser.
+    const held = { ...(await runLogin("run-0")), filledAt: new Date(0) };
+    const ended = {
+      ...(await runLogin("run-9")),
+      runId: "run-9",
+      ciphertext: "",
+      filledComputerId: "computer-2",
+      endedAt: new Date(0),
+    };
+    const { toolResults } = await runTool(
+      { name: "shell", args: { command: "read-page" } },
+      { runLogins: [held, ended], printed: "field=fake-password-1 other=kept" },
+    );
+    const text = JSON.stringify(toolResults);
+    expect(text).not.toContain("fake-password-1");
+    expect(text).toContain("other=kept");
   });
 });
 
