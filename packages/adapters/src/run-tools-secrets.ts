@@ -60,7 +60,7 @@ export const secretTools: ToolHandlers = {
   },
   async generate_secret(ctx, call) {
     const { deps, run } = ctx;
-    // A login given for this run only is filled before any saved one under its name, so a
+    // A login saved for this run only is filled before any saved one under its name, so a
     // generated login under that name would be saved but never typed.
     const runLogins = await listRunLogins(deps.prisma, run, run.id);
     if (runLogins.some((login) => login.name === call.args.name)) {
