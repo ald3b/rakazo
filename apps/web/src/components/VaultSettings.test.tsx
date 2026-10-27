@@ -35,21 +35,29 @@ vi.mock("@rakazo/ui-web", () => ({
   Input: (props: ComponentProps<"input">) => <input {...props} />,
   NativeSelect: (props: ComponentProps<"select">) => <select {...props} />,
   NativeSelectOption: (props: ComponentProps<"option">) => <option {...props} />,
-  Switch: ({
+  SwitchField: ({
+    label,
     checked,
+    disabled,
     onCheckedChange,
-    ...props
-  }: Omit<ComponentProps<"button">, "onChange"> & {
+    "data-testid": testId,
+  }: {
+    label: ReactNode;
     checked: boolean;
+    disabled?: boolean;
     onCheckedChange: (checked: boolean) => void;
+    "data-testid"?: string;
   }) => (
     <button
-      {...props}
       type="button"
       role="switch"
+      data-testid={testId}
       aria-checked={checked}
+      disabled={disabled}
       onClick={() => onCheckedChange(!checked)}
-    />
+    >
+      {label}
+    </button>
   ),
 }));
 
@@ -287,6 +295,20 @@ describe("VaultSettings", () => {
         }),
       }),
     );
+  });
+
+  it("can't change the Not a password switch while the login is saving", async () => {
+    vault.put.mockReturnValue(new Promise(() => undefined));
+    await render();
+    await click("credential-add");
+    await type("credential-auth-type", "login");
+    await type("credential-name", "portal2");
+    await type("credential-origin", "https://portal.example.com");
+    await type("credential-username", "fake-id");
+    await type("credential-value", FAKE_VALUE);
+    expect(byTestId<HTMLButtonElement>("credential-not-password").disabled).toBe(false);
+    await click("credential-add-save");
+    expect(byTestId<HTMLButtonElement>("credential-not-password").disabled).toBe(true);
   });
 
   it.each([true, false])(

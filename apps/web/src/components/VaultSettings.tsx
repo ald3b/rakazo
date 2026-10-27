@@ -7,7 +7,7 @@ import {
   encodeLoginSecret,
 } from "@rakazo/contracts";
 import { fetchFresh, writeSaved } from "@rakazo/core/query";
-import { Button, Input, NativeSelect, NativeSelectOption, Switch } from "@rakazo/ui-web";
+import { Button, Input, NativeSelect, NativeSelectOption, SwitchField } from "@rakazo/ui-web";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@rakazo/ui-web/components/ui/tooltip";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, RotateCcw, X } from "lucide-react";
@@ -224,17 +224,14 @@ export function VaultSettings({
         />
       </label>
       {type === "login" ? (
-        <div className="mt-2 flex min-h-11 items-center justify-between gap-3 text-sm">
-          <label htmlFor={`${ids}-${testIdPrefix}-not-password`}>
-            <Trans>Not a password</Trans>
-          </label>
-          <Switch
-            id={`${ids}-${testIdPrefix}-not-password`}
-            data-testid={`${testIdPrefix}-not-password`}
-            checked={notPassword}
-            onCheckedChange={setNotPassword}
-          />
-        </div>
+        <SwitchField
+          className="mt-3"
+          label={<Trans>Not a password</Trans>}
+          data-testid={`${testIdPrefix}-not-password`}
+          checked={notPassword}
+          disabled={busy}
+          onCheckedChange={setNotPassword}
+        />
       ) : null}
     </>
   );
