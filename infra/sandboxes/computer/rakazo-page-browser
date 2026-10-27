@@ -493,6 +493,17 @@ EVAL_HELPERS = r"""
     });
     return rearm;
   }
+  // Set through the CSSOM, which a page's Content-Security-Policy does not block, unlike an
+  // injected stylesheet or style attribute.
+  const cardMasked = new WeakSet();
+  function maskCard(el) {
+    el.style.setProperty("-webkit-text-security", "disc", "important");
+    cardMasked.add(el);
+  }
+  function unmaskCard(el) {
+    if (!cardMasked.delete(el)) return;
+    el.style.removeProperty("-webkit-text-security");
+  }
   // New snapshots/documents never recycle references. Retain exact nodes, not selectors.
   function newRef() {
     return `e${Array.from(crypto.getRandomValues(new Uint32Array(4)), n => n.toString(16).padStart(8, "0")).join("")}`;
@@ -943,16 +954,22 @@ EVAL_HELPERS = r"""
       return { url: hideMarked(location.href), title: hideMarked(document.title || "").slice(0, 200) };
     },
     fill(ref, value, origin, field, secondValue, login) {
+      // A purchase's card detail, bound to the merchant's origin like a saved login to its site.
+      const card = field === "card";
       // Checked in the same evaluation as the fill, so a navigation cannot slip in between.
       // Private-LAN plain HTTP is not a login target, even when the page origin matches.
-      if (origin) {
+      if (origin || card) {
         let saved = null;
         try { saved = new URL(origin); } catch { /* rejected below */ }
         if (!saved || saved.protocol !== "https:" || location.protocol !== "https:") {
-          throw refused("Website logins can only be filled on HTTPS. Open the saved site with browser_navigate, then fill again.");
+          throw refused(card
+            ? "A card can only be filled on HTTPS. Open the merchant's checkout with browser_navigate, then fill again."
+            : "Website logins can only be filled on HTTPS. Open the saved site with browser_navigate, then fill again.");
         }
         if (location.origin !== saved.origin) {
-          throw refused("The page is not on the site this login was saved for. Open the saved site with browser_navigate, then fill again.");
+          throw refused(card
+            ? "The page is not on the merchant's site for this purchase. Open the merchant's checkout with browser_navigate, then fill again."
+            : "The page is not on the site this login was saved for. Open the saved site with browser_navigate, then fill again.");
         }
       }
       const el = this.resolve(ref);
@@ -962,7 +979,11 @@ EVAL_HELPERS = r"""
       // After focus, whose handlers may change the field. A password goes only into a password
       // field, which never displays it. A username is an input; textareas, search boxes, and
       // editable page content stay out.
-      const password = Boolean(origin) && field !== "username";
+      // A card goes only into a plain input: text, tel, or password (CVC boxes are often masked).
+      if (card && !(el instanceof HTMLInputElement && ["text", "tel", "password"].includes(el.type))) {
+        throw refused("A card can only be typed into a card field.");
+      }
+      const password = Boolean(origin) && !card && field !== "username";
       // A field this helper made a password field to hold a marked value is judged by its own
       // type, so no other password goes into it as text; a refused fill leaves it as it is.
       const ownType = madePassword.has(el) ? madeFrom.get(el) : el.type;
@@ -979,7 +1000,7 @@ EVAL_HELPERS = r"""
           : textField && !hasPasswordField() ? NO_PASSWORD_FIELD
           : "A saved password can only be typed into a password field.");
       }
-      if (origin && !password && !(el instanceof HTMLInputElement && ["text", "email", "tel"].includes(ownType))) {
+      if (origin && !card && !password && !(el instanceof HTMLInputElement && ["text", "email", "tel"].includes(ownType))) {
         throw refused("A saved username can only be typed into a text, email, or telephone field.");
       }
       if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) {
@@ -993,7 +1014,7 @@ EVAL_HELPERS = r"""
         // saved username ends them all.
         stopMasking(el);
         for (const [name, target] of usernameTargets) {
-          if (target.field === el || (origin && !password)) usernameTargets.delete(name);
+          if (target.field === el || (origin && !card && !password)) usernameTargets.delete(name);
         }
         // Held in a password field before the value is set, so it is never drawn as text.
         const kept = maskedText ? keepHidden(el, String(value)) : null;
@@ -1004,13 +1025,17 @@ EVAL_HELPERS = r"""
           if (origin) {
             Object.getOwnPropertyDescriptor(prototype, "value").set.call(el, "");
             stopMasking(el);
-            throw refused("This field didn't accept the saved login, so it was cleared.");
+            throw refused(card ? "This field didn't accept the card, so it was cleared."
+              : "This field didn't accept the saved login, so it was cleared.");
           }
           throw new Error("Input did not accept the requested value");
         }
         if (origin) loginFilled.add(el);
         else loginFilled.delete(el);
         if (maskedText && !markedValues.includes(String(value))) markedValues.push(String(value));
+        // Screenshots reach the model too, so a card is drawn as dots, like a password.
+        if (card) maskCard(el);
+        else unmaskCard(el);
         el.dispatchEvent(new Event("input", { bubbles: true }));
         el.dispatchEvent(new Event("change", { bubbles: true }));
         const hidden = kept?.();
@@ -1395,6 +1420,9 @@ def act(client: CdpClient, session_id: str, actions: list[dict[str, Any]]) -> di
             step["kind"] != "fill" or not isinstance(step["origin"], str)
         ):
             raise RuntimeError("An origin applies only to fill")
+        # A card detail is hidden and checked only on an origin-bound fill.
+        if step.get("field") == "card" and not step.get("origin"):
+            raise RuntimeError("A card fill needs its origin")
     ensure_helpers(client, session_id)
     completed = 0
     uncertain = False

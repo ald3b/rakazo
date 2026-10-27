@@ -34,6 +34,7 @@ import {
   protectedComputerLifecycleRefusal,
 } from "./desktop-command-guard.js";
 import { nativeShellCommandArgv } from "./native-shell.js";
+import { resolvePurchaseCardFill } from "./purchase-service.js";
 import type { RunContext } from "./run-context.js";
 import { addRunSecrets } from "./run-context.js";
 import { builtinOffered } from "./run-instructions.js";
@@ -47,7 +48,6 @@ import {
 import { DESKTOP_HELD_FOR_TAKEOVER_MESSAGE } from "./takeover-resume.js";
 import { getActiveTeachingSession } from "./teaching-session.js";
 
-/** Append to the computer's Activity feed. */
 function appendComputerCommand(ctx: RunContext, payload: ComputerCommand) {
   const { deps, run, runId, bot, thread } = ctx;
   return (
@@ -187,6 +187,19 @@ export async function pageBrowserTool(ctx: RunContext, call: ToolCall) {
                 origin: resolved.origin,
                 ...(resolved.secondValue ? { secondValue: resolved.secondValue } : {}),
               };
+            },
+            resolveCardFill: async (step) => {
+              const paymentWallet = deps.paymentWallet;
+              if (!paymentWallet) return { error: "Card fills are unavailable here." };
+              const resolved = await resolvePurchaseCardFill(
+                { prisma: deps.prisma, secretStore: deps.secretStore, paymentWallet },
+                run,
+                step.purchase,
+                step.field,
+              );
+              if ("error" in resolved) return resolved;
+              addRunSecrets(ctx, resolved.redactions);
+              return { text: resolved.text, origin: resolved.origin };
             },
           },
         );

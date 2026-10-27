@@ -789,7 +789,6 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   "Your phone's built-in voice. Free, no account needed": "手機內建語音，免費且不需要帳號",
   "Could not save that preference": "無法儲存該設定",
   Username: "使用者名稱",
-  // app/(settings)/models.tsx
   "Move down": "下移",
   "Move up": "上移",
   "Tried in order if the active model fails.": "目前模型失敗時按順序嘗試。",
@@ -863,7 +862,6 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   "Hi, this is how I'll sound.": "你好，這是我的聲音。",
   "Open external link?": "開啟外部連結？",
   Open: "開啟",
-  // ai-data-sharing
   "AI models": "AI 模型",
   Memory: "記憶",
   "Privacy policies": "隱私權政策",
@@ -1118,4 +1116,8 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   "Copy username": "複製使用者名稱",
   "Copy password": "複製密碼",
   "Could not show the credential": "無法顯示憑證",
+  Wallet: "錢包",
+  "Connect {name}": "連結 {name}",
+  "Could not load wallet": "無法載入錢包",
+  "Could not update wallet": "無法更新錢包",
 };

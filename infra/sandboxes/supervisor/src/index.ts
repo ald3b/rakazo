@@ -528,12 +528,17 @@ app.post("/computers/:id/browser", async (c) => {
                   ref: z.string().min(1).max(200),
                   text: z.string().max(32_000),
                   origin: z.string().url().max(2048).optional(),
-                  field: z.enum(["username", "password"]).optional(),
+                  field: z.enum(["username", "password", "card"]).optional(),
                   secondValue: z.literal("text").optional(),
                   login: z.string().min(1).max(64).optional(),
                 })
-                // The field decides which input types the helper accepts for a saved login.
-                .refine((step) => !step.origin || step.field, "A saved login fill needs its field"),
+                // The field decides which input types the helper accepts for a saved login or card.
+                .refine((step) => !step.origin || step.field, "A saved login fill needs its field")
+                // A card detail is hidden and checked only when bound to the merchant's origin.
+                .refine(
+                  (step) => step.field !== "card" || step.origin,
+                  "A card fill needs its origin",
+                ),
             ]),
           )
           .min(1)
@@ -553,9 +558,10 @@ app.post("/computers/:id/browser", async (c) => {
     );
     const result = await runContainerCommand(
       container,
-      // Arguments go over stdin: origin-bound fills carry saved logins, and argv is readable by
-      // any process in the computer, including the bot's own shell. Other commands also keep the
-      // argv copy so a computer still on an older image keeps working until it is replaced.
+      // Arguments go over stdin: origin-bound fills carry saved logins and cards, and argv is
+      // readable by any process in the computer, including the bot's own shell. Other commands
+      // also keep the argv copy so a computer still on an older image keeps working until it is
+      // replaced.
       [
         "/usr/local/bin/rakazo-page-browser",
         body.command,
@@ -1511,20 +1517,9 @@ export async function controlDesktop(
 
 const SCREEN_READY_TIMEOUT_MS = 45_000;
 
-// Docker publishes a container's port mapping (or assigns its internal IP)
-// almost immediately on start, well before the process inside the container
-// is actually listening on it (Xvfb, the browser, x11vnc, then websockify
-// all start in sequence — see infra/sandboxes/computer/start.sh). Returning
-// the URL as soon as the mapping exists lets the frontend iframe race the
-// container's own boot sequence and hit "socket hang up" on first load.
-//
-// A bare TCP connect isn't a strong enough signal either: it only proves the
-// port is accepting connections, not that websockify is actually up and
-// serving — the same race can still slip through between "port open" and
-// "websockify ready" (e.g. right after setInteractiveScreen starts a new
-// x11vnc/websockify pair on the control port for a takeover). An HTTP GET
-// against the same embed.html path the browser will load only succeeds once
-// websockify itself is answering requests, closing that gap too.
+// Docker publishes the port mapping before websockify inside the container is
+// serving, and a bare TCP connect can succeed before it is too. Polling the same
+// embed.html the iframe loads keeps the frontend from hitting "socket hang up".
 export async function waitForScreenReady(host: string, port: number, timeoutMs: number) {
   const deadline = Date.now() + timeoutMs;
   do {
