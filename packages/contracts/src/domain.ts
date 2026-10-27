@@ -18,6 +18,7 @@ import {
   parseMcpOAuthAuthorizationParams,
 } from "./mcp.js";
 import { ModelHeadersSchema } from "./model-headers.js";
+import { NavLinkSchema } from "./nav-links.js";
 import { RoutineWatchSchema, RoutineWatchStateSchema } from "./routine-watch.js";
 import { RunTriggerSchema } from "./runs.js";
 import { SettingsScopeSchema } from "./settings-scope.js";
@@ -477,6 +478,9 @@ export function routineModelIssues(
   }
 }
 
+/** Maximum parent count in one routine mention lookup. */
+export const ROUTINE_MENTION_BATCH_MAX = 100;
+
 export const RoutineSchema = z.object({
   id: Id,
   botId: Id,
@@ -504,6 +508,8 @@ export const RoutineSchema = z.object({
   lastRunAt: z.string().nullable(),
   nextRunAt: z.string().nullable(),
   createdAt: z.string(),
+  /** False when another Space member created it; only its creator can change it. */
+  editable: z.boolean().optional(),
 });
 export type Routine = z.infer<typeof RoutineSchema>;
 
@@ -1591,6 +1597,8 @@ export const MeSchema = z.object({
   maxUploadSizeBytes: z.number().int().positive().optional(),
   ticketBoardEnabled: z.boolean(),
   phoneCallsEnabled: z.boolean().default(false),
+  /** Operator-configured menu links. Absent from older servers. */
+  navLinks: z.array(NavLinkSchema).default([]),
   userId: Id,
   email: z.string().email(),
   name: z.string(),

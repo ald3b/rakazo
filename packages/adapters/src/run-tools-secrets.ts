@@ -18,6 +18,7 @@ import {
   findRunLogin,
   forgetBotSecret,
   forgetRunLogin,
+  generateBotSecret,
   listBotSecrets,
   listRunLogins,
   normalizeSecretDestination,
@@ -55,6 +56,17 @@ export const secretTools: ToolHandlers = {
     // This run's unremembered login under the name goes too.
     await forgetRunLogin(deps.prisma, run, run.id, parsed.data);
     return call.finish(await forgetBotSecret(deps.prisma, run, parsed.data));
+  },
+  async generate_secret(ctx, call) {
+    const { deps, run } = ctx;
+    const { result, redactions } = await generateBotSecret({
+      prisma: deps.prisma,
+      secretStore: deps.secretStore,
+      scope: run,
+      args: call.args,
+    });
+    if (redactions) addRunSecrets(ctx, redactions);
+    return call.finish(result);
   },
   async secret_request(ctx, call) {
     const { deps, run, context } = ctx;

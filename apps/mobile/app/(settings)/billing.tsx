@@ -118,7 +118,7 @@ export default function BillingScreen() {
                     : amount < (status.monthlyAmountCents ?? 0)
                       ? t("Downgrade at renewal")
                       : t("Update")
-                  : t("Continue with credits")
+                  : t("Subscribe")
               }
               disabled={pending || !status.creditPurchasesEnabled}
               onPress={() =>
@@ -206,14 +206,18 @@ export default function BillingScreen() {
               label={t("Your subscription or API key")}
               footer={
                 status.byokPriceCents
-                  ? t("{price} / month. ChatGPT, Claude, or any model provider.", {
+                  ? t("{price} / month. Works with your ChatGPT or Claude plan.", {
                       price: `$${status.byokPriceCents / 100}`,
                     })
-                  : t("Free. ChatGPT, Claude, or any model provider.")
+                  : t("Free. Works with your ChatGPT or Claude plan.")
               }
             >
               <SettingsRow
-                title={t("Use my subscription or API key")}
+                title={
+                  status.byokPriceCents && status.trialAvailable
+                    ? t("Start {days}-day free trial", { days: status.trialDays })
+                    : t("Use my subscription or API key")
+                }
                 disabled={pending}
                 onPress={() =>
                   void action(async () => {

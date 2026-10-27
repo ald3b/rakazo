@@ -52,6 +52,7 @@ model User {
   autoReviewPreference        UserActionAutoReviewPreference?
   createdSpaces               Space[]                      @relation("SpaceCreator")
   botSecrets BotSecret[]
+  vaultCredentials VaultCredential[]
   runLogins RunLogin[]
   agentSecrets               AgentSecret[]
   createdTickets              Ticket[]                     @relation("TicketCreatorUser")
@@ -59,6 +60,7 @@ model User {
   pushToken                   PushToken?
   signupSurvey                SignupSurvey?
   computerRuns                ComputerRun[]
+  devices                     UserDevice[]
 
   @@unique([email])
   @@map("user")
@@ -107,6 +109,34 @@ model PushToken {
   updatedAt DateTime @updatedAt
 
   @@map("push_tokens")
+}
+
+model UserDevice {
+  id          String                 @id @default(cuid())
+  userId      String
+  user        User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name        String
+  platform    String
+  tokenHash   String                 @unique
+  createdAt   DateTime               @default(now())
+  lastSeenAt  DateTime?
+  revokedAt   DateTime?
+  connections UserDeviceConnection[]
+
+  @@index([userId, revokedAt])
+  @@map("user_devices")
+}
+
+model UserDeviceConnection {
+  deviceId     String     @id
+  device       UserDevice @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  connectionId String     @unique
+  address      String
+  connectedAt  DateTime   @default(now())
+  heartbeatAt  DateTime   @default(now())
+
+  @@index([heartbeatAt])
+  @@map("user_device_connections")
 }
 
 model Account {
@@ -303,6 +333,7 @@ model Space {
   secrets                     Secret[]
   chatGroups                  ChatGroup[]
   botSecrets                  BotSecret[]
+  vaultCredentials            VaultCredential[]
   runLogins                   RunLogin[]
   externalConversations       ExternalConversation[]
   agentSecrets                AgentSecret[]
@@ -781,6 +812,7 @@ model Run {
   @@index([taskId])
   @@index([sourceMessageId])
   @@index([threadId, status, createdAt])
+  // Partial index runs_recent_activity_idx (recent foreground activity) is created in SQL.
   @@index([routineId])
   @@map("runs")
 }
@@ -1578,6 +1610,26 @@ model RunLogin {
   @@index([botId, endedAt])
   @@index([spaceId])
   @@map("run_logins")
+}
+
+/// A member's saved credentials. A null spaceId is the account vault every Space uses; a Space
+/// with a "credentials" override uses its own rows instead, which no other Space can read.
+model VaultCredential {
+  id         String   @id
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  spaceId    String?
+  space      Space?   @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  name       String
+  origin     String
+  auth       Json
+  ciphertext String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([spaceId])
+  // Unique index vault_credentials_userId_spaceId_name_key (NULLS NOT DISTINCT) is created in SQL.
+  @@map("vault_credentials")
 }
 
 model ExternalConversation {

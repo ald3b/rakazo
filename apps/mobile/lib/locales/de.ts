@@ -1,4 +1,12 @@
 export const DE_MESSAGES: Record<string, string> = {
+  "Not sent. Tap for options": "Nicht gesendet. Tippen für Optionen",
+  "Image input is not configured for this model.":
+    "Bildeingabe ist für dieses Modell nicht konfiguriert.",
+  "Send as file": "Als Datei senden",
+  "The bot can use the file but won't see the picture.":
+    "Der Bot kann die Datei nutzen, sieht das Bild aber nicht.",
+  "This model cannot read images. Choose a model that supports images.":
+    "Dieses Modell kann keine Bilder lesen. Wähle ein Modell, das Bilder unterstützt.",
   "Could not connect to the computer screen":
     "Verbindung zum Computerbildschirm konnte nicht hergestellt werden",
   "Retry screen": "Bildschirm erneut verbinden",
@@ -32,8 +40,6 @@ export const DE_MESSAGES: Record<string, string> = {
   Export: "Exportieren",
   "Edit avatar": "Avatar bearbeiten",
   "Add open work": "Offene Aufgabe hinzufügen",
-  "Can edit and organise bots it creates": "Kann erstellte Bots bearbeiten und organisieren",
-  "How other bots see it": "So sehen andere Bots ihn",
   Permissions: "Berechtigungen",
   "Open work": "Offene Aufgaben",
   "When it finishes or needs input": "Wenn der Bot fertig ist oder Eingaben benötigt",
@@ -111,6 +117,8 @@ export const DE_MESSAGES: Record<string, string> = {
   "{provider} can't run this model.": "{provider} kann dieses Modell nicht ausführen.",
   "{provider} denied access to this model.":
     "{provider} hat den Zugriff auf dieses Modell verweigert.",
+  "The model hit its output limit before finishing its reply.":
+    "Das Modell hat sein Ausgabelimit erreicht, bevor es die Antwort fertig geschrieben hat.",
   "The model returned an unusable response. Try again.":
     "Das Modell hat eine unbrauchbare Antwort geliefert. Versuche es erneut.",
   "This model's context window is too small. Choose another model.":
@@ -443,6 +451,18 @@ export const DE_MESSAGES: Record<string, string> = {
   Profile: "Profil",
   Routines: "Routinen",
   "Could not load routines": "Routinen konnten nicht geladen werden",
+  "{count} on": "{count} aktiv",
+  "Ask this Bot in chat to set up a routine.":
+    "Bitte diesen Bot im Chat, eine Routine einzurichten.",
+  "{name}, On": "{name}, Ein",
+  "{name}, Off": "{name}, Aus",
+  "Active: {name}": "Aktiv: {name}",
+  "Delete {name}": "{name} löschen",
+  "Delete this routine?": "Diese Routine löschen?",
+  "This permanently deletes the routine and its run history.":
+    "Die Routine und ihr Ausführungsverlauf werden endgültig gelöscht.",
+  "Could not delete routine": "Routine konnte nicht gelöscht werden",
+  "Could not update routine": "Routine konnte nicht aktualisiert werden",
   "Get notified when this Bot finishes or needs input":
     "Benachrichtigung, wenn dieser Bot fertig ist oder Eingabe braucht",
   // app/computer.tsx
@@ -855,6 +875,8 @@ export const DE_MESSAGES: Record<string, string> = {
   "Default ({level})": "Standard ({level})",
   "Disconnected {provider}.": "{provider} getrennt.",
   "Sign in again": "Erneut anmelden",
+  "Confirm it's you": "Bestätige, dass du es bist",
+  "Email me a code": "Code per E-Mail senden",
   "Thinking: {level}": "Denkmodus: {level}",
   "Waiting for sign-in — the code expires in about {minutes} minutes.":
     "Warte auf Anmeldung — der Code läuft in etwa {minutes} Minuten ab.",
@@ -1012,13 +1034,14 @@ export const DE_MESSAGES: Record<string, string> = {
   "Add credits": "Guthaben hinzufügen",
   "Manage billing": "Abrechnung verwalten",
   "Your subscription or API key": "Dein Abo oder API-Schlüssel",
-  "Free. ChatGPT, Claude, or any model provider.":
-    "Kostenlos. ChatGPT, Claude oder ein beliebiger Modellanbieter.",
-  "{price} / month. ChatGPT, Claude, or any model provider.":
-    "{price} / Monat. ChatGPT, Claude oder ein beliebiger Modellanbieter.",
+  "Free. Works with your ChatGPT or Claude plan.":
+    "Kostenlos. Funktioniert mit deinem ChatGPT- oder Claude-Abo.",
+  "{price} / month. Works with your ChatGPT or Claude plan.":
+    "{price} / Monat. Funktioniert mit deinem ChatGPT- oder Claude-Abo.",
   "Free plan ends": "Kostenloser Tarif endet",
   Subscribe: "Abonnieren",
   "Use my subscription or API key": "Mein Abo oder meinen API-Schlüssel verwenden",
+  "Start {days}-day free trial": "Kostenlose {days}-Tage-Testphase starten",
   "Monthly credits expire at renewal. Top-ups do not expire.":
     "Monatliches Guthaben verfällt bei Verlängerung. Einmalige Aufladungen verfallen nicht.",
   "Use Rakazo credits": "Rakazo-Guthaben verwenden",
@@ -1097,7 +1120,33 @@ export const DE_MESSAGES: Record<string, string> = {
   "on the 1st at {time}": "am 1. um {time}",
   "on day {day} at {time}": "am {day}. um {time}",
   "Every hour at :{minute}": "Jede Stunde um :{minute}",
+  "Every {n} hours at :{minute}": "Alle {n} Stunden um :{minute}",
   "{from} to {to}": "{from} bis {to}",
   "Every {day}": "Jeden {day}",
   "Every {days} and {last}": "Jeden {days} und {last}",
+  "Run history": "Ausführungsverlauf",
+  "No runs yet": "Noch keine Ausführungen",
+  "Load older runs": "Ältere Ausführungen laden",
+  "Could not load run history": "Ausführungsverlauf konnte nicht geladen werden",
+  Vault: "Tresor",
+  "Add credential": "Zugangsdaten hinzufügen",
+  "Replace value": "Wert ersetzen",
+  "Remove {name}?": "{name} entfernen?",
+  "Could not save the credential": "Zugangsdaten konnten nicht gespeichert werden",
+  "Could not remove the credential": "Zugangsdaten konnten nicht entfernt werden",
+  Type: "Typ",
+  Site: "Website",
+  Value: "Wert",
+  "Custom header": "Eigener Header",
+  "Basic auth": "Basic-Auth",
+  "Website login": "Website-Anmeldung",
+  "Use lowercase letters, numbers, - and _, starting with a letter.":
+    "Verwende Kleinbuchstaben, Ziffern, - und _, beginnend mit einem Buchstaben.",
+  "{variable} is reserved. Choose another name.":
+    "{variable} ist reserviert. Wähle einen anderen Namen.",
+  "Delete this Space's credentials?": "Zugangsdaten dieses Space löschen?",
+  Show: "Anzeigen",
+  "Copy username": "Benutzernamen kopieren",
+  "Copy password": "Passwort kopieren",
+  "Could not show the credential": "Zugangsdaten konnten nicht angezeigt werden",
 };

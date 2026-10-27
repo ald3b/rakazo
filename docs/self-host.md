@@ -203,8 +203,9 @@ Rakazo uses two Postgres logins:
   the app tables.
 
 `pnpm db:migrate` (in containers, its prebuilt form `pnpm --filter @rakazo/api db:deploy`, which the
-API container runs before it starts serving) applies the migrations and the job queue
-schema as the owner. It then creates the app login named in `DATABASE_URL`, or updates its
+one-shot `migrate` container runs before the API starts) applies the migrations and the job queue
+schema as the owner. Only that container gets the owner login, so code running in the API or
+worker cannot find one that bypasses row-level security. It then creates the app login named in `DATABASE_URL`, or updates its
 password, and grants it the `rakazo_app` role. When migrations run as a role without
 `CREATEROLE`, as on some managed Postgres, create the login yourself and
 `GRANT rakazo_app TO <login>`.
@@ -762,6 +763,26 @@ Add only origins you trust: a script these settings allow runs with the signed-i
 Browsers report what the policy blocks to `/api/csp-report`. The API writes one `csp.violation`
 warning per violation, with the directive, the blocked origin and the page path, so search your logs
 for it to find the origins to add.
+
+### Menu links
+
+`RAKAZO_NAV_LINKS` adds items to the account menu that open a page from the same domain inside the
+web app, such as an internal tool your reverse proxy serves next to Rakazo. Set it on the API:
+
+```bash
+RAKAZO_NAV_LINKS='[{"id":"clients","label":"Clients","path":"/ext/clients/"}]'
+```
+
+Each `id` is lowercase letters, digits and dashes, and becomes `/app/x/<id>`. `path` must start with a
+single `/` and must not be under `/app`, `/api`, `/rpc`, `/novnc` or `/health`. Route it before the
+catch-all in your proxy, for example `handle /ext/* { reverse_proxy office:8080 }` in
+`Caddyfile.prod`. A malformed value stops the API from starting.
+
+Pages open sandboxed with an opaque origin, so they cannot read Rakazo's pages or act with the
+signed-in user's session; that also blocks their own cookies and storage. Add `"trusted": true` to a
+link only for a service you control: a trusted page runs with the signed-in user's access, like a
+script allowed by `RAKAZO_CSP_SCRIPT_SRC`. The page must allow framing by the app
+(`frame-ancestors 'self'`). Links appear in the web app only; the desktop and mobile apps hide them.
 
 ### Security events
 
@@ -1695,8 +1716,8 @@ GIT_SHA=$(git rev-parse HEAD) docker compose --env-file .env -f infra/compose/do
 ```
 
 `up --wait` does not report success until the new API is healthy and the worker and web containers
-are running. The API container runs the migration step (`db:deploy`) before it starts serving, so migration
-failure keeps health red. A failed CLI recreate does not auto-roll back; recover with the previous
+are running. The API starts only after the `migrate` container finishes, so a migration failure keeps the new API
+from starting. A failed CLI recreate does not auto-roll back; recover with the previous
 `RAKAZO_IMAGE_TAG` (or rebuild `local`) and `up -d --wait --pull never`.
 
 The updater sidecar has its own image and tag so an update never recreates the process performing
@@ -1897,7 +1918,7 @@ pin and attempts to redeploy the cached previous image. A failed fork build also
 pre-update branch and commit (including when checkout succeeded but merge did not) so a later
 manual `--build` cannot deploy the rejected or unintended revision. Database migrations are not
 reversed. The sidecar never recreates itself, never touches Postgres or Caddy, and never runs
-migrations — that ordering belongs to the API start command.
+migrations — that ordering belongs to the API's dependency on the `migrate` service.
 
 Only `https://` and `ssh://` git remotes are accepted. Merges are fast-forward only. A dirty or
 untracked source tree fails closed before anything runs (the application Dockerfile uses `COPY . .`).

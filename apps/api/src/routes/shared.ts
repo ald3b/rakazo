@@ -21,13 +21,19 @@ export async function meDto(deps: RouterDeps, actor: Actor): Promise<Me> {
   const [user, setup] = await Promise.all([
     deps.prisma.user.findUniqueOrThrow({
       where: { id: actor.userId },
-      include: { signupSurvey: { select: { userId: true } } },
+      select: {
+        email: true,
+        name: true,
+        timezone: true,
+        signupSurvey: { select: { userId: true } },
+      },
     }),
     modelSetup(deps, actor),
   ]);
   return {
     ticketBoardEnabled: deps.env.ticketBoardEnabled === true,
     phoneCallsEnabled: deps.env.phoneCallsEnabled === true,
+    navLinks: deps.env.navLinks ?? [],
     maxUploadSizeBytes: attachmentMaxBytes(deps.env),
     userId: actor.userId,
     email: user.email,
@@ -96,6 +102,8 @@ export async function modelSetup(deps: RouterDeps, actor: Actor) {
         deployment: { provider: deps.env.defaultProvider, model: deps.env.defaultModel },
       }).primary,
     settings,
+    funding,
+    hasDeployment,
     needsModel: deps.env.agentRuntime !== "scripted" && !main && !hasDeployment,
   };
 }

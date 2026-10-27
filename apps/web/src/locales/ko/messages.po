@@ -65,6 +65,11 @@ msgstr "{0} 연결"
 msgid "{0} default"
 msgstr ""
 
+#. placeholder {0}: parts.amount
+#: src/components/ArtifactFileCard.tsx
+msgid "{0} GB"
+msgstr "{0} GB"
+
 #. placeholder {0}: sender.name
 #: src/pages/ExternalConversationSettings.tsx
 msgid "{0} handling"
@@ -85,12 +90,12 @@ msgstr "{0}이(가) 작동하지 않습니다"
 msgid "{0} is running"
 msgstr "{0}이(가) 실행 중입니다"
 
-#. placeholder {0}: format(size / 1024)
+#. placeholder {0}: parts.amount
 #: src/components/ArtifactFileCard.tsx
 msgid "{0} KB"
 msgstr "{0} KB"
 
-#. placeholder {0}: format(size / (1024 * 1024))
+#. placeholder {0}: parts.amount
 #: src/components/ArtifactFileCard.tsx
 msgid "{0} MB"
 msgstr "{0} MB"
@@ -99,6 +104,11 @@ msgstr "{0} MB"
 #: src/pages/ExternalConversationSettings.tsx
 msgid "{0} rollup hours"
 msgstr ""
+
+#. placeholder {0}: parts.amount
+#: src/components/ArtifactFileCard.tsx
+msgid "{0} TB"
+msgstr "{0} TB"
 
 #. placeholder {0}: bot.name
 #: src/pages/ExternalConversationSettings.tsx
@@ -122,7 +132,7 @@ msgstr "{botCount, plural, other {{name}과(와) 봇 #개를 삭제할까요?}}"
 msgid "{botName}’s computer"
 msgstr "{botName}의 컴퓨터"
 
-#: src/pages/shell/bot-credentials.tsx
+#: src/components/VaultSettings.tsx
 msgid "{commandVariable} is reserved and cannot be used as a command variable. Choose another name."
 msgstr "{commandVariable}은(는) 예약되어 있어 명령 변수로 사용할 수 없습니다. 다른 이름을 선택하세요."
 
@@ -361,11 +371,6 @@ msgstr "@{0}"
 msgid "${0} / month"
 msgstr ""
 
-#. placeholder {0}: amount / 100
-#: src/components/ModelCredits.tsx
-msgid "${0} in monthly model credits. No API key needed."
-msgstr ""
-
 #: src/pages/shell/message-cards.tsx
 msgid "A bit of everything"
 msgstr ""
@@ -491,7 +496,7 @@ msgstr "HTTPS 서버 URL을 입력하세요."
 msgid "Add another"
 msgstr ""
 
-#: src/pages/shell/bot-credentials.tsx
+#: src/components/VaultSettings.tsx
 msgid "Add credential"
 msgstr ""
 
@@ -610,6 +615,11 @@ msgstr "Agent 컴퓨터"
 msgid "Agents:"
 msgstr "사용 Bot:"
 
+#. placeholder {0}: amount / 100
+#: src/components/ModelCredits.tsx
+msgid "All ${0} goes to model usage."
+msgstr "${0} 전액이 모델 사용에 쓰입니다."
+
 #: src/pages/Artifacts.tsx
 #: src/pages/shell/agent-import.tsx
 msgid "All bots"
@@ -632,11 +642,19 @@ msgid "Allow cross-space bot communication"
 msgstr ""
 
 #: src/components/AskCard.tsx
+msgid "Allow for this chat"
+msgstr ""
+
+#: src/components/AskCard.tsx
 msgid "Allow once"
 msgstr "한 번 허용"
 
 #: src/pages/memory-providers/SerenitySettingsForm.tsx
 msgid "Allow writing"
+msgstr ""
+
+#: src/components/AskCard.tsx
+msgid "Allowed for this chat"
 msgstr ""
 
 #: src/components/AskCard.tsx
@@ -707,11 +725,6 @@ msgstr "답변"
 #: src/components/AskCard.tsx
 msgid "Answered"
 msgstr "응답함"
-
-#. placeholder {0}: selectedAskActionLabel(answer, actions)
-#: src/components/AskCard.tsx
-msgid "Answered: {0}"
-msgstr "응답: {0}"
 
 #: src/components/AskCard.tsx
 msgid "Answered: {answer}"
@@ -877,9 +890,9 @@ msgstr "루틴을 저장한 후 사용할 수 있습니다"
 msgid "Available credits"
 msgstr ""
 
-#: src/pages/shell/bot-credentials.tsx
-msgid "Available to this bot's shell commands as {commandVariable}"
-msgstr "이 봇의 셸 명령에서 {commandVariable}(으)로 사용 가능"
+#: src/components/VaultSettings.tsx
+msgid "Available to shell commands as {commandVariable}"
+msgstr "셸 명령에서 {commandVariable}(으)로 사용 가능"
 
 #: src/pages/shell/avatar-studio-popover.tsx
 msgid "Avatar Studio"
@@ -887,6 +900,7 @@ msgstr "아바타 스튜디오"
 
 #: src/pages/Auth.tsx
 #: src/pages/Board.tsx
+#: src/pages/NavLinkPage.tsx
 #: src/pages/PluginsOverlay.tsx
 #: src/pages/RoutineEditor.tsx
 #: src/pages/SettingsOverlay.tsx
@@ -902,17 +916,17 @@ msgstr "로그인으로 돌아가기"
 msgid "Base URL"
 msgstr "서버 주소"
 
-#: src/pages/shell/bot-credentials.tsx
+#: src/components/VaultSettings.tsx
 msgid "Basic auth"
 msgstr ""
 
-#: src/pages/shell/bot-credentials.tsx
+#: src/components/VaultSettings.tsx
 msgid "Basic auth ({username})"
 msgstr ""
 
+#: src/components/VaultSettings.tsx
 #: src/pages/memory-providers/SerenitySettingsForm.tsx
 #: src/pages/PluginsOverlay.tsx
-#: src/pages/shell/bot-credentials.tsx
 msgid "Bearer token"
 msgstr "Bearer 토큰"
 
@@ -1031,10 +1045,6 @@ msgstr ""
 msgid "Calls"
 msgstr "호출"
 
-#: src/pages/shell/bot-panel.tsx
-msgid "Can edit and organise bots it creates"
-msgstr "자신이 만든 봇을 편집하고 정리할 수 있음"
-
 #: src/App.tsx
 msgid "Can't reach the server."
 msgstr "서버에 연결할 수 없습니다."
@@ -1050,6 +1060,7 @@ msgstr "이미지를 읽을 수 없음"
 #: src/components/markdown-link-prompt.tsx
 #: src/components/PasskeySettings.tsx
 #: src/components/teach/TeachComputerOverlay.tsx
+#: src/components/VaultSettings.tsx
 #: src/pages/AccountSettingsOverlay.tsx
 #: src/pages/Artifacts.tsx
 #: src/pages/KnowledgeSection.tsx
@@ -1060,9 +1071,9 @@ msgstr "이미지를 읽을 수 없음"
 #: src/pages/Onboarding.tsx
 #: src/pages/PluginsOverlay.tsx
 #: src/pages/shell/agent-import-undo.tsx
-#: src/pages/shell/bot-credentials.tsx
 #: src/pages/shell/create-bot-dialog.tsx
 #: src/pages/shell/dialogs.tsx
+#: src/pages/SpaceSettingOverrides.tsx
 msgid "Cancel"
 msgstr "취소"
 
@@ -1103,6 +1114,10 @@ msgstr "{name} 변경"
 msgid "Change {title}"
 msgstr "{title} 변경"
 
+#: src/pages/shell/composer-error.tsx
+msgid "Change model"
+msgstr "모델 변경"
+
 #: src/pages/AccountSettingsOverlay.tsx
 msgid "Change password"
 msgstr "비밀번호 변경"
@@ -1125,10 +1140,6 @@ msgstr "Slack에서 봇과 채팅하세요."
 
 #: src/lib/localized-provider-hint.ts
 msgid "ChatGPT subscription"
-msgstr ""
-
-#: src/components/ModelCredits.tsx
-msgid "ChatGPT, Claude, or any model provider."
 msgstr ""
 
 #: src/lib/identity-display.ts
@@ -1234,6 +1245,7 @@ msgstr ""
 msgid "Claude subscription"
 msgstr ""
 
+#: src/components/AskCard.tsx
 #: src/pages/shell/dialogs.tsx
 msgid "Clear"
 msgstr "비우기"
@@ -1328,6 +1340,7 @@ msgid "Cloud"
 msgstr "클라우드"
 
 #: src/components/AskCard.tsx
+#: src/components/ConfirmIdentityDialog.tsx
 msgid "Code"
 msgstr "코드"
 
@@ -1371,7 +1384,7 @@ msgid "Command"
 msgstr "실행 명령"
 
 #: src/components/AskCard.tsx
-#: src/pages/shell/bot-credentials.tsx
+#: src/components/VaultSettings.tsx
 msgid "Command variable"
 msgstr "명령 변수"
 
@@ -1415,6 +1428,7 @@ msgstr "컴퓨터가 절전 상태입니다. 열어 깨우세요."
 msgid "Computer is stopped"
 msgstr "컴퓨터가 중지됨"
 
+#: src/components/ComputerDeviceSettings.tsx
 #: src/pages/AccountSettingsOverlay.tsx
 msgid "Computers"
 msgstr "컴퓨터"
@@ -1439,6 +1453,10 @@ msgstr "연결된 서버"
 #: src/pages/McpServersOverlay.tsx
 msgid "Confirm delete"
 msgstr "삭제 확인"
+
+#: src/components/ConfirmIdentityDialog.tsx
+msgid "Confirm it's you"
+msgstr ""
 
 #: src/pages/AccountSettingsOverlay.tsx
 #: src/pages/Auth.tsx
@@ -1518,6 +1536,7 @@ msgstr "Treg 연결"
 msgid "Connect your own API key in Models or choose Rakazo credits in Billing."
 msgstr "AI 모델에서 자체 API 키를 연결하거나 결제에서 Rakazo 크레딧을 선택하세요."
 
+#: src/components/ComputerDeviceSettings.tsx
 #: src/components/integrations/IntegrationSetup.tsx
 #: src/pages/McpOAuthCallback.tsx
 #: src/pages/MemorySettingsOverlay.tsx
@@ -1563,6 +1582,7 @@ msgstr "실행할 코드 포함"
 msgid "Context limit"
 msgstr "컨텍스트 한도"
 
+#: src/components/ConfirmIdentityDialog.tsx
 #: src/components/integrations/IntegrationSetup.tsx
 #: src/components/SignupSurvey.tsx
 #: src/pages/Auth.tsx
@@ -1583,10 +1603,6 @@ msgstr ""
 #: src/pages/Auth.tsx
 msgid "Continue with {0}"
 msgstr "{0}(으)로 계속"
-
-#: src/components/ModelCredits.tsx
-msgid "Continue with credits"
-msgstr ""
 
 #: src/pages/MessagingSettingsPanel.tsx
 msgid "Conversations"
@@ -1646,6 +1662,10 @@ msgstr "서버를 승인하지 못했습니다."
 msgid "Could not authorize this app"
 msgstr "앱 인증을 완료하지 못했습니다."
 
+#: src/components/ComputerDeviceSettings.tsx
+msgid "Could not change"
+msgstr ""
+
 #: src/pages/AccountSettingsOverlay.tsx
 msgid "Could not change password"
 msgstr "비밀번호를 변경할 수 없습니다"
@@ -1697,6 +1717,7 @@ msgid "Could not connect to the computer screen"
 msgstr ""
 
 #: src/components/AccountAccess.tsx
+#: src/components/ConfirmIdentityDialog.tsx
 #: src/components/PasskeyOffer.tsx
 #: src/components/PasskeySettings.tsx
 #: src/lib/account-security.ts
@@ -1799,6 +1820,7 @@ msgstr "도구 연결을 추가하지 못했습니다."
 
 #: src/components/ErrorBoundary.tsx
 #: src/components/PasskeySettings.tsx
+#: src/lib/user-devices.ts
 #: src/pages/KnowledgeSection.tsx
 msgid "Could not load"
 msgstr "불러올 수 없음"
@@ -1823,7 +1845,7 @@ msgstr ""
 msgid "Could not load bots. Reload to try again."
 msgstr ""
 
-#: src/pages/shell/bot-credentials.tsx
+#: src/components/VaultSettings.tsx
 msgid "Could not load credentials."
 msgstr ""
 
@@ -1901,6 +1923,8 @@ msgstr "서버에 연결할 수 없습니다"
 msgid "Could not read these files"
 msgstr "이 파일을 읽지 못했습니다"
 
+#: src/components/ComputerDeviceSettings.tsx
+#: src/lib/user-devices.ts
 #: src/pages/KnowledgeSection.tsx
 #: src/pages/ScratchpadSection.tsx
 msgid "Could not remove"
@@ -1914,7 +1938,7 @@ msgstr "도구 연결을 삭제하지 못했습니다."
 msgid "Could not remove rule"
 msgstr "확인 규칙을 삭제하지 못했습니다."
 
-#: src/pages/shell/bot-credentials.tsx
+#: src/components/VaultSettings.tsx
 msgid "Could not remove the credential"
 msgstr ""
 
@@ -1975,6 +1999,7 @@ msgstr "자동 실행을 저장하지 못했습니다."
 msgid "Could not save rule"
 msgstr "확인 규칙을 저장하지 못했습니다."
 
+#: src/components/teach/SkillDraftCard.tsx
 #: src/pages/KnowledgeSection.tsx
 msgid "Could not save skill"
 msgstr "스킬을 저장하지 못했습니다"
@@ -1991,7 +2016,7 @@ msgstr "음성 모델을 저장하지 못했습니다."
 msgid "Could not save that voice"
 msgstr "목소리를 저장하지 못했습니다."
 
-#: src/pages/shell/bot-credentials.tsx
+#: src/components/VaultSettings.tsx
 msgid "Could not save the credential"
 msgstr ""
 
@@ -2141,10 +2166,6 @@ msgstr "인증 정보"
 msgid "Credential saved"
 msgstr "인증 정보 저장됨"
 
-#: src/pages/shell/bot-credentials.tsx
-msgid "Credentials"
-msgstr ""
-
 #: src/pages/PluginsOverlay.tsx
 msgid "Credentials are encrypted and never sent to the model."
 msgstr "인증 정보는 암호화되며 모델에 전송되지 않습니다."
@@ -2170,7 +2191,7 @@ msgstr "Cron 표현식"
 msgid "Current password"
 msgstr "현재 비밀번호"
 
-#: src/pages/shell/bot-credentials.tsx
+#: src/components/VaultSettings.tsx
 msgid "Custom header"
 msgstr ""
 
@@ -2246,6 +2267,7 @@ msgstr "기본 기억 범위"
 #: src/pages/RoutineEditor.tsx
 #: src/pages/shell/archived-chats.tsx
 #: src/pages/shell/dialogs.tsx
+#: src/pages/SpaceSettingOverrides.tsx
 msgid "Delete"
 msgstr "삭제"
 
@@ -2290,6 +2312,10 @@ msgstr "섹션 삭제"
 #: src/pages/SpaceSettingsPanel.tsx
 msgid "Delete space"
 msgstr ""
+
+#: src/pages/SpaceSettingOverrides.tsx
+msgid "Delete this Space's credentials?"
+msgstr "이 스페이스의 자격 증명을 삭제할까요?"
 
 #: src/pages/shell/message-view.tsx
 msgid "deleted"
@@ -2498,6 +2524,10 @@ msgstr "이메일"
 msgid "Email is not allowed to register"
 msgstr "이 이메일은 가입이 허용되지 않습니다"
 
+#: src/components/ConfirmIdentityDialog.tsx
+msgid "Email me a code"
+msgstr ""
+
 #: src/lib/user-error.ts
 msgid "Email verification required"
 msgstr "이메일 인증이 필요합니다"
@@ -2507,7 +2537,7 @@ msgstr "이메일 인증이 필요합니다"
 msgid "Enable {0}"
 msgstr "{0} 활성화"
 
-#: src/pages/shell/bot-credentials.tsx
+#: src/components/VaultSettings.tsx
 msgid "Encrypted and never shown again"
 msgstr "암호화되며 다시 표시되지 않음"
 
@@ -2523,7 +2553,7 @@ msgstr ""
 msgid "Enter a password"
 msgstr "비밀번호를 입력하세요"
 
-#: src/pages/shell/bot-credentials.tsx
+#: src/components/VaultSettings.tsx
 msgid "Enter a username and password"
 msgstr ""
 
@@ -2842,14 +2872,14 @@ msgstr "전화를 끊은 다음 화면에 표시된 코드를 입력하세요."
 msgid "header"
 msgstr "header"
 
-#: src/pages/shell/bot-credentials.tsx
+#: src/components/VaultSettings.tsx
 msgid "Header \"{header}\""
 msgstr ""
 
 #: src/components/ModelHeadersEditor.tsx
+#: src/components/VaultSettings.tsx
 #: src/pages/McpServersOverlay.tsx
 #: src/pages/PluginsOverlay.tsx
-#: src/pages/shell/bot-credentials.tsx
 msgid "Header name"
 msgstr "헤더 이름"
 
@@ -2918,10 +2948,6 @@ msgstr ""
 msgid "How often"
 msgstr "실행 주기"
 
-#: src/pages/shell/bot-panel.tsx
-msgid "How other bots see it"
-msgstr "다른 봇이 이 봇을 보는 방식"
-
 #: src/components/teach/SkillDraftCard.tsx
 msgid "How to check"
 msgstr "완료 확인 방법"
@@ -2941,6 +2967,15 @@ msgstr "샘플이 들렸다면 음성 설정이 완료되었습니다."
 #: src/pages/ExternalConversationSettings.tsx
 msgid "Ignore"
 msgstr ""
+
+#. js-lingui-explicit-id
+#: src/lib/run-error.ts
+msgid "Image input is not configured for this model."
+msgstr "이 모델에는 이미지 입력이 설정되어 있지 않습니다."
+
+#: src/lib/user-error.ts
+msgid "Image input is not configured for this model."
+msgstr "이 모델에는 이미지 입력이 설정되어 있지 않습니다."
 
 #: src/pages/shell/avatar-studio-popover.tsx
 msgid "Image upload area"
@@ -3152,6 +3187,10 @@ msgstr ""
 msgid "Leave"
 msgstr "나가기"
 
+#: src/components/ComputerDeviceSettings.tsx
+msgid "Let bots use this computer"
+msgstr ""
+
 #: src/pages/MemorySettingsOverlay.tsx
 msgid "Lets bots save and recall facts by meaning, alongside MEMORY.md."
 msgstr "MEMORY.md와 함께 봇이 의미를 기준으로 사실을 저장하고 떠올릴 수 있게 합니다."
@@ -3268,7 +3307,7 @@ msgstr "낮음"
 msgid "Low"
 msgstr "낮음"
 
-#: src/pages/shell/bot-credentials.tsx
+#: src/components/VaultSettings.tsx
 msgid "Lowercase letters, numbers, hyphens and underscores, starting with a letter."
 msgstr ""
 
@@ -3599,6 +3638,7 @@ msgid "Muted"
 msgstr ""
 
 #: src/components/teach/SkillDraftCard.tsx
+#: src/components/VaultSettings.tsx
 #: src/pages/AccountSettingsOverlay.tsx
 #: src/pages/Auth.tsx
 #: src/pages/GroupPanel.tsx
@@ -3606,7 +3646,6 @@ msgstr ""
 #: src/pages/model-settings/providers-section.tsx
 #: src/pages/RoutineEditor.tsx
 #: src/pages/shell/agent-import.tsx
-#: src/pages/shell/bot-credentials.tsx
 #: src/pages/shell/bot-panel.tsx
 #: src/pages/shell/create-bot-dialog.tsx
 #: src/pages/shell/dialogs.tsx
@@ -3901,6 +3940,10 @@ msgstr "OAuth 연결 실패"
 msgid "OAuth expired"
 msgstr "OAuth 만료됨"
 
+#: src/components/ComputerDeviceSettings.tsx
+msgid "Offline"
+msgstr ""
+
 #: src/pages/model-settings/connection-controls.tsx
 #: src/pages/Onboarding.tsx
 msgid "Ollama API key"
@@ -4051,9 +4094,10 @@ msgid "Passkeys"
 msgstr "패스키"
 
 #: src/components/AskCard.tsx
+#: src/components/ConfirmIdentityDialog.tsx
+#: src/components/VaultSettings.tsx
 #: src/pages/AccountSettingsOverlay.tsx
 #: src/pages/Auth.tsx
-#: src/pages/shell/bot-credentials.tsx
 msgid "Password"
 msgstr "비밀번호"
 
@@ -4355,7 +4399,6 @@ msgstr "리디렉션 URI"
 #: src/App.tsx
 #: src/components/ErrorBoundary.tsx
 #: src/components/ModelCredits.tsx
-#: src/pages/RoutineRunHistory.tsx
 msgid "Refresh"
 msgstr "새로고침"
 
@@ -4388,15 +4431,17 @@ msgid "Remember for next time"
 msgstr "다음을 위해 기억하기"
 
 #: src/components/ApprovalRulesSettings.tsx
+#: src/components/VaultSettings.tsx
 #: src/pages/McpServersOverlay.tsx
 #: src/pages/ModelRoleSettings.tsx
 #: src/pages/PluginsOverlay.tsx
 #: src/pages/ScratchpadSection.tsx
-#: src/pages/shell/bot-credentials.tsx
 msgid "Remove"
 msgstr "삭제"
 
 #. placeholder {0}: attachment.file.name
+#. placeholder {0}: device.name
+#: src/components/ComputerDeviceSettings.tsx
 #: src/pages/shell/composer.tsx
 msgid "Remove {0}"
 msgstr "{0} 삭제"
@@ -4406,9 +4451,9 @@ msgstr "{0} 삭제"
 msgid "Remove {0} from the group"
 msgstr ""
 
-#: src/pages/shell/bot-credentials.tsx
-msgid "Remove {secretName}? This bot will no longer be able to use it."
-msgstr ""
+#: src/components/VaultSettings.tsx
+msgid "Remove {secretName}? Bots will no longer be able to use it."
+msgstr "{secretName}을(를) 제거할까요? 봇이 더 이상 사용할 수 없습니다."
 
 #: src/pages/RoutineEditor.tsx
 msgid "Remove change trigger"
@@ -4487,7 +4532,7 @@ msgstr "지침 바꾸기"
 msgid "Replace key"
 msgstr "키 교체"
 
-#: src/pages/shell/bot-credentials.tsx
+#: src/components/VaultSettings.tsx
 msgid "Replace value"
 msgstr ""
 
@@ -4698,11 +4743,11 @@ msgstr "토요일"
 msgid "Save"
 msgstr "저장"
 
-#: src/pages/shell/bot-credentials.tsx
+#: src/components/VaultSettings.tsx
 msgid "Save credential"
 msgstr ""
 
-#: src/pages/shell/bot-credentials.tsx
+#: src/components/VaultSettings.tsx
 msgid "Save new value"
 msgstr ""
 
@@ -4738,13 +4783,13 @@ msgstr ""
 
 #: src/components/AskCard.tsx
 #: src/components/teach/SkillDraftCard.tsx
+#: src/components/VaultSettings.tsx
 #: src/pages/GroupPanel.tsx
 #: src/pages/McpServersOverlay.tsx
 #: src/pages/model-settings/connection-controls.tsx
 #: src/pages/model-settings/providers-section.tsx
 #: src/pages/ModelSettingsOverlay.tsx
 #: src/pages/RoutineEditor.tsx
-#: src/pages/shell/bot-credentials.tsx
 #: src/pages/shell/dialogs.tsx
 msgid "Saving…"
 msgstr "저장 중…"
@@ -4846,6 +4891,10 @@ msgstr ""
 msgid "Send answer"
 msgstr "답변 보내기"
 
+#: src/pages/shell/composer-error.tsx
+msgid "Send as file"
+msgstr "파일로 보내기"
+
 #: src/components/AccountAccess.tsx
 msgid "Send deletion code"
 msgstr "삭제 코드 보내기"
@@ -4869,6 +4918,10 @@ msgstr "Enter 키로 전송"
 #: src/components/AskCard.tsx
 msgid "Sending…"
 msgstr "보내는 중…"
+
+#: src/components/AskCard.tsx
+msgid "Sent"
+msgstr ""
 
 #: src/pages/RoutineEditor.tsx
 msgid "Sentry alert"
@@ -4987,6 +5040,7 @@ msgid "Sign in"
 msgstr "로그인"
 
 #: src/components/AccountAccess.tsx
+#: src/components/ConfirmIdentityDialog.tsx
 #: src/lib/passkeys.ts
 #: src/lib/user-error.ts
 #: src/pages/model-settings/connection-controls.tsx
@@ -5020,7 +5074,7 @@ msgstr "구독으로 로그인하거나 대신 API 키를 테스트하세요."
 msgid "Sign up"
 msgstr "가입하기"
 
-#: src/pages/shell/bot-credentials.tsx
+#: src/components/VaultSettings.tsx
 msgid "Site"
 msgstr ""
 
@@ -5141,9 +5195,10 @@ msgstr "SSO를 일시적으로 사용할 수 없습니다. 다시 시도하세�
 msgid "Start"
 msgstr ""
 
+#: src/components/ModelCredits.tsx
 #: src/pages/Paywall.tsx
 msgid "Start {trialDays}-day free trial"
-msgstr ""
+msgstr "{trialDays}일 무료 체험 시작"
 
 #: src/components/teach/TeachComputerOverlay.tsx
 msgid "Start recording"
@@ -5223,6 +5278,14 @@ msgstr "구독"
 #: src/components/ModelCredits.tsx
 msgid "Subscribe for ${0} / month"
 msgstr "월 ${0}에 구독"
+
+#: src/components/ModelCredits.tsx
+msgid "Subscribe to Rakazo credits"
+msgstr "Rakazo 크레딧 구독"
+
+#: src/components/ModelCredits.tsx
+msgid "Subscribe with your own AI"
+msgstr "내 AI로 구독"
 
 #: src/pages/Paywall.tsx
 msgid "Subscription required"
@@ -5316,9 +5379,18 @@ msgstr "테스트 중…"
 msgid "The bot and what its import added will be removed."
 msgstr "봇과 가져오기로 추가된 항목이 제거됩니다."
 
+#: src/pages/shell/composer-error.tsx
+msgid "The bot can use the file but won't see the picture."
+msgstr "Bot은 파일을 사용할 수 있지만 이미지는 볼 수 없습니다."
+
 #: src/lib/model-connection-preflight.ts
 msgid "The connection timed out."
 msgstr "연결 시간이 초과되었습니다."
+
+#. js-lingui-explicit-id
+#: src/lib/run-error.ts
+msgid "The model hit its output limit before finishing its reply."
+msgstr "모델이 답변을 끝내기 전에 출력 한도에 도달했습니다."
 
 #. js-lingui-explicit-id
 #: src/lib/run-error.ts
@@ -5362,7 +5434,7 @@ msgstr "이 파일은 가져오기에 너무 큽니다."
 msgid "These files or choices no longer match. Choose the files again."
 msgstr "파일이나 선택이 더 이상 맞지 않습니다. 파일을 다시 선택하세요."
 
-#: src/pages/shell/bot-credentials.tsx
+#: src/components/VaultSettings.tsx
 msgid "These saved settings can't be read. Remove it and add it again."
 msgstr ""
 
@@ -5400,6 +5472,7 @@ msgstr ""
 
 #: src/components/PasskeySettings.tsx
 #: src/pages/Artifacts.tsx
+#: src/pages/SpaceSettingOverrides.tsx
 msgid "This can't be undone."
 msgstr "되돌릴 수 없습니다."
 
@@ -5440,6 +5513,15 @@ msgstr "이미 사용된 가져오기입니다. 파일을 다시 선택하세요
 #: src/pages/HostComputerPrompt.tsx
 msgid "this Mac"
 msgstr "이 Mac"
+
+#. js-lingui-explicit-id
+#: src/lib/run-error.ts
+msgid "This model cannot read images. Choose a model that supports images."
+msgstr "이 모델은 이미지를 읽을 수 없습니다. 이미지를 지원하는 모델을 선택하세요."
+
+#: src/lib/user-error.ts
+msgid "This model cannot read images. Choose a model that supports images."
+msgstr "이 모델은 이미지를 읽을 수 없습니다. 이미지를 지원하는 모델을 선택하세요."
 
 #. js-lingui-explicit-id
 #: src/lib/run-error.ts
@@ -5566,10 +5648,6 @@ msgstr "도구 소스"
 msgid "Tools"
 msgstr ""
 
-#: src/components/ModelCredits.tsx
-msgid "Top up anytime"
-msgstr ""
-
 #: src/components/composer/HoldToTalk.tsx
 msgid "Transcribing…"
 msgstr ""
@@ -5611,7 +5689,7 @@ msgstr "테스트를 다시 시도하세요."
 msgid "Tuesday"
 msgstr "화요일"
 
-#: src/pages/shell/bot-credentials.tsx
+#: src/components/VaultSettings.tsx
 msgid "Type"
 msgstr ""
 
@@ -5693,7 +5771,7 @@ msgstr "지침을 업데이트할까요?"
 msgid "Update progress"
 msgstr ""
 
-#: src/pages/shell/bot-credentials.tsx
+#: src/components/VaultSettings.tsx
 msgid "Updated {updated}"
 msgstr ""
 
@@ -5795,7 +5873,7 @@ msgid "User peer"
 msgstr ""
 
 #: src/components/AskCard.tsx
-#: src/pages/shell/bot-credentials.tsx
+#: src/components/VaultSettings.tsx
 msgid "Username"
 msgstr ""
 
@@ -5819,10 +5897,15 @@ msgstr ""
 msgid "Using your API key. Free plan ends {freeUntil}."
 msgstr "내 API 키를 사용 중입니다. 무료 플랜이 {freeUntil}에 종료됩니다."
 
+#: src/components/VaultSettings.tsx
 #: src/pages/McpServersOverlay.tsx
-#: src/pages/shell/bot-credentials.tsx
 msgid "Value"
 msgstr "값"
+
+#: src/pages/SettingsOverlay.tsx
+#: src/pages/SpaceSettingOverrides.tsx
+msgid "Vault"
+msgstr "보관함"
 
 #: src/pages/PluginsOverlay.tsx
 msgid "Verify and add"
@@ -5835,10 +5918,6 @@ msgstr "확인 중…"
 #: src/pages/Artifacts.tsx
 msgid "Version"
 msgstr ""
-
-#: src/pages/RoutineRunHistory.tsx
-msgid "View chat"
-msgstr "채팅 보기"
 
 #: src/pages/SettingsOverlay.tsx
 #: src/pages/shell/bot-panel.tsx
@@ -5871,7 +5950,7 @@ msgstr ""
 msgid "Webhook"
 msgstr "웹훅"
 
-#: src/pages/shell/bot-credentials.tsx
+#: src/components/VaultSettings.tsx
 msgid "Website login"
 msgstr ""
 
@@ -5979,6 +6058,10 @@ msgstr "작업 지침"
 #: src/pages/shell/transcript.tsx
 msgid "Working…"
 msgstr "처리 중…"
+
+#: src/components/ModelCredits.tsx
+msgid "Works with your ChatGPT or Claude plan."
+msgstr "ChatGPT 또는 Claude 요금제로 사용할 수 있습니다."
 
 #: src/pages/memory-providers/HonchoSettingsForm.tsx
 msgid "Workspace"

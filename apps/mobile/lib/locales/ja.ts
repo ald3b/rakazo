@@ -1,4 +1,11 @@
 export const JA_MESSAGES: Record<string, string> = {
+  "Not sent. Tap for options": "未送信。タップしてオプションを表示",
+  "Image input is not configured for this model.": "このモデルでは画像入力が設定されていません。",
+  "Send as file": "ファイルとして送信",
+  "The bot can use the file but won't see the picture.":
+    "ボットはファイルを利用できますが、画像の内容は見えません。",
+  "This model cannot read images. Choose a model that supports images.":
+    "このモデルは画像を読み取れません。画像に対応したモデルを選択してください。",
   "Could not connect to the computer screen": "コンピューター画面に接続できませんでした",
   "Retry screen": "画面を再接続",
   "The screen connection closed.": "画面の接続が閉じられました。",
@@ -14,6 +21,8 @@ export const JA_MESSAGES: Record<string, string> = {
   "Manage {provider}": "{provider} を管理",
   "Add provider": "プロバイダーを追加",
   "Choose a model": "モデルを選択",
+  "The model hit its output limit before finishing its reply.":
+    "モデルが返信を書き終える前に出力上限に達しました。",
   "The model returned an unusable response. Try again.":
     "モデルが利用できない応答を返しました。もう一度お試しください。",
   "This model's context window is too small. Choose another model.":
@@ -34,8 +43,6 @@ export const JA_MESSAGES: Record<string, string> = {
   Export: "エクスポート",
   "Edit avatar": "アバターを編集",
   "Add open work": "未完了の作業を追加",
-  "Can edit and organise bots it creates": "自分が作成したボットを編集・整理できます",
-  "How other bots see it": "他のボットからの見え方",
   Permissions: "権限",
   "Open work": "未完了の作業",
   "When it finishes or needs input": "完了時または入力が必要なとき",
@@ -418,6 +425,18 @@ export const JA_MESSAGES: Record<string, string> = {
   Profile: "プロフィール",
   Routines: "ルーティン",
   "Could not load routines": "ルーティンを読み込めませんでした",
+  "{count} on": "{count}件オン",
+  "Ask this Bot in chat to set up a routine.":
+    "チャットでこのBotにルーティンの設定を頼んでください。",
+  "{name}, On": "{name}、オン",
+  "{name}, Off": "{name}、オフ",
+  "Active: {name}": "有効: {name}",
+  "Delete {name}": "{name}を削除",
+  "Delete this routine?": "このルーティンを削除しますか？",
+  "This permanently deletes the routine and its run history.":
+    "ルーティンとその実行履歴が完全に削除されます。",
+  "Could not delete routine": "ルーティンを削除できませんでした",
+  "Could not update routine": "ルーティンを更新できませんでした",
   Bot: "ボット",
   "Close computer": "コンピューターを閉じる",
   "Computer keyboard": "コンピューターのキーボード",
@@ -799,6 +818,8 @@ export const JA_MESSAGES: Record<string, string> = {
   "Default ({level})": "デフォルト（{level}）",
   "Disconnected {provider}.": "{provider}を切断しました。",
   "Sign in again": "再度ログイン",
+  "Confirm it's you": "本人確認",
+  "Email me a code": "メールでコードを送信",
   "Thinking: {level}": "思考: {level}",
   "Waiting for sign-in — the code expires in about {minutes} minutes.":
     "ログインを待機中です。コードの有効期限は約{minutes}分です。",
@@ -954,13 +975,14 @@ export const JA_MESSAGES: Record<string, string> = {
   "Add credits": "クレジットを追加",
   "Manage billing": "請求を管理",
   "Your subscription or API key": "ご自身のサブスクリプションまたはAPIキー",
-  "Free. ChatGPT, Claude, or any model provider.":
-    "無料。ChatGPT、Claude、または任意のモデルプロバイダー。",
-  "{price} / month. ChatGPT, Claude, or any model provider.":
-    "月額 {price}。ChatGPT、Claude、または任意のモデルプロバイダー。",
+  "Free. Works with your ChatGPT or Claude plan.":
+    "無料。ChatGPT または Claude のプランで使えます。",
+  "{price} / month. Works with your ChatGPT or Claude plan.":
+    "月額 {price}。ChatGPT または Claude のプランで使えます。",
   "Free plan ends": "無料プランの終了日",
   Subscribe: "登録する",
   "Use my subscription or API key": "自分のサブスクリプションまたはAPIキーを使用",
+  "Start {days}-day free trial": "{days}日間の無料トライアルを開始",
   "Monthly credits expire at renewal. Top-ups do not expire.":
     "月間クレジットは更新時に失効します。追加購入分は失効しません。",
   "Use Rakazo credits": "Rakazoクレジットを使用",
@@ -1083,7 +1105,32 @@ export const JA_MESSAGES: Record<string, string> = {
   "on the 1st at {time}": "1日 {time}",
   "on day {day} at {time}": "{day}日 {time}",
   "Every hour at :{minute}": "毎時{minute}分",
+  "Every {n} hours at :{minute}": "{n}時間ごと、{minute}分",
   "{from} to {to}": "{from}〜{to}",
   "Every {day}": "毎週{day}",
   "Every {days} and {last}": "毎週{days}と{last}",
+  "Run history": "実行履歴",
+  "No runs yet": "実行はまだありません",
+  "Load older runs": "過去の実行を読み込む",
+  "Could not load run history": "実行履歴を読み込めませんでした",
+  Vault: "保管庫",
+  "Add credential": "認証情報を追加",
+  "Replace value": "値を置き換え",
+  "Remove {name}?": "{name}を削除しますか？",
+  "Could not save the credential": "認証情報を保存できませんでした",
+  "Could not remove the credential": "認証情報を削除できませんでした",
+  Type: "種類",
+  Site: "サイト",
+  Value: "値",
+  "Custom header": "カスタムヘッダー",
+  "Basic auth": "Basic認証",
+  "Website login": "Webサイトのログイン",
+  "Use lowercase letters, numbers, - and _, starting with a letter.":
+    "小文字、数字、-、_ を使い、文字で始めてください。",
+  "{variable} is reserved. Choose another name.":
+    "{variable} は予約されています。別の名前を選んでください。",
+  "Delete this Space's credentials?": "このスペースの認証情報を削除しますか？",
+  "Copy username": "ユーザー名をコピー",
+  "Copy password": "パスワードをコピー",
+  "Could not show the credential": "認証情報を表示できませんでした",
 };

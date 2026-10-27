@@ -1241,6 +1241,7 @@ describe("MCP prepared credential updates", () => {
           [...rows.values()].filter((row) => row.ciphertext === where.ciphertext).length,
       },
       botSecret: { count: async () => 0 },
+      vaultCredential: { count: async () => 0 },
       integrationProviderConfig: { count: async () => 0 },
       $executeRaw: async () => 1,
       $queryRaw: async () => [],
@@ -6499,6 +6500,55 @@ describe("routine live Codex model validation", () => {
       expect(save).toHaveBeenCalledOnce();
     },
   );
+});
+
+describe("routines.list", () => {
+  it("marks routines another Space member created as not editable", async () => {
+    // Listing reads only the user and Space.
+    const actor = { userId: "user-1", spaceId: "space-1" };
+    const row = (id: string, userId: string) => ({
+      id,
+      botId: "bot-1",
+      spaceId: "space-1",
+      userId,
+      name: id,
+      prompt: "Check changes",
+      crons: ["0 9 * * *"],
+      timezone: "UTC",
+      active: true,
+      notify: false,
+      webhookEnabled: false,
+      githubEnabled: false,
+      messageProvider: null,
+      modelProvider: null,
+      modelId: null,
+      thinkingLevel: null,
+      watch: null,
+      watchState: null,
+      lastRunAt: null,
+      nextRunAt: null,
+      createdAt: new Date("2026-09-01T00:00:00.000Z"),
+    });
+    const client = createRouterClient(
+      createRouter({
+        prisma: {
+          bot: { findFirst: vi.fn(async () => ({ id: "bot-1", thread: null, computer: null })) },
+          routine: {
+            findMany: vi.fn(async () => [row("mine", "user-1"), row("theirs", "user-2")]),
+          },
+        },
+        env: { sandboxProvider: "fake" },
+      } as unknown as RouterDeps),
+      { context: { actor } as never },
+    );
+
+    const routines = await client.routines.list({ botId: "bot-1" });
+    expect(routines.map(({ id, editable }) => ({ id, editable }))).toEqual([
+      { id: "mine", editable: true },
+      { id: "theirs", editable: false },
+    ]);
+    expect(routines[0]).not.toHaveProperty("userId");
+  });
 });
 
 describe("routines.update", () => {
