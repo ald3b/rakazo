@@ -1,30 +1,9 @@
-import type { SecretStore } from "@rakazo/adapter-kit";
-import { AgentSecretInputSchema } from "@rakazo/contracts";
 import {
   DIGIT_SEPARATOR_UNIT,
   digitsRedactionPattern,
   redactionSpan,
   redactSecrets,
 } from "@rakazo/core";
-
-type EncryptedAgentSecret = {
-  name: string;
-  secret: { id: string; ciphertext: string };
-};
-
-export async function decryptAgentEnvironment(
-  rows: EncryptedAgentSecret[],
-  secrets: Pick<SecretStore, "load">,
-): Promise<Record<string, string>> {
-  return Object.fromEntries(
-    await Promise.all(
-      rows.map(async (row) => {
-        AgentSecretInputSchema.shape.name.parse(row.name);
-        return [row.name, await secrets.load(row.secret.ciphertext, row.secret.id)];
-      }),
-    ),
-  );
-}
 
 export function formatAgentEnvironmentInstruction(
   environment: Record<string, string>,
