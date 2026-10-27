@@ -725,7 +725,12 @@ EVAL_HELPERS = r"""
       const key = formKey(target.form);
       const sameForm = el.form === target.form ||
         Boolean(!target.form.isConnected && key && formKey(el.form) === key);
-      return sameForm && !searchForm(el.form) && signInSized(el.form);
+      if (!sameForm || searchForm(el.form) || !signInSized(el.form)) return false;
+      // The username's own field is gone, so the one now in its place is unknown: no other field of
+      // the form may hold text other than that username.
+      return target.field.isConnected || [...el.form.elements].every((field) => field === el ||
+        !(field instanceof HTMLInputElement && ["text", "email", "tel"].includes(field.type)) ||
+        !field.value || usernameKey(field.value) === target.key);
     }
     // Without a form, the two fields share their nearest container, and nothing else in it is a
     // field to type into: a sign-in, not a page with a feedback box beside it.

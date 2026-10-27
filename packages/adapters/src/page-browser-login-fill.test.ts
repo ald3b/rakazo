@@ -317,6 +317,50 @@ describe("live page helper saved-login fill", () => {
       }
     });
 
+    it("follows a re-rendered form only while its new username field holds no other text", () => {
+      const form =
+        '<form id="signin" action="/signin"><input aria-label="ID number" /><input aria-label="Phone" type="tel" /></form>';
+      const notBeside = /form its username was typed into/;
+      const rerendered = (rerender: "form" | "input", fill?: (field: HTMLInputElement) => void) => {
+        const page = installPageHelper(`${origin}/signin`, form);
+        fillId(page.browser);
+        const fresh = page.domWindow.document.createElement("input");
+        fresh.setAttribute("aria-label", "ID number");
+        if (rerender === "form") page.domWindow.document.body.innerHTML = form;
+        else phoneField(page.domWindow, "ID number").replaceWith(fresh);
+        fill?.(phoneField(page.domWindow, "ID number"));
+        return page;
+      };
+      for (const rerender of ["form", "input"] as const) {
+        // Other text the bot fills into the new username field.
+        const filled = rerendered(rerender);
+        filled.browser.fill(
+          refFor("ID number", filled.browser.snapshot().elements),
+          "someone-else@example.test",
+        );
+        expect(() => marked(filled.browser), rerender).toThrow(notBeside);
+        // Other text the person types into it.
+        const typed = rerendered(rerender, (field) => {
+          field.value = "typed-by-hand";
+          field.dispatchEvent(
+            new field.ownerDocument.defaultView!.Event("input", { bubbles: true }),
+          );
+        });
+        expect(() => marked(typed.browser), rerender).toThrow(notBeside);
+        expect(phoneField(typed.domWindow).value).toBe("");
+        // Kept as it was, reformatted, or still empty, it follows.
+        for (const value of ["fake-id", "FAKE-ID", ""]) {
+          const kept = rerendered(rerender, (field) => {
+            field.value = value;
+          });
+          marked(kept.browser);
+          expect(phoneField(kept.domWindow).value, `${rerender} ${value}`).toBe(
+            "fake-phone-0501234",
+          );
+        }
+      }
+    });
+
     it.each([
       ["trims", " fake-id ", (text: string) => text.trim()],
       ["lowercases", "Fake.User@Example.test", (text: string) => text.toLowerCase()],
