@@ -6,6 +6,8 @@ import type {
   ComputerRef,
 } from "@rakazo/adapter-kit";
 import { MAX_BROWSER_UPLOAD_FILES } from "@rakazo/adapter-kit";
+import type { PurchaseCardField } from "@rakazo/contracts";
+import { PURCHASE_CARD_FIELDS } from "@rakazo/contracts";
 import { getLogger } from "@rakazo/logging";
 import type { LoginField } from "./bot-secrets.js";
 import { redactConnectorPayload } from "./connector-safety.js";
@@ -32,12 +34,12 @@ export type SecretFillStep = {
   secret: string;
   field: LoginField;
 };
-/** Types an approved purchase's card detail; the model never supplies or sees the value. */
+/** The model never supplies or sees the value. */
 export type CardFillStep = {
   kind: "fill_card";
-  ref: string;
+  ref?: string;
   purchase: string;
-  field: "number" | "cvc";
+  field: PurchaseCardField;
 };
 export type BrowserActInput = BrowserActStep | SecretFillStep | CardFillStep;
 /** desktopTools: the run also has computer_act, so a page-tool failure can fall back to it. */
@@ -175,19 +177,24 @@ export async function browserActFromTool(
         };
       }
       if ("error" in resolved) return { ...refusedInput(resolved.error), completed: 0 };
-      actions.push({
-        kind: "fill",
-        ref: step.ref,
-        text: resolved.text,
-        origin: resolved.origin,
-        ...(step.kind === "fill_card"
-          ? { field: "card" as const }
-          : {
-              field: step.field,
-              login: step.secret,
-              ...(resolved.secondValue === "text" ? { secondValue: "text" as const } : {}),
-            }),
-      });
+      const { text, origin } = resolved;
+      if (step.kind === "fill_card") {
+        actions.push(
+          step.ref === undefined
+            ? { kind: "fill", text, origin, field: "card", cardField: step.field }
+            : { kind: "fill", ref: step.ref, text, origin, field: "card" },
+        );
+      } else {
+        actions.push({
+          kind: "fill",
+          ref: step.ref,
+          text,
+          origin,
+          field: step.field,
+          login: step.secret,
+          ...(resolved.secondValue === "text" ? { secondValue: "text" as const } : {}),
+        });
+      }
     }
     const result = await browser.act(computer, { actions, signal: context.signal }, context);
     const refusedStep = steps[result.completed];
@@ -237,6 +244,20 @@ export function parseBrowserActions(value: unknown): BrowserActInput[] {
       );
     }
     const ref = String(action.ref ?? "").trim();
+    if (kind === "fill_card") {
+      const purchase = String(action.purchase ?? "").trim();
+      const field = action.field;
+      if (!purchase)
+        throw new BrowserToolInputError(
+          "browser_act fill_card needs purchase: the id of an approved purchase",
+        );
+      if (!(PURCHASE_CARD_FIELDS as readonly unknown[]).includes(field)) {
+        throw new BrowserToolInputError(
+          `browser_act fill_card needs field: ${PURCHASE_CARD_FIELDS.map((name) => `"${name}"`).join(", ")}`,
+        );
+      }
+      return { kind, ...(ref ? { ref } : {}), purchase, field: field as PurchaseCardField };
+    }
     if (!ref) throw new BrowserToolInputError(`browser_act action ${index} requires ref`);
     if (kind === "upload") {
       const paths = Array.isArray(action.paths)
@@ -267,18 +288,6 @@ export function parseBrowserActions(value: unknown): BrowserActInput[] {
         );
       }
       return { kind, ref, secret, field };
-    }
-    if (kind === "fill_card") {
-      const purchase = String(action.purchase ?? "").trim();
-      const field = action.field;
-      if (!purchase)
-        throw new BrowserToolInputError(
-          "browser_act fill_card needs purchase: the id of an approved purchase",
-        );
-      if (field !== "number" && field !== "cvc") {
-        throw new BrowserToolInputError('browser_act fill_card needs field: "number" or "cvc"');
-      }
-      return { kind, ref, purchase, field };
     }
     if (kind === "fill" || kind === "type") {
       if (typeof action.text !== "string") {

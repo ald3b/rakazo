@@ -1,6 +1,7 @@
 import type {
   CacheCapabilities as ConnectionCacheCapabilities,
   ConnectionCatalogItem,
+  PurchaseCardField,
   SandboxKind,
 } from "@rakazo/contracts";
 
@@ -798,6 +799,7 @@ export interface TransactionalEmail {
   subject: string;
   text: string;
   html?: string;
+  headers?: Record<string, string>;
 }
 
 export type MessagingReceipt = "typing" | "reaction";
@@ -1045,6 +1047,14 @@ export type BrowserActStep =
       secondValue?: "text";
       /** The saved login's name, so its second value follows its own username into one form. */
       login?: string;
+    }
+  | {
+      kind: "fill";
+      ref?: undefined;
+      text: string;
+      origin: string;
+      field: "card";
+      cardField: PurchaseCardField;
     };
 
 export interface BrowserActRequest {
