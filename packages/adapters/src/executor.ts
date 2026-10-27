@@ -820,9 +820,9 @@ export function createRunExecutor(deps: ExecutorDeps) {
         // Serialize copies before each tool, including attachments received while a boot is in flight.
         // Sites whose run login ended, possibly in a run that stopped without cleaning up or while
         // this one was going: their tabs close before each computer tool can read them, and until
-        // they do, computer tools wait (their login is no longer there to hide). Tools that start
-        // together share one cleanup.
-        let endedLoginCleanup: Promise<boolean> | undefined;
+        // they do, computer tools wait (their login is no longer there to hide). One cleanup runs
+        // at a time, so two tools never close a site together.
+        let endedLoginCleanup: Promise<unknown> = Promise.resolve();
         const cleanUpEndedLogins = (computer: ComputerRef) =>
           cleanUpEndedRunLogins({
             prisma: deps.prisma,
@@ -850,14 +850,9 @@ export function createRunExecutor(deps: ExecutorDeps) {
             },
             async () => {
               const computer = await runComputer.get();
-              endedLoginCleanup ??= cleanUpEndedLogins(computer).finally(() => {
-                endedLoginCleanup = undefined;
-              });
-              // The person taking over may see the page; the bot's tools may not read it.
-              if (!(await endedLoginCleanup) && reason === "tool")
-                throw new Error(ENDED_LOGIN_CLEANUP_PENDING);
               // Another run's login typed on this computer may be on an open page there; this run
-              // hides it as that run does.
+              // hides it as that run does. Read before the cleanup below starts, so a login is
+              // either still going here and hidden, or has ended by then and is closed.
               addRunSecrets(
                 ctx,
                 await loadComputerRunLoginRedactions(
@@ -867,6 +862,11 @@ export function createRunExecutor(deps: ExecutorDeps) {
                   run.id,
                 ),
               );
+              const cleanup = endedLoginCleanup.then(() => cleanUpEndedLogins(computer));
+              endedLoginCleanup = cleanup;
+              // The person taking over may see the page; the bot's tools may not read it.
+              if (!(await cleanup) && reason === "tool")
+                throw new Error(ENDED_LOGIN_CLEANUP_PENDING);
               copyingTurnFiles = copyingTurnFiles
                 .catch(() => undefined)
                 .then(async () => {

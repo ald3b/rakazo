@@ -100,7 +100,11 @@ async function runTool(
     /** A second tool the bot calls in the same run, after `before`. */
     next?: { call: { name: string; args: Record<string, unknown> }; before: () => void };
     /** What finishing the run does and returns. */
-    finalize?: () => { continuationRunId: string | null };
+    finalize?: (input: { outcome: string }) => { continuationRunId: string | null };
+    /** Ends the run with this model error after its tools. */
+    failWith?: Error;
+    /** Called after each read of the run logins, with its filter. */
+    afterLoginRead?: (where: Record<string, unknown>) => void;
   } = {},
 ) {
   const run = {
@@ -127,6 +131,7 @@ async function runTool(
           .catch((error: unknown) => ({ thrown: (error as Error).message })),
       );
     }
+    if (options.failWith) throw options.failWith;
     yield { type: "done" as const, text: "" };
   });
   const runLogins = options.runLogins ?? [];
@@ -202,10 +207,13 @@ async function runTool(
         }: {
           where: Record<string, unknown>;
           select: Record<string, true>;
-        }) =>
-          runLogins
+        }) => {
+          const rows = runLogins
             .filter((row) => matches(row, where))
-            .map((row) => Object.fromEntries(Object.keys(select).map((key) => [key, row[key]]))),
+            .map((row) => Object.fromEntries(Object.keys(select).map((key) => [key, row[key]])));
+          options.afterLoginRead?.(where);
+          return rows;
+        },
       },
       // These runs act without approval cards; the card flow has its own tests.
       actionAutoReviewPreference: {
@@ -238,7 +246,10 @@ async function runTool(
   );
   const events = {
     append: vi.fn(async () => undefined),
-    finalizeRun: vi.fn(async () => options.finalize?.() ?? { continuationRunId: null }),
+    finalizeRun: vi.fn(
+      async (input: { outcome: string }) =>
+        options.finalize?.(input) ?? { continuationRunId: null },
+    ),
     pauseRunForTakeover: vi.fn(async () => false),
     pauseRunForInput: vi.fn(async () => true),
   };
@@ -438,26 +449,36 @@ describe("a run whose login ends while it is on the computer", () => {
     act: vi.fn(),
   });
 
-  it("closes another member's login's site when it ends, even with a continuation", async () => {
-    const order: string[] = [];
-    const browser = closingBrowser(order);
-    // Another member gave it on this run; a continuation for that member's message doesn't take
-    // it over, so it ends with this run.
-    const othersLogin = { ...(await runLogin("run-1")), userId: "user-2", filledAt: new Date(0) };
-    await runTool(
-      { name: "shell", args: { command: "true" } },
-      {
-        runLogins: [othersLogin],
-        browser,
-        onExecute: () => order.push("shell"),
-        finalize: () => {
-          Object.assign(othersLogin, { ciphertext: "", endedAt: new Date() });
-          return { continuationRunId: "run-2" };
+  it.each([
+    ["completes", undefined],
+    ["fails", new Error("model stream broke")],
+  ])(
+    "closes another member's login's site when the run %s, even with a continuation",
+    async (expected, failWith) => {
+      const order: string[] = [];
+      const browser = closingBrowser(order);
+      // Another member gave it on this run; a continuation for that member's message doesn't take
+      // it over, so it ends with this run.
+      const othersLogin = { ...(await runLogin("run-1")), userId: "user-2", filledAt: new Date(0) };
+      const outcomes: string[] = [];
+      await runTool(
+        { name: "shell", args: { command: "true" } },
+        {
+          runLogins: [othersLogin],
+          browser,
+          failWith,
+          onExecute: () => order.push("shell"),
+          finalize: ({ outcome }) => {
+            outcomes.push(outcome);
+            Object.assign(othersLogin, { ciphertext: "", endedAt: new Date() });
+            return { continuationRunId: "run-2" };
+          },
         },
-      },
-    );
-    expect(order).toEqual(["shell", "closeSite"]);
-  });
+      );
+      expect(outcomes).toEqual([expected === "fails" ? "failed" : "completed"]);
+      expect(order).toEqual(["shell", "closeSite"]);
+    },
+  );
 
   it("closes a site whose login ended after this run's first computer tool", async () => {
     const order: string[] = [];
@@ -478,6 +499,37 @@ describe("a run whose login ends while it is on the computer", () => {
       },
     );
     expect(order).toEqual(["shell", "closeSite", "shell"]);
+  });
+});
+
+describe("another run's login that ends just as this run's tool starts", () => {
+  it("is hidden from the tool, or its site closed, never neither", async () => {
+    const order: string[] = [];
+    const browser = {
+      describe: () => ({ id: "fake", capabilities: {} }),
+      closeSite: vi.fn(async () => {
+        order.push("closeSite");
+        return { ok: true };
+      }),
+      snapshot: vi.fn(),
+      navigate: vi.fn(),
+      act: vi.fn(),
+    };
+    const held = { ...(await runLogin("run-0")), filledAt: new Date(0) };
+    const { toolResults } = await runTool(
+      { name: "shell", args: { command: "read-page" } },
+      {
+        runLogins: [held],
+        browser,
+        printed: "field=fake-password-1",
+        // That run ends right after the tool's first look at the logins on this computer.
+        afterLoginRead: (where) => {
+          if ("filledComputerId" in where)
+            Object.assign(held, { ciphertext: "", endedAt: new Date() });
+        },
+      },
+    );
+    expect(JSON.stringify(toolResults)).not.toContain("fake-password-1");
   });
 });
 
