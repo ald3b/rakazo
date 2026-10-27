@@ -227,7 +227,6 @@ export const JA_MESSAGES: Record<string, string> = {
   "Search conversations, files, and routines": "会話、ファイル、ルーティンを検索",
   "Searching…": "検索中…",
   "Space actions for {name}": "{name}のスペース操作",
-  // app/(settings)/space.tsx
   Customize: "カスタマイズ",
   "Customize {setting}": "{setting}をカスタマイズ",
   "Tap + to create a bot": "+をタップしてボットを作成",
@@ -1133,4 +1132,8 @@ export const JA_MESSAGES: Record<string, string> = {
   "Copy username": "ユーザー名をコピー",
   "Copy password": "パスワードをコピー",
   "Could not show the credential": "認証情報を表示できませんでした",
+  Wallet: "ウォレット",
+  "Connect {name}": "{name}に接続",
+  "Could not load wallet": "ウォレットを読み込めませんでした",
+  "Could not update wallet": "ウォレットを更新できませんでした",
 };

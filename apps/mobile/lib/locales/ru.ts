@@ -673,7 +673,6 @@ export const RU_MESSAGES: Record<string, string> = {
   Skip: "Пропустить",
   Space: "Пространство",
   "Space actions for {name}": "Действия пространства {name}",
-  // app/(settings)/space.tsx
   Customize: "Настроить",
   "Customize {setting}": "Настроить: {setting}",
   "Space created": "Пространство создано",
@@ -832,7 +831,6 @@ export const RU_MESSAGES: Record<string, string> = {
     "Встроенный голос телефона. Бесплатно, без аккаунта",
   "Could not save that preference": "Не удалось сохранить эту настройку",
   Username: "Имя пользователя",
-  // app/(settings)/models.tsx
   "Move down": "Переместить ниже",
   "Move up": "Переместить выше",
   "Tried in order if the active model fails.":
@@ -909,7 +907,6 @@ export const RU_MESSAGES: Record<string, string> = {
   "Hi, this is how I'll sound.": "Привет, вот так я звучу.",
   "Open external link?": "Открыть внешнюю ссылку?",
   Open: "Открыть",
-  // ai-data-sharing
   "AI models": "Модели ИИ",
   Memory: "Память",
   "Privacy policies": "Политики конфиденциальности",
@@ -1142,4 +1139,8 @@ export const RU_MESSAGES: Record<string, string> = {
   "Copy username": "Скопировать имя пользователя",
   "Copy password": "Скопировать пароль",
   "Could not show the credential": "Не удалось показать учетные данные",
+  Wallet: "Кошелёк",
+  "Connect {name}": "Подключить {name}",
+  "Could not load wallet": "Не удалось загрузить кошелёк",
+  "Could not update wallet": "Не удалось обновить кошелёк",
 };
