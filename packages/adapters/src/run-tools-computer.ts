@@ -272,7 +272,6 @@ export const computerTools: ToolHandlers = {
       prisma: deps.prisma,
       secretStore: deps.secretStore,
       scope: run,
-      spaceEnvironment: ctx.agentEnvironment,
       registerRedactions: (values) => addRunSecrets(ctx, values),
     });
     ctx.computer.checkpoint.markDirty();
