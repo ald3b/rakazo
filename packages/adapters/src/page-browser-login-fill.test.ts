@@ -256,6 +256,43 @@ describe("live page helper saved-login fill", () => {
       expect(phoneField(domWindow).value).toBe("fake-phone-0501234");
     });
 
+    it("goes beside its username only while the field still holds it", () => {
+      const { domWindow, browser } = installPageHelper(`${origin}/signin`, idPage);
+      const idField = phoneField(domWindow, "ID number");
+      const fillOver = (value: string, login?: string) =>
+        browser.fill(
+          refFor("ID number", browser.snapshot().elements),
+          value,
+          login ? origin : undefined,
+          login ? "username" : undefined,
+          undefined,
+          login,
+        );
+      const notBeside = /form its username was typed into/;
+      // Another saved login's username typed over it, even the same one.
+      for (const value of ["fake-id-b", "fake-id"]) {
+        fillId(browser);
+        fillOver(value, "other_login");
+        expect(() => marked(browser), value).toThrow(notBeside);
+      }
+      // An ordinary fill over it.
+      fillId(browser);
+      fillOver("someone-else");
+      expect(() => marked(browser)).toThrow(notBeside);
+      // The person typing over it.
+      fillId(browser);
+      idField.value = "typed-by-hand";
+      idField.dispatchEvent(new domWindow.Event("input", { bubbles: true }));
+      expect(() => marked(browser)).toThrow(notBeside);
+      expect(domWindow.document.body.innerHTML).not.toContain("fake-phone");
+      expect(phoneField(domWindow).value).toBe("");
+      // Its own username, filled again, is followed by its second value as before.
+      fillId(browser);
+      fillId(browser);
+      marked(browser);
+      expect(phoneField(domWindow).value).toBe("fake-phone-0501234");
+    });
+
     it("never goes into a field or form labelled as a search", () => {
       const page = `
         <form id="a"><input aria-label="ID number" /><label for="b">Search</label><input id="b" type="tel" /></form>

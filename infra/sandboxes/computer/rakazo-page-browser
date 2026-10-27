@@ -692,7 +692,8 @@ EVAL_HELPERS = r"""
   // Where each login's username went in this document: its marked second value goes only beside
   // it, in a small sign-in form, so it can't be typed into a search box, a comment or contact form,
   // or a field elsewhere on the site. A page that moved to another address since, its query or
-  // fragment included, starts again.
+  // fragment included, starts again, as does a field filled or typed over since, so the value is
+  // never paired with another account's username.
   const usernameTargets = new Map();
   const formKey = (form) => {
     const key = form && [form.id, form.name, form.getAttribute("action")].join("|");
@@ -710,7 +711,7 @@ EVAL_HELPERS = r"""
   function besideUsername(el, login) {
     const target = login && usernameTargets.get(login);
     if (!target || el === target.field || el.getRootNode() !== target.root) return false;
-    if (location.href !== target.address) return false;
+    if (location.href !== target.address || target.field.value !== target.value) return false;
     if (searchField(target.field)) return false;
     if (target.form) {
       // A page that re-renders its form after the username keeps the same form, not the same node.
@@ -976,8 +977,9 @@ EVAL_HELPERS = r"""
         const prototype = el instanceof HTMLInputElement ? HTMLInputElement.prototype
           : el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLSelectElement.prototype;
         // Any fill replaces an earlier fill's watcher, so a field filled with something else is
-        // no longer held.
+        // no longer held, and ends any login's username record in it, also for the same text.
         stopMasking(el);
+        for (const [name, target] of usernameTargets) if (target.field === el) usernameTargets.delete(name);
         // Held in a password field before the value is set, so it is never drawn as text.
         const kept = maskedText ? keepHidden(el, String(value)) : null;
         Object.getOwnPropertyDescriptor(prototype, "value").set.call(el, String(value));
@@ -1001,7 +1003,9 @@ EVAL_HELPERS = r"""
         if (hidden === "detached") throw new Error("The page replaced this field as the login was typed. Check it with browser_snapshot before trying again.");
         if (hidden === false) throw refused("The page showed this field as text, so it was cleared.");
         if (origin && !password && login) {
-          usernameTargets.set(login, { field: el, form: el.form, root: el.getRootNode(), address: location.href });
+          usernameTargets.set(login, {
+            field: el, value: el.value, form: el.form, root: el.getRootNode(), address: location.href,
+          });
         }
       } else if (el.isContentEditable) {
         el.textContent = String(value);
