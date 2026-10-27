@@ -214,14 +214,28 @@ export async function selectSpace(id: string) {
     if (cachedSpaceId === id && spaceSelectionGeneration === claimGeneration) {
       cachedSpaceId = previousSpaceId;
       bumpSpaceSelectionGeneration();
+      const rollbackGeneration = spaceSelectionGeneration;
       if (previousSpaceId) await writeStoredValue(SPACE_KEY, previousSpaceId);
+      if (previousSpaceId)
+        await resumeSelectedSpaceNotifications(previousSpaceId, rollbackGeneration);
     }
     return false;
   }
-  await resumeLiveNotifications(currentApiBase(), await loadSessionToken(), id).catch(
-    () => undefined,
-  );
+  await resumeSelectedSpaceNotifications(id, claimGeneration);
   return true;
+}
+
+async function resumeSelectedSpaceNotifications(id: string, generation: number): Promise<void> {
+  const apiBase = currentApiBase();
+  const sessionGeneration = currentSessionGeneration();
+  const token = await loadSessionToken();
+  if (
+    generation !== spaceSelectionGeneration ||
+    sessionGeneration !== currentSessionGeneration() ||
+    apiBase !== currentApiBase()
+  )
+    return;
+  await resumeLiveNotifications(apiBase, token, id).catch(() => undefined);
 }
 
 export function selectedSpaceId(): string | null {
@@ -893,7 +907,9 @@ async function request(
     if (!res.ok) {
       // oRPC sends a failure as `{ json: { code, status, message } }`; the message is the
       // server's user-facing copy.
-      const error = parsed.json as { message?: unknown; code?: unknown } | undefined;
+      const error = parsed.json as
+        | { message?: unknown; code?: unknown; data?: unknown }
+        | undefined;
       const message = errorText(typeof error?.message === "string" ? error.message : "");
       const unauthorized = res.status === 401;
       // Without a Space header a 401 means the server no longer accepts the
@@ -976,7 +992,10 @@ async function request(
         if (!selectedSpaceId()) await clearStaleSpaceSelection();
         throw new Error(message);
       }
-      throw httpError(message, res, typeof error?.code === "string" ? error.code : undefined);
+      throw Object.assign(
+        httpError(message, res, typeof error?.code === "string" ? error.code : undefined),
+        { data: error?.data },
+      );
     }
     const verifiedUser = parsed.json as { userId?: unknown; spaceId?: unknown } | null;
     if (
@@ -1682,9 +1701,9 @@ export async function fetchAccountSecurity(): Promise<AccountSecurity> {
   }
 }
 
-export async function requestAccountDeletionCode(): Promise<void> {
+async function postSignedInAuth(path: string, payload: Record<string, string> = {}): Promise<void> {
   const { response, body, invalidJson } = await fetchMobileJson<unknown>(
-    `${currentApiBase()}/api/auth/request-account-deletion`,
+    `${currentApiBase()}/api/auth${path}`,
     {
       method: "POST",
       headers: {
@@ -1692,7 +1711,7 @@ export async function requestAccountDeletionCode(): Promise<void> {
         origin: "rakazo://",
         ...(await authHeaders()),
       },
-      body: "{}",
+      body: JSON.stringify(payload),
     },
     null,
   );
@@ -1701,3 +1720,12 @@ export async function requestAccountDeletionCode(): Promise<void> {
       authResponseErrorText(response.status, body, invalidJson, t("Could not continue")),
     );
 }
+
+export const requestAccountDeletionCode = () => postSignedInAuth("/request-account-deletion");
+
+/** Emails a confirmation code to an account without a password. */
+export const requestIdentityCode = () => postSignedInAuth("/request-identity-code");
+
+/** Confirms this session's identity for the next few minutes. */
+export const confirmIdentity = (proof: { password: string } | { code: string }) =>
+  postSignedInAuth("/confirm-identity", proof);

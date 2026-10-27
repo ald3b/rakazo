@@ -65,6 +65,11 @@ msgstr "Conexão {0}"
 msgid "{0} default"
 msgstr ""
 
+#. placeholder {0}: parts.amount
+#: src/components/ArtifactFileCard.tsx
+msgid "{0} GB"
+msgstr "{0} GB"
+
 #. placeholder {0}: sender.name
 #: src/pages/ExternalConversationSettings.tsx
 msgid "{0} handling"
@@ -85,12 +90,12 @@ msgstr "{0} não está funcionando"
 msgid "{0} is running"
 msgstr "{0} está em execução"
 
-#. placeholder {0}: format(size / 1024)
+#. placeholder {0}: parts.amount
 #: src/components/ArtifactFileCard.tsx
 msgid "{0} KB"
 msgstr "{0} KB"
 
-#. placeholder {0}: format(size / (1024 * 1024))
+#. placeholder {0}: parts.amount
 #: src/components/ArtifactFileCard.tsx
 msgid "{0} MB"
 msgstr "{0} MB"
@@ -99,6 +104,11 @@ msgstr "{0} MB"
 #: src/pages/ExternalConversationSettings.tsx
 msgid "{0} rollup hours"
 msgstr ""
+
+#. placeholder {0}: parts.amount
+#: src/components/ArtifactFileCard.tsx
+msgid "{0} TB"
+msgstr "{0} TB"
 
 #. placeholder {0}: bot.name
 #: src/pages/ExternalConversationSettings.tsx
@@ -122,7 +132,7 @@ msgstr "{botCount, plural, one {Excluir {name} e seu # bot?} other {Excluir {nam
 msgid "{botName}’s computer"
 msgstr "Computador do {botName}"
 
-#: src/pages/shell/bot-credentials.tsx
+#: src/components/VaultSettings.tsx
 msgid "{commandVariable} is reserved and cannot be used as a command variable. Choose another name."
 msgstr "{commandVariable} é reservada e não pode ser usada como variável de comando. Escolha outro nome."
 
@@ -356,13 +366,9 @@ msgid "@{0}"
 msgstr "@{0}"
 
 #. placeholder {0}: amount / 100
+#. placeholder {0}: status.byokPriceCents / 100
 #: src/components/ModelCredits.tsx
 msgid "${0} / month"
-msgstr ""
-
-#. placeholder {0}: amount / 100
-#: src/components/ModelCredits.tsx
-msgid "${0} in monthly model credits. No API key needed."
 msgstr ""
 
 #: src/pages/shell/message-cards.tsx
@@ -490,7 +496,7 @@ msgstr "Adicione um URL do servidor HTTPS."
 msgid "Add another"
 msgstr ""
 
-#: src/pages/shell/bot-credentials.tsx
+#: src/components/VaultSettings.tsx
 msgid "Add credential"
 msgstr ""
 
@@ -609,6 +615,11 @@ msgstr "Computador do agente"
 msgid "Agents:"
 msgstr "Agentes:"
 
+#. placeholder {0}: amount / 100
+#: src/components/ModelCredits.tsx
+msgid "All ${0} goes to model usage."
+msgstr "Todos os ${0} vão para o uso de modelos."
+
 #: src/pages/Artifacts.tsx
 #: src/pages/shell/agent-import.tsx
 msgid "All bots"
@@ -631,11 +642,19 @@ msgid "Allow cross-space bot communication"
 msgstr ""
 
 #: src/components/AskCard.tsx
+msgid "Allow for this chat"
+msgstr ""
+
+#: src/components/AskCard.tsx
 msgid "Allow once"
 msgstr "Permitir uma vez"
 
 #: src/pages/memory-providers/SerenitySettingsForm.tsx
 msgid "Allow writing"
+msgstr ""
+
+#: src/components/AskCard.tsx
+msgid "Allowed for this chat"
 msgstr ""
 
 #: src/components/AskCard.tsx
@@ -706,11 +725,6 @@ msgstr "Resposta"
 #: src/components/AskCard.tsx
 msgid "Answered"
 msgstr "Respondido"
-
-#. placeholder {0}: selectedAskActionLabel(answer, actions)
-#: src/components/AskCard.tsx
-msgid "Answered: {0}"
-msgstr "Respondido: {0}"
 
 #: src/components/AskCard.tsx
 msgid "Answered: {answer}"
@@ -876,9 +890,9 @@ msgstr ""
 msgid "Available credits"
 msgstr ""
 
-#: src/pages/shell/bot-credentials.tsx
-msgid "Available to this bot's shell commands as {commandVariable}"
-msgstr "Disponível para os comandos de shell deste bot como {commandVariable}"
+#: src/components/VaultSettings.tsx
+msgid "Available to shell commands as {commandVariable}"
+msgstr "Disponível para os comandos de shell como {commandVariable}"
 
 #: src/pages/shell/avatar-studio-popover.tsx
 msgid "Avatar Studio"
@@ -886,6 +900,7 @@ msgstr "Estúdio de avatar"
 
 #: src/pages/Auth.tsx
 #: src/pages/Board.tsx
+#: src/pages/NavLinkPage.tsx
 #: src/pages/PluginsOverlay.tsx
 #: src/pages/RoutineEditor.tsx
 #: src/pages/SettingsOverlay.tsx
@@ -901,17 +916,17 @@ msgstr "Voltar para o login"
 msgid "Base URL"
 msgstr "URL Base"
 
-#: src/pages/shell/bot-credentials.tsx
+#: src/components/VaultSettings.tsx
 msgid "Basic auth"
 msgstr ""
 
-#: src/pages/shell/bot-credentials.tsx
+#: src/components/VaultSettings.tsx
 msgid "Basic auth ({username})"
 msgstr ""
 
+#: src/components/VaultSettings.tsx
 #: src/pages/memory-providers/SerenitySettingsForm.tsx
 #: src/pages/PluginsOverlay.tsx
-#: src/pages/shell/bot-credentials.tsx
 msgid "Bearer token"
 msgstr "Token portador"
 
@@ -1030,10 +1045,6 @@ msgstr ""
 msgid "Calls"
 msgstr "Chamadas"
 
-#: src/pages/shell/bot-panel.tsx
-msgid "Can edit and organise bots it creates"
-msgstr "Pode editar e organizar os bots que cria"
-
 #: src/App.tsx
 msgid "Can't reach the server."
 msgstr "Não é possível acessar o servidor."
@@ -1049,6 +1060,7 @@ msgstr "Não pode ler imagens"
 #: src/components/markdown-link-prompt.tsx
 #: src/components/PasskeySettings.tsx
 #: src/components/teach/TeachComputerOverlay.tsx
+#: src/components/VaultSettings.tsx
 #: src/pages/AccountSettingsOverlay.tsx
 #: src/pages/Artifacts.tsx
 #: src/pages/KnowledgeSection.tsx
@@ -1059,9 +1071,9 @@ msgstr "Não pode ler imagens"
 #: src/pages/Onboarding.tsx
 #: src/pages/PluginsOverlay.tsx
 #: src/pages/shell/agent-import-undo.tsx
-#: src/pages/shell/bot-credentials.tsx
 #: src/pages/shell/create-bot-dialog.tsx
 #: src/pages/shell/dialogs.tsx
+#: src/pages/SpaceSettingOverrides.tsx
 msgid "Cancel"
 msgstr "Cancelar"
 
@@ -1102,6 +1114,10 @@ msgstr "Alterar {name}"
 msgid "Change {title}"
 msgstr "Alterar {title}"
 
+#: src/pages/shell/composer-error.tsx
+msgid "Change model"
+msgstr "Trocar modelo"
+
 #: src/pages/AccountSettingsOverlay.tsx
 msgid "Change password"
 msgstr "Alterar senha"
@@ -1124,10 +1140,6 @@ msgstr "Converse com seu bot pelo Slack."
 
 #: src/lib/localized-provider-hint.ts
 msgid "ChatGPT subscription"
-msgstr ""
-
-#: src/components/ModelCredits.tsx
-msgid "ChatGPT, Claude, or any model provider."
 msgstr ""
 
 #: src/lib/identity-display.ts
@@ -1225,6 +1237,7 @@ msgid "Choose folder"
 msgstr "Escolher pasta"
 
 #: src/components/ModelCredits.tsx
+#: src/components/SubscriptionGate.tsx
 msgid "Choose how to use Rakazo"
 msgstr ""
 
@@ -1232,6 +1245,7 @@ msgstr ""
 msgid "Claude subscription"
 msgstr ""
 
+#: src/components/AskCard.tsx
 #: src/pages/shell/dialogs.tsx
 msgid "Clear"
 msgstr "Limpar"
@@ -1326,6 +1340,7 @@ msgid "Cloud"
 msgstr "Nuvem"
 
 #: src/components/AskCard.tsx
+#: src/components/ConfirmIdentityDialog.tsx
 msgid "Code"
 msgstr "Código"
 
@@ -1369,7 +1384,7 @@ msgid "Command"
 msgstr "Comando"
 
 #: src/components/AskCard.tsx
-#: src/pages/shell/bot-credentials.tsx
+#: src/components/VaultSettings.tsx
 msgid "Command variable"
 msgstr "Variável de comando"
 
@@ -1413,6 +1428,7 @@ msgstr ""
 msgid "Computer is stopped"
 msgstr "O computador está parado"
 
+#: src/components/ComputerDeviceSettings.tsx
 #: src/pages/AccountSettingsOverlay.tsx
 msgid "Computers"
 msgstr "Computadores"
@@ -1437,6 +1453,10 @@ msgstr "Servidores configurados"
 #: src/pages/McpServersOverlay.tsx
 msgid "Confirm delete"
 msgstr "Confirmar exclusão"
+
+#: src/components/ConfirmIdentityDialog.tsx
+msgid "Confirm it's you"
+msgstr ""
 
 #: src/pages/AccountSettingsOverlay.tsx
 #: src/pages/Auth.tsx
@@ -1516,6 +1536,7 @@ msgstr "Conectar Treg"
 msgid "Connect your own API key in Models or choose Rakazo credits in Billing."
 msgstr "Conecte sua própria chave de API em Modelos ou escolha créditos Rakazo em Faturamento."
 
+#: src/components/ComputerDeviceSettings.tsx
 #: src/components/integrations/IntegrationSetup.tsx
 #: src/pages/McpOAuthCallback.tsx
 #: src/pages/MemorySettingsOverlay.tsx
@@ -1561,6 +1582,7 @@ msgstr "Contém código para executar"
 msgid "Context limit"
 msgstr "Limite de contexto"
 
+#: src/components/ConfirmIdentityDialog.tsx
 #: src/components/integrations/IntegrationSetup.tsx
 #: src/components/SignupSurvey.tsx
 #: src/pages/Auth.tsx
@@ -1581,10 +1603,6 @@ msgstr ""
 #: src/pages/Auth.tsx
 msgid "Continue with {0}"
 msgstr "Continuar com {0}"
-
-#: src/components/ModelCredits.tsx
-msgid "Continue with credits"
-msgstr ""
 
 #: src/pages/MessagingSettingsPanel.tsx
 msgid "Conversations"
@@ -1644,6 +1662,10 @@ msgstr "Não foi possível aprovar este servidor"
 msgid "Could not authorize this app"
 msgstr "Não foi possível autorizar este aplicativo"
 
+#: src/components/ComputerDeviceSettings.tsx
+msgid "Could not change"
+msgstr ""
+
 #: src/pages/AccountSettingsOverlay.tsx
 msgid "Could not change password"
 msgstr "Não foi possível alterar a senha"
@@ -1695,6 +1717,7 @@ msgid "Could not connect to the computer screen"
 msgstr ""
 
 #: src/components/AccountAccess.tsx
+#: src/components/ConfirmIdentityDialog.tsx
 #: src/components/PasskeyOffer.tsx
 #: src/components/PasskeySettings.tsx
 #: src/lib/account-security.ts
@@ -1797,6 +1820,7 @@ msgstr "Não foi possível instalar o conector"
 
 #: src/components/ErrorBoundary.tsx
 #: src/components/PasskeySettings.tsx
+#: src/lib/user-devices.ts
 #: src/pages/KnowledgeSection.tsx
 msgid "Could not load"
 msgstr "Não foi possível carregar"
@@ -1821,7 +1845,7 @@ msgstr ""
 msgid "Could not load bots. Reload to try again."
 msgstr ""
 
-#: src/pages/shell/bot-credentials.tsx
+#: src/components/VaultSettings.tsx
 msgid "Could not load credentials."
 msgstr ""
 
@@ -1899,6 +1923,8 @@ msgstr "Não foi possível acessar o servidor"
 msgid "Could not read these files"
 msgstr "Não foi possível ler estes arquivos"
 
+#: src/components/ComputerDeviceSettings.tsx
+#: src/lib/user-devices.ts
 #: src/pages/KnowledgeSection.tsx
 #: src/pages/ScratchpadSection.tsx
 msgid "Could not remove"
@@ -1912,7 +1938,7 @@ msgstr "Não foi possível remover o conector"
 msgid "Could not remove rule"
 msgstr "Não foi possível remover."
 
-#: src/pages/shell/bot-credentials.tsx
+#: src/components/VaultSettings.tsx
 msgid "Could not remove the credential"
 msgstr ""
 
@@ -1973,6 +1999,7 @@ msgstr "Não foi possível salvar a rotina"
 msgid "Could not save rule"
 msgstr "Não foi possível salvar"
 
+#: src/components/teach/SkillDraftCard.tsx
 #: src/pages/KnowledgeSection.tsx
 msgid "Could not save skill"
 msgstr "Não foi possível salvar a habilidade"
@@ -1989,7 +2016,7 @@ msgstr "Não foi possível salvar esse modelo de fala"
 msgid "Could not save that voice"
 msgstr "Não foi possível salvar essa voz"
 
-#: src/pages/shell/bot-credentials.tsx
+#: src/components/VaultSettings.tsx
 msgid "Could not save the credential"
 msgstr ""
 
@@ -2139,10 +2166,6 @@ msgstr "Credencial"
 msgid "Credential saved"
 msgstr "Credencial salva"
 
-#: src/pages/shell/bot-credentials.tsx
-msgid "Credentials"
-msgstr ""
-
 #: src/pages/PluginsOverlay.tsx
 msgid "Credentials are encrypted and never sent to the model."
 msgstr "As credenciais são criptografadas e nunca são enviadas ao modelo."
@@ -2168,7 +2191,7 @@ msgstr "Expressão cron"
 msgid "Current password"
 msgstr "Senha atual"
 
-#: src/pages/shell/bot-credentials.tsx
+#: src/components/VaultSettings.tsx
 msgid "Custom header"
 msgstr ""
 
@@ -2244,6 +2267,7 @@ msgstr "Escopo padrão"
 #: src/pages/RoutineEditor.tsx
 #: src/pages/shell/archived-chats.tsx
 #: src/pages/shell/dialogs.tsx
+#: src/pages/SpaceSettingOverrides.tsx
 msgid "Delete"
 msgstr "Excluir"
 
@@ -2288,6 +2312,10 @@ msgstr "Excluir seção"
 #: src/pages/SpaceSettingsPanel.tsx
 msgid "Delete space"
 msgstr ""
+
+#: src/pages/SpaceSettingOverrides.tsx
+msgid "Delete this Space's credentials?"
+msgstr "Excluir as credenciais deste espaço?"
 
 #: src/pages/shell/message-view.tsx
 msgid "deleted"
@@ -2496,6 +2524,10 @@ msgstr "E-mail"
 msgid "Email is not allowed to register"
 msgstr "Este e-mail não tem permissão para se cadastrar"
 
+#: src/components/ConfirmIdentityDialog.tsx
+msgid "Email me a code"
+msgstr ""
+
 #: src/lib/user-error.ts
 msgid "Email verification required"
 msgstr "É necessário verificar o e-mail"
@@ -2505,7 +2537,7 @@ msgstr "É necessário verificar o e-mail"
 msgid "Enable {0}"
 msgstr "Ativar {0}"
 
-#: src/pages/shell/bot-credentials.tsx
+#: src/components/VaultSettings.tsx
 msgid "Encrypted and never shown again"
 msgstr "Criptografado e nunca mais exibido"
 
@@ -2521,7 +2553,7 @@ msgstr ""
 msgid "Enter a password"
 msgstr "Digite uma senha"
 
-#: src/pages/shell/bot-credentials.tsx
+#: src/components/VaultSettings.tsx
 msgid "Enter a username and password"
 msgstr ""
 
@@ -2767,6 +2799,10 @@ msgstr "Esqueceu a senha?"
 msgid "Free"
 msgstr ""
 
+#: src/pages/shell/shell-sidebar.tsx
+msgid "Free plan ends {day}"
+msgstr "O plano gratuito termina em {day}"
+
 #: src/lib/cron.ts
 msgid "Friday"
 msgstr "sexta-feira"
@@ -2836,14 +2872,14 @@ msgstr ""
 msgid "header"
 msgstr ""
 
-#: src/pages/shell/bot-credentials.tsx
+#: src/components/VaultSettings.tsx
 msgid "Header \"{header}\""
 msgstr ""
 
 #: src/components/ModelHeadersEditor.tsx
+#: src/components/VaultSettings.tsx
 #: src/pages/McpServersOverlay.tsx
 #: src/pages/PluginsOverlay.tsx
-#: src/pages/shell/bot-credentials.tsx
 msgid "Header name"
 msgstr "Nome do cabeçalho"
 
@@ -2912,10 +2948,6 @@ msgstr ""
 msgid "How often"
 msgstr "Com que frequência"
 
-#: src/pages/shell/bot-panel.tsx
-msgid "How other bots see it"
-msgstr "Como outros bots o veem"
-
 #: src/components/teach/SkillDraftCard.tsx
 msgid "How to check"
 msgstr "Como verificar"
@@ -2935,6 +2967,15 @@ msgstr "Se você ouviu isso, a voz está pronta."
 #: src/pages/ExternalConversationSettings.tsx
 msgid "Ignore"
 msgstr ""
+
+#. js-lingui-explicit-id
+#: src/lib/run-error.ts
+msgid "Image input is not configured for this model."
+msgstr "A entrada de imagens não está configurada para este modelo."
+
+#: src/lib/user-error.ts
+msgid "Image input is not configured for this model."
+msgstr "A entrada de imagens não está configurada para este modelo."
 
 #: src/pages/shell/avatar-studio-popover.tsx
 msgid "Image upload area"
@@ -3146,6 +3187,10 @@ msgstr ""
 msgid "Leave"
 msgstr ""
 
+#: src/components/ComputerDeviceSettings.tsx
+msgid "Let bots use this computer"
+msgstr ""
+
 #: src/pages/MemorySettingsOverlay.tsx
 msgid "Lets bots save and recall facts by meaning, alongside MEMORY.md."
 msgstr "Permite que os bots salvem e recuperem fatos pelo significado, além do MEMORY.md."
@@ -3262,7 +3307,7 @@ msgstr "Baixo"
 msgid "Low"
 msgstr "Baixo"
 
-#: src/pages/shell/bot-credentials.tsx
+#: src/components/VaultSettings.tsx
 msgid "Lowercase letters, numbers, hyphens and underscores, starting with a letter."
 msgstr ""
 
@@ -3593,6 +3638,7 @@ msgid "Muted"
 msgstr ""
 
 #: src/components/teach/SkillDraftCard.tsx
+#: src/components/VaultSettings.tsx
 #: src/pages/AccountSettingsOverlay.tsx
 #: src/pages/Auth.tsx
 #: src/pages/GroupPanel.tsx
@@ -3600,7 +3646,6 @@ msgstr ""
 #: src/pages/model-settings/providers-section.tsx
 #: src/pages/RoutineEditor.tsx
 #: src/pages/shell/agent-import.tsx
-#: src/pages/shell/bot-credentials.tsx
 #: src/pages/shell/bot-panel.tsx
 #: src/pages/shell/create-bot-dialog.tsx
 #: src/pages/shell/dialogs.tsx
@@ -3900,6 +3945,10 @@ msgstr "Falha na conexão OAuth"
 msgid "OAuth expired"
 msgstr "OAuth expirado"
 
+#: src/components/ComputerDeviceSettings.tsx
+msgid "Offline"
+msgstr ""
+
 #: src/pages/model-settings/connection-controls.tsx
 #: src/pages/Onboarding.tsx
 msgid "Ollama API key"
@@ -4050,9 +4099,10 @@ msgid "Passkeys"
 msgstr "Chaves de acesso"
 
 #: src/components/AskCard.tsx
+#: src/components/ConfirmIdentityDialog.tsx
+#: src/components/VaultSettings.tsx
 #: src/pages/AccountSettingsOverlay.tsx
 #: src/pages/Auth.tsx
-#: src/pages/shell/bot-credentials.tsx
 msgid "Password"
 msgstr "Senha"
 
@@ -4354,7 +4404,6 @@ msgstr "URI de redirecionamento"
 #: src/App.tsx
 #: src/components/ErrorBoundary.tsx
 #: src/components/ModelCredits.tsx
-#: src/pages/RoutineRunHistory.tsx
 msgid "Refresh"
 msgstr "Atualizar"
 
@@ -4383,15 +4432,17 @@ msgid "Reload"
 msgstr "Recarregar"
 
 #: src/components/ApprovalRulesSettings.tsx
+#: src/components/VaultSettings.tsx
 #: src/pages/McpServersOverlay.tsx
 #: src/pages/ModelRoleSettings.tsx
 #: src/pages/PluginsOverlay.tsx
 #: src/pages/ScratchpadSection.tsx
-#: src/pages/shell/bot-credentials.tsx
 msgid "Remove"
 msgstr "Remover"
 
 #. placeholder {0}: attachment.file.name
+#. placeholder {0}: device.name
+#: src/components/ComputerDeviceSettings.tsx
 #: src/pages/shell/composer.tsx
 msgid "Remove {0}"
 msgstr "Remover {0}"
@@ -4401,9 +4452,9 @@ msgstr "Remover {0}"
 msgid "Remove {0} from the group"
 msgstr ""
 
-#: src/pages/shell/bot-credentials.tsx
-msgid "Remove {secretName}? This bot will no longer be able to use it."
-msgstr ""
+#: src/components/VaultSettings.tsx
+msgid "Remove {secretName}? Bots will no longer be able to use it."
+msgstr "Remover {secretName}? Os bots não poderão mais usá-lo."
 
 #: src/pages/RoutineEditor.tsx
 msgid "Remove change trigger"
@@ -4482,7 +4533,7 @@ msgstr "Substituir as instruções"
 msgid "Replace key"
 msgstr "Substituir chave"
 
-#: src/pages/shell/bot-credentials.tsx
+#: src/components/VaultSettings.tsx
 msgid "Replace value"
 msgstr ""
 
@@ -4693,11 +4744,11 @@ msgstr "sábado"
 msgid "Save"
 msgstr "Salvar"
 
-#: src/pages/shell/bot-credentials.tsx
+#: src/components/VaultSettings.tsx
 msgid "Save credential"
 msgstr ""
 
-#: src/pages/shell/bot-credentials.tsx
+#: src/components/VaultSettings.tsx
 msgid "Save new value"
 msgstr ""
 
@@ -4733,13 +4784,13 @@ msgstr ""
 
 #: src/components/AskCard.tsx
 #: src/components/teach/SkillDraftCard.tsx
+#: src/components/VaultSettings.tsx
 #: src/pages/GroupPanel.tsx
 #: src/pages/McpServersOverlay.tsx
 #: src/pages/model-settings/connection-controls.tsx
 #: src/pages/model-settings/providers-section.tsx
 #: src/pages/ModelSettingsOverlay.tsx
 #: src/pages/RoutineEditor.tsx
-#: src/pages/shell/bot-credentials.tsx
 #: src/pages/shell/dialogs.tsx
 msgid "Saving…"
 msgstr "Salvando..."
@@ -4755,6 +4806,10 @@ msgstr ""
 #: src/pages/McpServersOverlay.tsx
 msgid "Scopes (optional)"
 msgstr "Escopos (opcional)"
+
+#: src/pages/shell/use-computer.tsx
+msgid "Screen not connected"
+msgstr "Tela não conectada"
 
 #: src/pages/model-settings/model-picker.tsx
 #: src/pages/model-settings/providers-section.tsx
@@ -4837,6 +4892,10 @@ msgstr ""
 msgid "Send answer"
 msgstr "Enviar resposta"
 
+#: src/pages/shell/composer-error.tsx
+msgid "Send as file"
+msgstr "Enviar como arquivo"
+
 #: src/components/AccountAccess.tsx
 msgid "Send deletion code"
 msgstr "Enviar código de exclusão"
@@ -4860,6 +4919,10 @@ msgstr "Enviar com Enter"
 #: src/components/AskCard.tsx
 msgid "Sending…"
 msgstr "Enviando…"
+
+#: src/components/AskCard.tsx
+msgid "Sent"
+msgstr ""
 
 #: src/pages/RoutineEditor.tsx
 msgid "Sentry alert"
@@ -4978,6 +5041,7 @@ msgid "Sign in"
 msgstr "Entrar"
 
 #: src/components/AccountAccess.tsx
+#: src/components/ConfirmIdentityDialog.tsx
 #: src/lib/passkeys.ts
 #: src/lib/user-error.ts
 #: src/pages/model-settings/connection-controls.tsx
@@ -5011,7 +5075,7 @@ msgstr "Entre com a assinatura ou teste a chave de API."
 msgid "Sign up"
 msgstr "Cadastre-se"
 
-#: src/pages/shell/bot-credentials.tsx
+#: src/components/VaultSettings.tsx
 msgid "Site"
 msgstr ""
 
@@ -5132,9 +5196,10 @@ msgstr "SSO está temporariamente indisponível. Tente novamente."
 msgid "Start"
 msgstr ""
 
+#: src/components/ModelCredits.tsx
 #: src/pages/Paywall.tsx
 msgid "Start {trialDays}-day free trial"
-msgstr ""
+msgstr "Começar teste grátis de {trialDays} dias"
 
 #: src/components/teach/TeachComputerOverlay.tsx
 msgid "Start recording"
@@ -5208,7 +5273,20 @@ msgstr "Enviar"
 #: src/components/ModelCredits.tsx
 #: src/pages/Paywall.tsx
 msgid "Subscribe"
-msgstr ""
+msgstr "Assinar"
+
+#. placeholder {0}: status.byokPriceCents / 100
+#: src/components/ModelCredits.tsx
+msgid "Subscribe for ${0} / month"
+msgstr "Assinar por ${0} / mês"
+
+#: src/components/ModelCredits.tsx
+msgid "Subscribe to Rakazo credits"
+msgstr "Assinar créditos do Rakazo"
+
+#: src/components/ModelCredits.tsx
+msgid "Subscribe with your own AI"
+msgstr "Assinar com sua própria IA"
 
 #: src/pages/Paywall.tsx
 msgid "Subscription required"
@@ -5302,9 +5380,18 @@ msgstr "Testando…"
 msgid "The bot and what its import added will be removed."
 msgstr "O bot e o que a importação adicionou serão removidos."
 
+#: src/pages/shell/composer-error.tsx
+msgid "The bot can use the file but won't see the picture."
+msgstr "O bot pode usar o arquivo, mas não verá a imagem."
+
 #: src/lib/model-connection-preflight.ts
 msgid "The connection timed out."
 msgstr "O tempo da conexão se esgotou."
+
+#. js-lingui-explicit-id
+#: src/lib/run-error.ts
+msgid "The model hit its output limit before finishing its reply."
+msgstr "O modelo atingiu o limite de saída antes de terminar a resposta."
 
 #. js-lingui-explicit-id
 #: src/lib/run-error.ts
@@ -5319,6 +5406,18 @@ msgstr "O modelo retornou uma resposta inutilizável. Tente novamente."
 #: src/lib/model-connection-preflight.ts
 msgid "The provider is rate-limiting requests."
 msgstr "O provedor está limitando a frequência das solicitações."
+
+#: src/lib/computer-screen.ts
+msgid "The screen connection closed."
+msgstr "A conexão com a tela foi encerrada."
+
+#: src/lib/computer-screen.ts
+msgid "The screen did not respond."
+msgstr "A tela não respondeu."
+
+#: src/lib/computer-screen.ts
+msgid "The screen link expired."
+msgstr "O link da tela expirou."
 
 #: src/pages/MemorySettingsOverlay.tsx
 msgid "The selected memory provider is not available in this build."
@@ -5336,7 +5435,7 @@ msgstr "Estes arquivos são grandes demais para importar."
 msgid "These files or choices no longer match. Choose the files again."
 msgstr "Estes arquivos ou escolhas não correspondem mais. Escolha os arquivos de novo."
 
-#: src/pages/shell/bot-credentials.tsx
+#: src/components/VaultSettings.tsx
 msgid "These saved settings can't be read. Remove it and add it again."
 msgstr ""
 
@@ -5374,6 +5473,7 @@ msgstr ""
 
 #: src/components/PasskeySettings.tsx
 #: src/pages/Artifacts.tsx
+#: src/pages/SpaceSettingOverrides.tsx
 msgid "This can't be undone."
 msgstr "Não é possível desfazer."
 
@@ -5414,6 +5514,15 @@ msgstr "Esta importação já foi usada. Escolha os arquivos de novo."
 #: src/pages/HostComputerPrompt.tsx
 msgid "this Mac"
 msgstr "esse Mac"
+
+#. js-lingui-explicit-id
+#: src/lib/run-error.ts
+msgid "This model cannot read images. Choose a model that supports images."
+msgstr "Este modelo não consegue ler imagens. Escolha um modelo que aceite imagens."
+
+#: src/lib/user-error.ts
+msgid "This model cannot read images. Choose a model that supports images."
+msgstr "Este modelo não consegue ler imagens. Escolha um modelo que aceite imagens."
 
 #. js-lingui-explicit-id
 #: src/lib/run-error.ts
@@ -5540,10 +5649,6 @@ msgstr "Fontes de ferramentas"
 msgid "Tools"
 msgstr ""
 
-#: src/components/ModelCredits.tsx
-msgid "Top up anytime"
-msgstr ""
-
 #: src/components/composer/HoldToTalk.tsx
 msgid "Transcribing…"
 msgstr ""
@@ -5585,7 +5690,7 @@ msgstr "Tente o teste novamente."
 msgid "Tuesday"
 msgstr "terça-feira"
 
-#: src/pages/shell/bot-credentials.tsx
+#: src/components/VaultSettings.tsx
 msgid "Type"
 msgstr ""
 
@@ -5667,7 +5772,7 @@ msgstr "Atualizar instruções?"
 msgid "Update progress"
 msgstr ""
 
-#: src/pages/shell/bot-credentials.tsx
+#: src/components/VaultSettings.tsx
 msgid "Updated {updated}"
 msgstr ""
 
@@ -5687,6 +5792,10 @@ msgstr ""
 #: src/components/ComputerMaintenanceActions.tsx
 msgid "Updating…"
 msgstr "Atualizando…"
+
+#: src/pages/shell/shell-sidebar.tsx
+msgid "Upgrade"
+msgstr "Fazer upgrade"
 
 #: src/components/ModelCredits.tsx
 msgid "Upgrade now"
@@ -5765,7 +5874,7 @@ msgid "User peer"
 msgstr ""
 
 #: src/components/AskCard.tsx
-#: src/pages/shell/bot-credentials.tsx
+#: src/components/VaultSettings.tsx
 msgid "Username"
 msgstr ""
 
@@ -5785,10 +5894,19 @@ msgstr "Usa as credenciais de {hostCredentialSource} próprias deste servidor pa
 msgid "Using your API key"
 msgstr ""
 
+#: src/components/ModelCredits.tsx
+msgid "Using your API key. Free plan ends {freeUntil}."
+msgstr "Usando sua chave de API. O plano gratuito termina em {freeUntil}."
+
+#: src/components/VaultSettings.tsx
 #: src/pages/McpServersOverlay.tsx
-#: src/pages/shell/bot-credentials.tsx
 msgid "Value"
 msgstr "Valor"
+
+#: src/pages/SettingsOverlay.tsx
+#: src/pages/SpaceSettingOverrides.tsx
+msgid "Vault"
+msgstr "Cofre"
 
 #: src/pages/PluginsOverlay.tsx
 msgid "Verify and add"
@@ -5801,10 +5919,6 @@ msgstr "Verificando…"
 #: src/pages/Artifacts.tsx
 msgid "Version"
 msgstr ""
-
-#: src/pages/RoutineRunHistory.tsx
-msgid "View chat"
-msgstr "Ver conversa"
 
 #: src/pages/SettingsOverlay.tsx
 #: src/pages/shell/bot-panel.tsx
@@ -5837,7 +5951,7 @@ msgstr ""
 msgid "Webhook"
 msgstr ""
 
-#: src/pages/shell/bot-credentials.tsx
+#: src/components/VaultSettings.tsx
 msgid "Website login"
 msgstr ""
 
@@ -5945,6 +6059,10 @@ msgstr "Instruções de trabalho"
 #: src/pages/shell/transcript.tsx
 msgid "Working…"
 msgstr "Trabalhando…"
+
+#: src/components/ModelCredits.tsx
+msgid "Works with your ChatGPT or Claude plan."
+msgstr "Funciona com seu plano do ChatGPT ou do Claude."
 
 #: src/pages/memory-providers/HonchoSettingsForm.tsx
 msgid "Workspace"

@@ -517,6 +517,28 @@ function holdsSecret(value: string, secret: string): boolean {
   return pattern ? pattern.test(value) : value.includes(secret);
 }
 
+/** Shorter lines, or lines with spaces such as a key's BEGIN header, also appear in ordinary text. */
+const MIN_SECRET_LINE_LENGTH = 16;
+
+/**
+ * The values to hide for `secrets`: each value, and each long unspaced line of a multi-line value
+ * such as a private key's body, since output that prints only some lines or joins them with
+ * spaces (an unquoted `echo $KEY`) never contains the whole value.
+ */
+function protectedValues(secrets: Iterable<string>): string[] {
+  const values = new Set<string>();
+  for (const secret of secrets) {
+    if (!secret) continue;
+    values.add(secret);
+    if (!/[\r\n]/.test(secret)) continue;
+    for (const line of secret.split(/\r\n?|\n/)) {
+      const trimmed = line.trim();
+      if (trimmed.length >= MIN_SECRET_LINE_LENGTH && !/\s/.test(trimmed)) values.add(trimmed);
+    }
+  }
+  return [...values];
+}
+
 /**
  * The stretches protected values cover in `value`, in order, as [start, end). Matches that
  * overlap make one stretch, so a shorter value inside or across a longer one can't cut it and
@@ -533,8 +555,7 @@ function redactedRanges(value: string, secrets: Iterable<string>): Array<[number
     starts[at] = starts[at]! + 1;
     ends[at + length] = ends[at + length]! + 1;
   };
-  for (const secret of new Set(secrets)) {
-    if (!secret) continue;
+  for (const secret of protectedValues(secrets)) {
     const pattern = digitsRedactionPattern(secret);
     if (pattern) {
       for (const match of value.matchAll(pattern)) mark(match.index, match[0].length);
@@ -571,7 +592,7 @@ export function redactSecrets(value: string, secrets: string[]): string {
 }
 
 export function containsSecret(value: unknown, secrets: string[]): boolean {
-  const active = secrets.filter((secret) => secret.length > 0);
+  const active = protectedValues(secrets);
   if (active.length === 0) return false;
   const serialized = JSON.stringify(value);
   if (serialized === undefined) return false;
@@ -651,7 +672,7 @@ export function sanitizeJsonValue<T>(value: T): T {
 }
 
 export function createStreamingRedactor(secrets: string[]) {
-  const values = [...new Set(secrets.filter(Boolean))];
+  const values = protectedValues(secrets);
   const maxLength = Math.max(0, ...values.map(redactionSpan));
   let buffer = "";
   let covered = 0;
