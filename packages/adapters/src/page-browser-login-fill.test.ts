@@ -400,6 +400,25 @@ describe("live page helper saved-login fill", () => {
       expect(phoneField(domWindow).value).toBe("fake-phone-0501234");
     });
 
+    it.each([
+      ["input", "form"],
+      ["change", "form"],
+      ["input", "field"],
+      ["change", "field"],
+    ])("follows a username whose %s handler replaces its %s at once", (type, replaced) => {
+      const form =
+        '<form id="signin" name="signin" action="/signin"><input aria-label="ID number" /><input aria-label="Phone" type="tel" /></form>';
+      const { domWindow, browser } = installPageHelper(`${origin}/signin`, form);
+      const idField = phoneField(domWindow, "ID number");
+      idField.addEventListener(type, () => {
+        if (replaced === "form") domWindow.document.body.innerHTML = form;
+        else idField.replaceWith(idField.cloneNode());
+      });
+      fillId(browser);
+      marked(browser);
+      expect(phoneField(domWindow).value).toBe("fake-phone-0501234");
+    });
+
     it("takes no card fill for its username, even one carrying the login's name", () => {
       const { domWindow, browser } = installPageHelper(`${origin}/signin`, idPage);
       browser.fill(

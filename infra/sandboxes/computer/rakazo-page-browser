@@ -1019,17 +1019,16 @@ EVAL_HELPERS = r"""
         // Screenshots reach the model too, so a card is drawn as dots, like a password.
         if (card) maskCard(el);
         else unmaskCard(el);
+        // Where the username went, taken before the page's handlers may replace the field or form.
+        const target = origin && !card && !password && login
+          ? { field: el, form: el.form, root: el.getRootNode() } : null;
         el.dispatchEvent(new Event("input", { bubbles: true }));
         el.dispatchEvent(new Event("change", { bubbles: true }));
         const hidden = kept?.();
         // The page replaced the field while the value went in: what the new one holds is unknown.
         if (hidden === "detached") throw new Error("The page replaced this field as the login was typed. Check it with browser_snapshot before trying again.");
         if (hidden === false) throw refused("The page showed this field as text, so it was cleared.");
-        if (origin && !card && !password && login) {
-          usernameTargets.set(login, {
-            field: el, key: usernameKey(el.value), form: el.form, root: el.getRootNode(), address: location.href,
-          });
-        }
+        if (target) usernameTargets.set(login, { ...target, key: usernameKey(el.value), address: location.href });
       } else if (el.isContentEditable) {
         el.textContent = String(value);
         el.dispatchEvent(new Event("input", { bubbles: true }));
