@@ -71,7 +71,12 @@ function recordingPrisma(models: Record<string, Record<string, unknown>>, calls:
 
 async function requestSecretWith(
   origin: string,
-  options: { savedNotPassword?: boolean; extraArgs?: Record<string, unknown> } = {},
+  options: {
+    savedNotPassword?: boolean;
+    extraArgs?: Record<string, unknown>;
+    /** The saved turn the run resumes from, as an earlier pause left it. */
+    turnCheckpoint?: string;
+  } = {},
 ) {
   const run = {
     id: "run-1",
@@ -88,8 +93,14 @@ async function requestSecretWith(
   };
   const calls: unknown[] = [];
   const toolResults: unknown[] = [];
+  const savedCheckpoints: string[] = [];
   // The model's arguments, prepared the way the agent runtime prepares them for the executor.
-  const runtimeRun = vi.fn(async function* (request: { executeTool?: ExecuteTool }) {
+  const runtimeRun = vi.fn(async function* (request: {
+    executeTool?: ExecuteTool;
+    onCheckpoint?: (capture: () => string, executionId: string) => Promise<void>;
+  }) {
+    // The paused call's turn, as the agent runtime offers it for saving: its transcript only.
+    await request.onCheckpoint?.(() => JSON.stringify({ version: 1, messages: [] }), "exec-1");
     const args = prepareRequestSecretArguments({
       label: "Sign in",
       purpose: "password",
@@ -163,10 +174,18 @@ async function requestSecretWith(
         }),
       },
       externalEffect: {
+        findMany: async ({ where }: { where: { kind?: string } }) =>
+          where.kind === "runtime_checkpoint" && options.turnCheckpoint
+            ? [{ result: options.turnCheckpoint }]
+            : [],
         create: async ({ data }: { data: Record<string, unknown> }) => ({
           id: `effect-${data.idempotencyKey}`,
           ...data,
         }),
+        upsert: async ({ create }: { create: { kind: string; result: string } }) => {
+          if (create.kind === "runtime_checkpoint") savedCheckpoints.push(create.result);
+          return create;
+        },
         updateMany: async () => ({ count: 1 }),
       },
     },
@@ -213,6 +232,7 @@ async function requestSecretWith(
   await executor.continueRun(run.id, "worker-1");
   return {
     toolResults,
+    savedCheckpoints,
     asked: (events.pauseRunForInput.mock.calls as unknown as Array<[{ blocks: unknown[] }]>)[0]?.[0]
       .blocks[0] as Record<string, unknown> | undefined,
     everything: JSON.stringify([calls, events, logged, toolResults], (_key, value) =>
@@ -265,5 +285,34 @@ describe("the Not a password choice on a login card", () => {
       extraArgs: { replace: true },
     });
     expect(asked?.notPassword).toBe(expected);
+  });
+
+  it("is still offered after a pause between the page's refusal and the new card", async () => {
+    // The turn an approval pause saved after the page refused this login's password.
+    const turnCheckpoint = JSON.stringify({
+      version: 1,
+      provider: "openrouter",
+      model: "openai/gpt-4o",
+      systemPrompt: "",
+      pendingToolCallId: "call-1",
+      messages: [
+        {
+          role: "assistant",
+          content: [{ type: "toolCall", id: "call-1", name: "request_secret", arguments: {} }],
+          stopReason: "toolUse",
+        },
+      ],
+      noPasswordFieldLogins: ["site_login"],
+    });
+    const { asked, savedCheckpoints } = await requestSecretWith(site, {
+      savedNotPassword: false,
+      extraArgs: { replace: true },
+      turnCheckpoint,
+    });
+    expect(asked?.notPassword).toBe("offered");
+    // And the card's own pause keeps it for the next resume.
+    expect(savedCheckpoints.map((saved) => JSON.parse(saved).noPasswordFieldLogins)).toEqual([
+      ["site_login"],
+    ]);
   });
 });

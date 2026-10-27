@@ -13,6 +13,8 @@ export interface TurnCheckpoint {
   historyMessageIds?: string[];
   /** Executor-assigned occurrences include canonical arguments and the paused call. */
   effectOccurrences?: Array<{ executionId: string; fingerprint: string; occurrence: number }>;
+  /** Executor-recorded logins a page refused for having no password field. */
+  noPasswordFieldLogins?: string[];
   /** Only explicit sequential checkpoints guarantee an unstarted tail. */
   executionMode?: "parallel" | "sequential";
 }

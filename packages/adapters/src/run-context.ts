@@ -340,6 +340,7 @@ export async function persistTurnCheckpoint(ctx: RunContext, executionId?: strin
   if (capture) {
     const saved = JSON.parse(capture());
     saved.effectOccurrences = effects.occurrences;
+    saved.noPasswordFieldLogins = [...ctx.state.noPasswordFieldLogins];
     await saveRunTurnCheckpoint(deps.prisma, run, workerId, fence, JSON.stringify(saved));
     effects.storedTurnCheckpoint = true;
   } else if (effects.storedTurnCheckpoint) {
@@ -362,6 +363,9 @@ export function restoreTurnCheckpointEffects(
   const effects = ctx.state.effects;
   try {
     const saved = restoreTurnCheckpoint(turnCheckpoint, model);
+    // A login card after the resume still offers "Not a password" for a refusal before the pause.
+    for (const login of saved.noPasswordFieldLogins ?? [])
+      ctx.state.noPasswordFieldLogins.add(login);
     const unresolved = new Set(unresolvedTurnCheckpointCalls(saved.messages));
     const namedTools = namedAgentTools(ctx.tools.offered);
     const available = new Set(namedTools.map((tool) => tool.name));
