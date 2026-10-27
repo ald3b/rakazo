@@ -410,6 +410,42 @@ describe("live page helper saved-login fill", () => {
       expect(field.hasAttribute("tabindex")).toBe(false);
     });
 
+    it("starts no selection again once the page puts the value back into the emptied field", async () => {
+      const { domWindow, browser } = installPageHelper(`${origin}/signin`, idPage);
+      fillPhone(browser, "Phone", "0501234567");
+      const field = phoneField(domWindow);
+      const starts = () => {
+        const press = new domWindow.MouseEvent("mousedown", { button: 0, cancelable: true });
+        field.dispatchEvent(press);
+        const start = new domWindow.Event("selectstart", { bubbles: true, cancelable: true });
+        field.dispatchEvent(start);
+        return !press.defaultPrevented && !start.defaultPrevented;
+      };
+      const input = () => field.dispatchEvent(new domWindow.Event("input", { bubbles: true }));
+      // A phone widget empties the field, then the person types their own text: theirs to select.
+      field.value = "";
+      input();
+      field.value = "my own text";
+      input();
+      expect(starts()).toBe(true);
+      expect(field.hasAttribute("tabindex")).toBe(false);
+      // The widget puts the number back, reformatted, with an input event or without one.
+      field.value = "050-123-4567";
+      input();
+      expect(starts()).toBe(false);
+      expect(field.getAttribute("tabindex")).toBe("-1");
+      field.value = "";
+      input();
+      expect(field.hasAttribute("tabindex")).toBe(false);
+      field.value = "0501234567";
+      await nextFrame(domWindow);
+      expect(starts()).toBe(false);
+      expect(field.getAttribute("tabindex")).toBe("-1");
+      field.select();
+      field.dispatchEvent(new domWindow.Event("select", { bubbles: true }));
+      expect([field.selectionStart, field.selectionEnd]).toEqual([10, 10]);
+    });
+
     it("hides a number saved internationally where the page shows it nationally, within bounds", () => {
       const { domWindow, browser } = installPageHelper(`${origin}/signin`, idPage);
       fillPhone(browser, "Phone", "+972501234567");

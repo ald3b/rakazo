@@ -392,7 +392,9 @@ EVAL_HELPERS = r"""
   // collapsed, but by then the desktop may have it, so that is a backstop, not the guard. Undo and
   // redo are turned down too, since they would bring the value back. All of it lasts until the
   // page browser fills the field again or types into it. When the field is emptied, by the person
-  // or the page, the person's own text in it can be selected again; undo stays turned down.
+  // or the page, the person's own text in it can be selected again; undo stays turned down. If the
+  // value comes back, as when a phone widget empties the field and puts the number back, all of it
+  // applies again.
   const selectionGuards = new WeakMap();
   const guardedFields = new WeakSet();
   function unguardSelection(el) {
@@ -424,12 +426,23 @@ EVAL_HELPERS = r"""
     if (undoGuarded && /^history/.test(event.inputType)) event.preventDefault();
   }, true);
   const SELECT_KEYS = ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End", "PageUp", "PageDown"];
-  function guardSelection(el) {
+  function guardSelection(el, holding) {
     unguardSelection(el);
-    const tabIndex = el.getAttribute("tabindex");
+    let tabIndex;
     undoGuarded = true;
     const end = () => el.setSelectionRange?.(el.value.length, el.value.length);
-    let selectable = false;
+    let selectable = true;
+    const arm = () => {
+      selectable = false;
+      tabIndex = el.getAttribute("tabindex");
+      guardedFields.add(el);
+      el.setAttribute("tabindex", "-1");
+    };
+    // Once the field holds the value again. Returned, so the caller also catches a value put back
+    // without an input event.
+    const rearm = () => {
+      if (selectable && holding()) arm();
+    };
     // Once the field is empty, what the person types in it is theirs to select.
     const release = () => {
       if (selectable) return;
@@ -468,16 +481,17 @@ EVAL_HELPERS = r"""
     };
     const emptied = () => {
       if (!el.value) release();
+      else rearm();
     };
     const listeners = [["mousedown", press], ["keydown", keys], ["selectstart", block],
       ["contextmenu", block], ["select", collapse], ["input", undone], ["input", emptied]];
     for (const [type, listener] of listeners) el.addEventListener(type, listener, true);
-    guardedFields.add(el);
-    el.setAttribute("tabindex", "-1");
+    arm();
     selectionGuards.set(el, () => {
       for (const [type, listener] of listeners) el.removeEventListener(type, listener, true);
       release();
     });
+    return rearm;
   }
   // New snapshots/documents never recycle references. Retain exact nodes, not selectors.
   function newRef() {
@@ -808,7 +822,7 @@ EVAL_HELPERS = r"""
     };
     el.addEventListener("input", edited, true);
     // A password field's text still reaches the desktop's selection, so no selection starts here.
-    guardSelection(el);
+    const rearm = guardSelection(el, () => holdsMarked(el.value, value));
     const holds = () => held || holdsMarked(el.value, value);
     const empty = () => {
       setValue.call(el, "");
@@ -831,6 +845,7 @@ EVAL_HELPERS = r"""
     const guard = () => {
       // A removed field is left to go, with nothing of this helper keeping it.
       if (check() === "detached") return stopMasking(el);
+      rearm();
       frame = requestAnimationFrame(guard);
     };
     const observer = new MutationObserver(check);
