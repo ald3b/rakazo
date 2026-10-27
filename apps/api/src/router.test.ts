@@ -1221,6 +1221,7 @@ describe("MCP prepared credential updates", () => {
           [...rows.values()].filter((row) => row.ciphertext === where.ciphertext).length,
       },
       botSecret: { count: async () => 0 },
+      vaultCredential: { count: async () => 0 },
       integrationProviderConfig: { count: async () => 0 },
       $executeRaw: async () => 1,
       $queryRaw: async () => [],
@@ -2881,9 +2882,17 @@ describe("connections.complete", () => {
         where.id === row.id ? { ...row } : null,
       ),
       findMany: vi.fn(async () => []),
+      count: vi.fn(async () => 0),
       updateMany: vi.fn(
-        async ({ where, data }: { where: { status?: string }; data: Partial<typeof row> }) => {
-          if (where.status && where.status !== row.status) return { count: 0 };
+        async ({
+          where,
+          data,
+        }: {
+          where: { status?: string | { in: string[] } };
+          data: Partial<typeof row>;
+        }) => {
+          const statuses = typeof where.status === "string" ? [where.status] : where.status?.in;
+          if (statuses && !statuses.includes(row.status)) return { count: 0 };
           Object.assign(row, data);
           return { count: 1 };
         },
@@ -2919,8 +2928,14 @@ describe("connections.complete", () => {
     const sink = createTestSink();
     installLogger(createLogger({ service: "rakazo-api", sinks: [sink] }));
     async function complete(connectionId = row.id, signal?: AbortSignal) {
+      return call("complete", connectionId, signal);
+    }
+    async function revoke(signal?: AbortSignal) {
+      return call("revoke", row.id, signal);
+    }
+    async function call(operation: string, connectionId: string, signal?: AbortSignal) {
       const { response } = await handler.handle(
-        new Request("http://127.0.0.1/rpc/connections/complete", {
+        new Request(`http://127.0.0.1/rpc/connections/${operation}`, {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ json: { connectionId } }),
@@ -2941,8 +2956,29 @@ describe("connections.complete", () => {
       return { status: response.status, body: await response.json() };
     }
     const securityEvents = () => sink.events.filter((event) => event.message === "security.event");
-    return { complete, connector, securityEvents, row };
+    return { complete, revoke, connector, securityEvents, row, sink };
   }
+
+  it.each([
+    ["the caller cancelled", true, "warn"],
+    ["an uncertain remote failure", false, "error"],
+  ])("keeps the row revoked after %s and logs it at %s", async (_case, cancelled, level) => {
+    const { revoke, connector, row, sink } = pollFixture("connected");
+    row.providerRef = "account-1";
+    const request = new AbortController();
+    connector.revoke.mockImplementation(async () => {
+      if (cancelled) request.abort();
+      throw new Error("Request was cancelled by the caller: Request was aborted.");
+    });
+
+    await expect(revoke(request.signal)).resolves.toMatchObject({ status: 400 });
+    expect(row.status).toBe("revoked");
+    expect(
+      sink.events
+        .filter((event) => event.message.startsWith("connections.revoke"))
+        .map((event) => event.level),
+    ).toEqual([level]);
+  });
 
   it("records nothing but keeps the account id when the catalog connected the row first", async () => {
     const { complete, connector, securityEvents, row } = pollFixture("pending");
@@ -6479,6 +6515,54 @@ describe("routine live Codex model validation", () => {
       expect(save).toHaveBeenCalledOnce();
     },
   );
+});
+
+describe("routines.list", () => {
+  it("marks routines another Space member created as not editable", async () => {
+    const actor = { userId: "user-1", spaceId: "space-1" };
+    const row = (id: string, userId: string) => ({
+      id,
+      botId: "bot-1",
+      spaceId: "space-1",
+      userId,
+      name: id,
+      prompt: "Check changes",
+      crons: ["0 9 * * *"],
+      timezone: "UTC",
+      active: true,
+      notify: false,
+      webhookEnabled: false,
+      githubEnabled: false,
+      messageProvider: null,
+      modelProvider: null,
+      modelId: null,
+      thinkingLevel: null,
+      watch: null,
+      watchState: null,
+      lastRunAt: null,
+      nextRunAt: null,
+      createdAt: new Date("2026-09-01T00:00:00.000Z"),
+    });
+    const client = createRouterClient(
+      createRouter({
+        prisma: {
+          bot: { findFirst: vi.fn(async () => ({ id: "bot-1", thread: null, computer: null })) },
+          routine: {
+            findMany: vi.fn(async () => [row("mine", "user-1"), row("theirs", "user-2")]),
+          },
+        },
+        env: { sandboxProvider: "fake" },
+      } as unknown as RouterDeps),
+      { context: { actor } as never },
+    );
+
+    const routines = await client.routines.list({ botId: "bot-1" });
+    expect(routines.map(({ id, editable }) => ({ id, editable }))).toEqual([
+      { id: "mine", editable: true },
+      { id: "theirs", editable: false },
+    ]);
+    expect(routines[0]).not.toHaveProperty("userId");
+  });
 });
 
 describe("routines.update", () => {

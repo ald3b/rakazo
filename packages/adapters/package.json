@@ -5,13 +5,15 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./host-computer-server": "./src/host-computer-server.ts"
+    "./host-computer-server": "./src/host-computer-server.ts",
+    "./user-device-client": "./src/user-device-client.ts"
   },
   "scripts": {
     "check": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run --root ../.. packages/adapters/src"
   },
   "dependencies": {
+    "@aws-sdk/client-kms": "3.1127.0",
     "@aws-sdk/client-s3": "3.1127.0",
     "@boatdev/sdk": "1.11.0",
     "@chat-adapter/slack": "4.43.0",
@@ -38,6 +40,7 @@
     "@rakazo/core": "workspace:*",
     "@rakazo/db": "workspace:*",
     "@rakazo/logging": "workspace:*",
+    "@stripe/link-sdk": "0.15.0",
     "chat": "4.43.0",
     "chat-adapter-sendblue": "0.2.0",
     "d3-dsv": "3.0.1",

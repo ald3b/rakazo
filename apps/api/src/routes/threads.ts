@@ -49,7 +49,6 @@ import {
   THREAD_MESSAGE_PAGE_SIZE,
 } from "./shared.js";
 
-/** The card is closed by a marker; the run that follows finishes whatever the call left open. */
 /** Deterministic nonce for a call's marker message. The unique (threadId, clientNonce)
  * index makes it the hang-up idempotency key, and the "call:" prefix lets clients derive
  * the marker's callId. User turns carry a uuid suffix, so they never collide. */
@@ -57,6 +56,7 @@ export function callMarkerClientNonce(callId: string): string {
   return `${CALL_CLIENT_NONCE_PREFIX}${callId}:marker`;
 }
 
+/** The card is closed by a marker; the run that follows finishes whatever the call left open. */
 const HANG_UP_PROMPT =
   "The voice call just ended because the user hung up. First call end_call with a short title for the call (leave farewell empty). Then, if anything the user asked for during the call is still unfinished, complete it now as a normal chat reply with full formatting. If nothing is pending, reply with one short sentence.";
 
@@ -148,15 +148,32 @@ export function threadsRoutes(ctx: RouterContext) {
         }
       }),
       send: authed.threads.send.handler(async ({ context, input }) => {
-        if ((await modelSetup(deps, context.actor)).needsModel) {
+        const setup = await modelSetup(deps, context.actor);
+        if (setup.needsModel) {
           throw new ORPCError("BAD_REQUEST", { message: MODEL_REQUIRED_SEND_ERROR });
         }
         const target = await resolveThreadTarget(deps.prisma, context.actor, input);
         if (target.kind === "bot") {
           await assertTeachingSendAllowed(deps.prisma, context.actor.spaceId, target.botId);
         }
+        const confirmingImages =
+          input.imageHandling === "confirm" && Boolean(input.artifactIds?.length);
+        // Reuse the funding modelSetup resolved; a send never asks billing twice.
+        const { funding } = setup;
+        const deployment = setup.hasDeployment
+          ? { provider: deps.env.defaultProvider, model: deps.env.defaultModel }
+          : null;
         return sendThreadMessage(
-          deps,
+          {
+            ...deps,
+            imageAdmission: confirmingImages
+              ? {
+                  secrets: deps.secrets,
+                  deployment,
+                  hostedProvider: funding?.funding === "credits" ? deployment?.provider : undefined,
+                }
+              : undefined,
+          },
           context.actor,
           target,
           input,

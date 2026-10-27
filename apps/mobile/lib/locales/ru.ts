@@ -1,4 +1,11 @@
 export const RU_MESSAGES: Record<string, string> = {
+  "Not sent. Tap for options": "Не отправлено. Нажмите для выбора действий",
+  "Image input is not configured for this model.": "Ввод изображений не настроен для этой модели.",
+  "Send as file": "Отправить как файл",
+  "The bot can use the file but won't see the picture.":
+    "Бот сможет использовать файл, но не увидит изображение.",
+  "This model cannot read images. Choose a model that supports images.":
+    "Эта модель не может читать изображения. Выберите модель с поддержкой изображений.",
   "Could not connect to the computer screen": "Не удалось подключиться к экрану компьютера",
   "Retry screen": "Повторить подключение экрана",
   "The screen connection closed.": "Соединение с экраном закрыто.",
@@ -30,8 +37,6 @@ export const RU_MESSAGES: Record<string, string> = {
   Export: "Экспорт",
   "Edit avatar": "Изменить аватар",
   "Add open work": "Добавить задачу",
-  "Can edit and organise bots it creates": "Может редактировать и упорядочивать созданных ботов",
-  "How other bots see it": "Как его видят другие боты",
   Permissions: "Разрешения",
   "Open work": "Открытые задачи",
   "When it finishes or needs input": "Когда работа завершена или нужен ответ",
@@ -104,6 +109,8 @@ export const RU_MESSAGES: Record<string, string> = {
     "{provider} отклонил API-ключ. Проверьте настройки подключения.",
   "{provider} can't run this model.": "{provider} не может запустить эту модель.",
   "{provider} denied access to this model.": "{provider} отказал в доступе к этой модели.",
+  "The model hit its output limit before finishing its reply.":
+    "Модель достигла лимита вывода, не закончив ответ.",
   "The model returned an unusable response. Try again.":
     "Модель вернула непригодный ответ. Попробуйте ещё раз.",
   "This model's context window is too small. Choose another model.":
@@ -375,6 +382,17 @@ export const RU_MESSAGES: Record<string, string> = {
   "Could not load model settings": "Не удалось загрузить настройки модели.",
   "Could not load routine": "Не удалось загрузить программу",
   "Could not load routines": "Не удалось загрузить задачи",
+  "{count} on": "Вкл.: {count}",
+  "Ask this Bot in chat to set up a routine.": "Попросите этого бота в чате настроить задачу.",
+  "{name}, On": "{name}, вкл.",
+  "{name}, Off": "{name}, выкл.",
+  "Active: {name}": "Активна: {name}",
+  "Delete {name}": "Удалить {name}",
+  "Delete this routine?": "Удалить эту задачу?",
+  "This permanently deletes the routine and its run history.":
+    "Задача и история её запусков будут удалены безвозвратно.",
+  "Could not delete routine": "Не удалось удалить задачу",
+  "Could not update routine": "Не удалось обновить задачу",
   "Get notified when this Bot finishes or needs input":
     "Получать уведомления, когда этот бот завершает работу или ждёт ввода",
   "Could not load the desktop. This device cannot reach the screen URL.":
@@ -654,7 +672,6 @@ export const RU_MESSAGES: Record<string, string> = {
   Skip: "Пропустить",
   Space: "Пространство",
   "Space actions for {name}": "Действия пространства {name}",
-  // app/(settings)/space.tsx
   Customize: "Настроить",
   "Customize {setting}": "Настроить: {setting}",
   "Space created": "Пространство создано",
@@ -813,7 +830,6 @@ export const RU_MESSAGES: Record<string, string> = {
     "Встроенный голос телефона. Бесплатно, без аккаунта",
   "Could not save that preference": "Не удалось сохранить эту настройку",
   Username: "Имя пользователя",
-  // app/(settings)/models.tsx
   "Move down": "Переместить ниже",
   "Move up": "Переместить выше",
   "Tried in order if the active model fails.":
@@ -832,6 +848,8 @@ export const RU_MESSAGES: Record<string, string> = {
   "Default ({level})": "По умолчанию ({level})",
   "Disconnected {provider}.": "{provider} отключён.",
   "Sign in again": "Войти снова",
+  "Confirm it's you": "Подтвердите, что это вы",
+  "Email me a code": "Отправить код на почту",
   "Thinking: {level}": "Рассуждение: {level}",
   "Waiting for sign-in — the code expires in about {minutes} minutes.":
     "Ожидание входа — срок действия кода истекает примерно через {minutes} мин.",
@@ -888,7 +906,6 @@ export const RU_MESSAGES: Record<string, string> = {
   "Hi, this is how I'll sound.": "Привет, вот так я звучу.",
   "Open external link?": "Открыть внешнюю ссылку?",
   Open: "Открыть",
-  // ai-data-sharing
   "AI models": "Модели ИИ",
   Memory: "Память",
   "Privacy policies": "Политики конфиденциальности",
@@ -1006,13 +1023,14 @@ export const RU_MESSAGES: Record<string, string> = {
   "Add credits": "Пополнить кредиты",
   "Manage billing": "Управление оплатой",
   "Your subscription or API key": "Ваша подписка или API-ключ",
-  "Free. ChatGPT, Claude, or any model provider.":
-    "Бесплатно. ChatGPT, Claude или любой провайдер моделей.",
-  "{price} / month. ChatGPT, Claude, or any model provider.":
-    "{price} в месяц. ChatGPT, Claude или любой провайдер моделей.",
+  "Free. Works with your ChatGPT or Claude plan.":
+    "Бесплатно. Работает с вашей подпиской ChatGPT или Claude.",
+  "{price} / month. Works with your ChatGPT or Claude plan.":
+    "{price} в месяц. Работает с вашей подпиской ChatGPT или Claude.",
   "Free plan ends": "Бесплатный тариф до",
   Subscribe: "Оформить подписку",
   "Use my subscription or API key": "Использовать свою подписку или API-ключ",
+  "Start {days}-day free trial": "Начать бесплатный пробный период на {days} дн.",
   "Monthly credits expire at renewal. Top-ups do not expire.":
     "Ежемесячные кредиты истекают при продлении. Разовые пополнения не сгорают.",
   "Use Rakazo credits": "Использовать кредиты Rakazo",
@@ -1092,7 +1110,36 @@ export const RU_MESSAGES: Record<string, string> = {
   "on the 1st at {time}": "1-го числа в {time}",
   "on day {day} at {time}": "{day}-го числа в {time}",
   "Every hour at :{minute}": "Каждый час на {minute}-й минуте",
+  "Every {n} hours at :{minute}": "Раз в {n} ч, на {minute}-й минуте",
   "{from} to {to}": "{from} — {to}",
   "Every {day}": "Каждую неделю: {day}",
   "Every {days} and {last}": "Каждую неделю: {days} и {last}",
+  "Run history": "История запусков",
+  "No runs yet": "Запусков пока нет",
+  "Load older runs": "Загрузить более ранние запуски",
+  "Could not load run history": "Не удалось загрузить историю запусков",
+  Vault: "Хранилище",
+  "Add credential": "Добавить учетные данные",
+  "Replace value": "Заменить значение",
+  "Remove {name}?": "Удалить {name}?",
+  "Could not save the credential": "Не удалось сохранить учетные данные",
+  "Could not remove the credential": "Не удалось удалить учетные данные",
+  Type: "Тип",
+  Site: "Сайт",
+  Value: "Значение",
+  "Custom header": "Свой заголовок",
+  "Basic auth": "Базовая аутентификация",
+  "Website login": "Вход на сайт",
+  "Use lowercase letters, numbers, - and _, starting with a letter.":
+    "Используйте строчные буквы, цифры, - и _, начиная с буквы.",
+  "{variable} is reserved. Choose another name.":
+    "{variable} зарезервировано. Выберите другое имя.",
+  "Delete this Space's credentials?": "Удалить учетные данные этого пространства?",
+  "Copy username": "Скопировать имя пользователя",
+  "Copy password": "Скопировать пароль",
+  "Could not show the credential": "Не удалось показать учетные данные",
+  Wallet: "Кошелёк",
+  "Connect {name}": "Подключить {name}",
+  "Could not load wallet": "Не удалось загрузить кошелёк",
+  "Could not update wallet": "Не удалось обновить кошелёк",
 };

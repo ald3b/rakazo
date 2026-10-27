@@ -125,8 +125,6 @@ const structuredData = homeStructuredData({
       </script>
 
       <section class="hero">
-        {/* Hidden while the headline already says open source. */}
-        {/* <a class="hero__pill" href="#open-source">{copy.hero.eyebrow}</a> */}
         <h1>{copy.hero.heading}</h1>
         <p class="lead">
           {copy.hero.lead}
@@ -391,6 +389,7 @@ const structuredData = homeStructuredData({
 </BaseLayout>
 
 <script>
+  import "../support-chat";
   const setupCopy = document.querySelector<HTMLButtonElement>("[data-setup-copy]");
   const setupCopyLabel = setupCopy?.querySelector<HTMLElement>(".setup-copy__label");
 

@@ -42,11 +42,12 @@ import {
   ComputerCommandSchema,
   foldComputerCommands,
 } from "@rakazo/contracts";
-import { ACTIVE_RUN_STATUSES } from "@rakazo/core";
+import { ACTIVE_RUN_STATUSES, scrollDirection } from "@rakazo/core";
 import { addScreenProxyCapability } from "@rakazo/core/node/screen-capability";
 import type { ComputerRunEnd, PrismaClient } from "@rakazo/db";
 import { createRepos, IsolationError, parseComputerMode, recordComputerRunEnd } from "@rakazo/db";
 import { getLogger } from "@rakazo/logging";
+import { scrollPoint } from "../computer-input.js";
 import {
   executionBlocksUserTakeover,
   resolveBusyBotName,
@@ -457,9 +458,9 @@ export function computerRoutes(ctx: RouterContext) {
               : input.kind === "scroll"
                 ? {
                     kind: "scroll" as const,
-                    direction:
-                      input.payload.direction === "up" ? ("up" as const) : ("down" as const),
+                    direction: scrollDirection(input.payload.direction),
                     amount: Number(input.payload.amount ?? 3),
+                    ...scrollPoint(input.payload),
                     sensitive,
                   }
                 : {
@@ -1025,7 +1026,6 @@ async function bindWaitingTakeoverToControl(
     if (!waitingForTakeover) return;
     if (input.controlRunId === executionLease.runId) return;
 
-    // Confirm the locked lease row still matches before writing controlRunId.
     const leaseStillCurrent = await tx.computerExecutionLease.count({
       where: {
         computerId: input.computerId,
