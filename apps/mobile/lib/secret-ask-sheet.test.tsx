@@ -382,11 +382,11 @@ it("keeps Cancel and Save as the only sheet actions", async () => {
 });
 
 it.each([false, true])(
-  "sends Remember for next time, off unless the person turns it on: %s",
+  "sends Save to Vault, off unless the person turns it on: %s",
   async (rememberOn) => {
     await render();
     const toggle = container.querySelector<HTMLInputElement>('[role="switch"]')!;
-    expect(toggle.getAttribute("aria-label")).toBe("Remember for next time");
+    expect(toggle.getAttribute("aria-label")).toBe("Save to Vault");
     expect(toggle.getAttribute("aria-checked")).toBe("false");
     if (rememberOn) await act(async () => toggle.click());
     await type("Username", "fake-user");

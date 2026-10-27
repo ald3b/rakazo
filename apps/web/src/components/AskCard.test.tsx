@@ -427,7 +427,7 @@ const loginCard: AskBlock = {
 };
 
 it.each([false, true])(
-  "keeps a login for later runs only when Remember for next time is on: %s",
+  "keeps a login for later runs only when Save to Vault is on: %s",
   async (rememberOn) => {
     const onAnswer = vi.fn(async () => undefined);
     await render(loginCard, async () => undefined, onAnswer);
@@ -435,7 +435,7 @@ it.each([false, true])(
     expect(toggle.getAttribute("aria-checked")).toBe("false");
     // The switch is named by its visible label.
     const label = toggle.getAttribute("aria-labelledby")!;
-    expect(container.querySelector(`[id="${label}"]`)?.textContent).toBe("Remember for next time");
+    expect(container.querySelector(`[id="${label}"]`)?.textContent).toBe("Save to Vault");
     if (rememberOn) await act(async () => toggle.click());
     await type("Username", "fake-user");
     await type("Password", "fake-password-1");
@@ -449,12 +449,12 @@ it.each([false, true])(
   },
 );
 
-it("offers Remember for next time only on login cards", async () => {
+it("offers Save to Vault only on login cards", async () => {
   await render(secretCard);
   expect(container.querySelector('[role="switch"]')).toBeNull();
   await render({ kind: "ask", text: "Code", input: "secret", purpose: "otp", status: "pending" });
   expect(container.querySelector('[role="switch"]')).toBeNull();
-  expect(container.textContent).not.toContain("Remember for next time");
+  expect(container.textContent).not.toContain("Save to Vault");
 });
 
 it("quotes an edited reply and marks a sent draft", async () => {

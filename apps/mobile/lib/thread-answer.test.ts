@@ -42,7 +42,7 @@ describe("mobile ask answers", () => {
     expect(h.refresh).toHaveBeenCalledTimes(1);
   });
 
-  it("sends Remember for next time with a login answer", async () => {
+  it("sends Save to Vault with a login answer", async () => {
     const h = setup(async () => undefined);
     await h.answerMessage(message, "example-password", "ada", undefined, true);
     expect(h.rpc).toHaveBeenCalledWith("threads/answer", {

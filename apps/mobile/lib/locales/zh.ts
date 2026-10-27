@@ -401,7 +401,7 @@ export const ZH_MESSAGES: Record<string, string> = {
   "Could not save the server URL": "无法保存服务器地址",
   "Could not send reset email": "无法发送重置邮件",
   "Could not send answer": "无法发送回答",
-  "Remember for next time": "记住以便下次使用",
+  "Save to Vault": "保存到保险库",
   "Could not share file": "无法分享文件",
   "Could not sign out": "无法退出登录",
   "Could not speak": "无法朗读",

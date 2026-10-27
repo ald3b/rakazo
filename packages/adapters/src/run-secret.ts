@@ -167,7 +167,7 @@ export function createRunSecretWriter(secretStore: SecretStore): RunSecretWriter
             ? encodeLoginSecret({ username: input.username?.trim() ?? "", password: input.answer })
             : input.answer;
         const scope = { userId: run.userId, spaceId: input.spaceId, botId: run.botId };
-        // Without "Remember for next time", a login is kept for this run only, never as a saved
+        // Without "Save to Vault", a login is kept for this run only, never as a saved
         // credential. Its site is the card's, so the value stays bound to it.
         const runLogin =
           ask.credential?.auth.type === "login" && input.remember !== true

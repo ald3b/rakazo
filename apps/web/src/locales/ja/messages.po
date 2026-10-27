@@ -4426,10 +4426,6 @@ msgstr "操作を戻す"
 msgid "Reload"
 msgstr "再読み込み"
 
-#: src/components/AskCard.tsx
-msgid "Remember for next time"
-msgstr "次回のために保存"
-
 #: src/components/ApprovalRulesSettings.tsx
 #: src/components/VaultSettings.tsx
 #: src/pages/McpServersOverlay.tsx
@@ -4754,6 +4750,10 @@ msgstr "新しい値を保存"
 #: src/components/ComputerMaintenanceActions.tsx
 msgid "Save the workspace and install current software."
 msgstr "ワークスペースを保存して、最新のソフトウェアをインストールします。"
+
+#: src/components/AskCard.tsx
+msgid "Save to Vault"
+msgstr "保管庫に保存"
 
 #: src/components/AskCard.tsx
 #: src/components/teach/SkillDraftCard.tsx

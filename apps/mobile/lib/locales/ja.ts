@@ -277,7 +277,7 @@ export const JA_MESSAGES: Record<string, string> = {
   "Tap to open": "タップして開く",
   "Could not open message": "メッセージを開けませんでした",
   "Could not send answer": "回答を送信できませんでした",
-  "Remember for next time": "次回のために保存",
+  "Save to Vault": "保管庫に保存",
   "Could not speak": "読み上げできませんでした",
   "Could not update reaction": "リアクションを更新できませんでした",
   Created: "作成済み",

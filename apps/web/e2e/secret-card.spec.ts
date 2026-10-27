@@ -408,7 +408,7 @@ test("keeps a website login password on one line", async ({ page, context }) => 
   await expect.poll(() => answers).toEqual(["pass-one pass-two"]);
 });
 
-test("shows Remember for next time on a login card, off by default, and keeps an unremembered login out of settings", async ({
+test("shows Save to Vault on a login card, off by default, and keeps an unremembered login out of settings", async ({
   page,
 }, testInfo) => {
   const stamp = Date.now();
@@ -436,7 +436,7 @@ test("shows Remember for next time on a login card, off by default, and keeps an
     await expect(page.getByPlaceholder(/Message/)).toBeVisible({ timeout: 15_000 });
   }
   await expect(card).toBeVisible({ timeout: 15_000 });
-  const remember = card.getByRole("switch", { name: "Remember for next time" });
+  const remember = card.getByRole("switch", { name: "Save to Vault" });
   await expect(remember).toBeVisible();
   await expect(remember).not.toBeChecked();
   await captureScreenshot(page, testInfo, "login-card");

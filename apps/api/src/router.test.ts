@@ -934,7 +934,7 @@ describe("secret request dismissal", () => {
     expect(h.enqueue).toHaveBeenCalledOnce();
   });
 
-  it("passes Remember for next time on with a login answer", async () => {
+  it("passes Save to Vault on with a login answer", async () => {
     const h = setup(true);
     const { response } = await h.send({
       answer: "fake-password-1",

@@ -297,7 +297,7 @@ export interface RunSecretWriter {
   store(input: {
     botId: string;
     credential?: BotSecretDestination;
-    /** A login card answered with "Remember for next time". */
+    /** A login card answered with "Save to Vault". */
     remember: boolean;
     runId: string;
     userId: string;

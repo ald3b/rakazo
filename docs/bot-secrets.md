@@ -85,7 +85,7 @@ The card asks for a username and a password. The fill tool never returns the pas
 
 The login's value is deleted when the run ends, however it ends. The bot's tabs that are on that site, or have it in their back/forward history, are then closed, so no field it was typed into stays open or one Back away; if that can't happen at once, it happens before the bot's next run uses that computer. A login typed on one computer can't be typed on another, so after the bot switches computers, its page is closed before that computer is next used. The site's cookies stay, so the bot may still be signed in, and the browser's own form autofill may keep the username. The password is not kept, since the browser's password manager is off. Later runs don't hide a login that wasn't remembered, so a copy of it the run left in a file or a download stays readable to them.
 
-When the person turns on **Remember for next time** on the card, the login is saved in the vault like other reusable credentials (the account's, or the Space's own when the Space keeps its own credentials), so every bot there can fill it in later runs and it is listed in the Vault settings.
+When the person turns on **Save to Vault** on the card, the login is saved in the vault like other reusable credentials (the account's, or the Space's own when the Space keeps its own credentials), so every bot there can fill it in later runs and it is listed in the Vault settings.
 
 To sign in, the bot fills fields found with `browser_snapshot`:
 

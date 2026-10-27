@@ -2671,7 +2671,7 @@ describe("answerRunInput", () => {
 
   it.each([
     ["a login card left as is", "login", undefined, true, false],
-    ["a login card with Remember for next time", "login", true, true, true],
+    ["a login card with Save to Vault", "login", true, true, true],
     ["Remember on an API key card", "bearer", true, false, undefined],
   ] as const)("%s", async (_name, type, remember, accepted, remembered) => {
     const credential =

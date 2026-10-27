@@ -164,7 +164,7 @@ async function runLogin(
   };
 }
 
-describe("a login answered without Remember for next time", () => {
+describe("a login answered without Save to Vault", () => {
   it("is kept for the run that asked, bound to the card's site, and saves nothing", async () => {
     const db = await answerLoginCard(false);
     expect(db.data.get("vaultCredential")).toEqual([]);
@@ -354,7 +354,7 @@ describe("hiding a run login from its run's output", () => {
   });
 });
 
-describe("a login answered with Remember for next time", () => {
+describe("a login answered with Save to Vault", () => {
   it("is saved in the account vault and keeps nothing for the run", async () => {
     const db = await answerLoginCard(true);
     expect(db.data.get("runLogin")).toEqual([]);

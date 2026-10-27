@@ -148,9 +148,9 @@ export function SecretAskSheet({
             style={styles.field}
           />
           <View style={styles.row}>
-            <Text style={styles.rowLabel}>{t("Remember for next time")}</Text>
+            <Text style={styles.rowLabel}>{t("Save to Vault")}</Text>
             <NativeSwitch
-              accessibilityLabel={t("Remember for next time")}
+              accessibilityLabel={t("Save to Vault")}
               disabled={submitting || closing}
               onValueChange={setRemember}
               value={remember}

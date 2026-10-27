@@ -424,7 +424,7 @@ export function AskCard({
           {loginInput ? (
             <div className="flex min-h-11 items-center justify-between gap-3 text-sm">
               <label htmlFor={rememberId}>
-                <Trans>Remember for next time</Trans>
+                <Trans>Save to Vault</Trans>
               </label>
               <Switch
                 id={rememberId}

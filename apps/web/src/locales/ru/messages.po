@@ -4426,10 +4426,6 @@ msgstr "Передать управление"
 msgid "Reload"
 msgstr "Перезагрузить"
 
-#: src/components/AskCard.tsx
-msgid "Remember for next time"
-msgstr "Запомнить на следующий раз"
-
 #: src/components/ApprovalRulesSettings.tsx
 #: src/components/VaultSettings.tsx
 #: src/pages/McpServersOverlay.tsx
@@ -4754,6 +4750,10 @@ msgstr ""
 #: src/components/ComputerMaintenanceActions.tsx
 msgid "Save the workspace and install current software."
 msgstr "Сохранить рабочее пространство и установить актуальное ПО."
+
+#: src/components/AskCard.tsx
+msgid "Save to Vault"
+msgstr "Сохранить в хранилище"
 
 #: src/components/AskCard.tsx
 #: src/components/teach/SkillDraftCard.tsx
