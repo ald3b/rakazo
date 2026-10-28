@@ -15,6 +15,7 @@ import {
   botSecretToolView,
   findBotSecret,
   findCommandVariableConflict,
+  findRunLogin,
   forgetBotSecret,
   generateBotSecret,
   listBotSecrets,
@@ -103,6 +104,22 @@ export const secretTools: ToolHandlers = {
           error: `Invalid credential destination — name: ${conflict} is already exported as the same variable. Choose another name.`,
         });
       }
+      // A login the person chose not to save stays with this run; the bot is told so it doesn't
+      // say it was saved. Field labels only, never values.
+      const runLogin =
+        destination.auth.type === "login"
+          ? await findRunLogin(deps.prisma, deps.secretStore, run, runId, destination.name)
+          : undefined;
+      const known =
+        runLogin && runLogin.origin === destination.origin
+          ? {
+              saved: false,
+              ...destination,
+              fields: runLogin.fields.map(({ label, hidden }) => ({ label, hidden })),
+            }
+          : existing
+            ? { saved: true, ...botSecretToolView(existing) }
+            : undefined;
       const submitted = botSecretSubmissionSchema({
         allowPrivateHttpOrigin: allowPrivateHttpSecretOrigins(),
       }).safeParse(applied?.effect.result).data;
@@ -110,15 +127,9 @@ export const secretTools: ToolHandlers = {
         submitted &&
         sameSecretDestination(normalizeSecretDestination(submitted.credentialSaved), destination)
       ) {
-        return call.finish(
-          existing
-            ? { saved: true, ...botSecretToolView(existing) }
-            : { error: "The saved credential is no longer available." },
-        );
+        return call.finish(known ?? { error: "The saved credential is no longer available." });
       }
-      if (existing && args.replace !== true) {
-        return call.finish({ saved: true, ...botSecretToolView(existing) });
-      }
+      if (known && args.replace !== true) return call.finish(known);
       // Action approval authorizes showing the card; it is not a credential submission.
       // Return the claim to intended so the answer transaction can approve the saved value.
       if (call.claimedEffect) {
