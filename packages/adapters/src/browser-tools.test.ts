@@ -7,6 +7,7 @@ import {
   browserSnapshotFromTool,
   parseBrowserActions,
 } from "./browser-tools.js";
+import { ComputerBrowserProvider } from "./computer-browser.js";
 import { FakeBrowserProvider } from "./fake-browser.js";
 import { filterPageBrowserTools, PAGE_BROWSER_TOOL_NAMES } from "./run-tool-selection.js";
 
@@ -885,5 +886,102 @@ describe("browser tools", () => {
     expect(filterPageBrowserTools([{ name: "computer_act" }, ...tools], false)).toEqual([
       { name: "computer_act" },
     ]);
+  });
+});
+
+describe("browser tools on dropdowns and stale refs", () => {
+  const html = `<!doctype html><html><head><title>Returns</title></head><body>
+    <select aria-label="Year"><option value="">Choose</option>
+      <option value="p23">שנת 2023</option><option value="p24" selected>שנת 2024</option></select>
+  </body></html>`;
+  const fake = async () => {
+    const browser = new FakeBrowserProvider({
+      pages: { "https://example.test/r": { title: "Returns", html } },
+    });
+    await browserNavigateFromTool(browser, computer, context, { url: "https://example.test/r" });
+    type Snap = { tree: string; elements: Array<{ ref: string; name: string; value?: string }> };
+    const snap = (await browserSnapshotFromTool(browser, computer, context, {})) as Snap;
+    return { browser, snap, year: snap.elements.find((el) => el.name === "Year")! };
+  };
+
+  it("lists a dropdown's options in the snapshot", async () => {
+    const { snap, year } = await fake();
+    expect(snap.tree).toContain(
+      'options: "Choose"="", "שנת 2023"="p23", "שנת 2024"="p24" (selected)',
+    );
+    expect(year).toMatchObject({
+      options: [
+        { label: "Choose", value: "" },
+        { label: "שנת 2023", value: "p23" },
+        { label: "שנת 2024", value: "p24", selected: true },
+      ],
+    });
+  });
+
+  it("fills a dropdown by an option's visible label", async () => {
+    const { browser, year } = await fake();
+    const acted = (await browserActFromTool(browser, computer, context, {
+      actions: [{ kind: "fill", ref: year.ref, text: "שנת 2023" }],
+    })) as { ok: boolean; elements: Array<{ name: string; value?: string }> };
+    expect(acted.ok).toBe(true);
+    expect(acted.elements.find((el) => el.name === "Year")?.value).toBe("p23");
+  });
+
+  it("settles an option the dropdown does not have, with its options and the page", async () => {
+    const { browser, year } = await fake();
+    const acted = await browserActFromTool(browser, computer, context, {
+      actions: [{ kind: "fill", ref: year.ref, text: "2019" }],
+    });
+    expect(acted).toMatchObject({
+      ok: false,
+      uncertain: false,
+      error: expect.stringContaining(
+        'no option "2019". Its options: "Choose"="", "שנת 2023"="p23"',
+      ),
+      tree: expect.stringContaining("Year"),
+    });
+    expect(acted).not.toHaveProperty("fallback");
+    expect(acted).not.toHaveProperty("note");
+  });
+
+  it("settles a stale ref with a fresh page instead of sending the bot to the desktop", async () => {
+    const { browser } = await fake();
+    const acted = await browserActFromTool(browser, computer, context, {
+      actions: [{ kind: "click", ref: "e999" }],
+    });
+    expect(acted).toMatchObject({
+      ok: false,
+      uncertain: false,
+      error: expect.stringContaining("Stale element ref"),
+    });
+    expect(acted).not.toHaveProperty("fallback");
+    expect(acted).not.toHaveProperty("note");
+    expect(acted).toHaveProperty("tree", expect.stringContaining("Year"));
+  });
+
+  it("passes a settled step error from the live helper on without the desktop note", async () => {
+    const provider = new ComputerBrowserProvider({
+      liveDriver: async () => ({
+        ok: false,
+        completed: 0,
+        uncertain: false,
+        url: "https://example.test/r",
+        title: "Returns",
+        tree: '- combobox "Year" [e5] options: "2023", "2024"',
+        elements: [{ ref: "e5", role: "combobox", name: "Year" }],
+        error: 'This dropdown has no option "2019". Its options: "2023", "2024".',
+      }),
+    });
+    const live: ComputerRef = { id: "c", botId: "b", kind: "docker", providerRef: "c" };
+    const acted = await browserActFromTool(provider, live, context, {
+      actions: [{ kind: "fill", ref: "e5", text: "2019" }],
+    });
+    expect(acted).toMatchObject({
+      ok: false,
+      uncertain: false,
+      tree: expect.stringContaining("e5"),
+    });
+    expect(acted).not.toHaveProperty("fallback");
+    expect(acted).not.toHaveProperty("note");
   });
 });

@@ -10,6 +10,7 @@ import { resolveLoginFill, shellCommandEnvironment } from "./bot-secrets.js";
 import {
   browserActFromTool,
   browserNavigateFromTool,
+  browserResultForModel,
   browserSnapshotFromTool,
 } from "./browser-tools.js";
 import { BACKGROUND_WORK_LAUNCH } from "./computer-idle.js";
@@ -216,7 +217,7 @@ export async function pageBrowserTool(ctx: RunContext, call: ToolCall) {
       name,
       result,
     );
-    return result;
+    return browserResultForModel(result);
   }, call.finish);
 }
 
