@@ -290,9 +290,16 @@ export class PageBrowserSession {
           options.find((o) => norm(optionLabel(o)) === norm(text) || norm(o.value) === norm(text));
         if (!match) {
           throw new SettledStep(
-            `This dropdown has no option "${text}". Its options: ${describeOptions(optionsOf(el))}.`,
+            `This dropdown has no option "${text}". Its options: ${describeOptions(optionsOf(el, win))}.`,
           );
         }
+        if (unavailable(win, match)) {
+          throw new SettledStep(
+            `The option "${optionLabel(match)}" is disabled. Its options: ${describeOptions(optionsOf(el, win))}.`,
+          );
+        }
+        // The old choice goes: a multiple select would keep it otherwise.
+        for (const option of options) option.selected = false;
         match.selected = true;
         el.dispatchEvent(new win.Event("input", { bubbles: true }));
         el.dispatchEvent(new win.Event("change", { bubbles: true }));
@@ -325,7 +332,7 @@ export class PageBrowserSession {
       const tag = node.tagName.toLowerCase();
       const entry: BrowserSnapshotNode = { ref, role, name, tag };
       if (value !== undefined) entry.value = value;
-      if (node instanceof win.HTMLSelectElement) entry.options = optionsOf(node);
+      if (node instanceof win.HTMLSelectElement) entry.options = optionsOf(node, win);
       elements.push(entry);
       const valuePart = value !== undefined ? ` value=${JSON.stringify(value)}` : "";
       const optionsPart = entry.options ? ` options: ${describeOptions(entry.options)}` : "";
@@ -366,12 +373,18 @@ function optionLabel(option: { label: string; text: string }): string {
   return (option.label || option.text).replace(/\s+/g, " ").trim();
 }
 
-function optionsOf(select: { options: Iterable<HTMLOptionElement> }) {
+/** An option is out of reach when it, or the group it is in, is disabled. */
+function unavailable(win: DomWindow, option: HTMLOptionElement): boolean {
+  const group = option.parentElement;
+  return option.disabled || (group instanceof win.HTMLOptGroupElement && group.disabled);
+}
+
+function optionsOf(select: { options: Iterable<HTMLOptionElement> }, win: DomWindow) {
   return [...select.options].map((option) => ({
     label: optionLabel(option),
     value: option.value,
     ...(option.selected ? { selected: true } : {}),
-    ...(option.disabled ? { disabled: true } : {}),
+    ...(unavailable(win, option) ? { disabled: true } : {}),
   }));
 }
 

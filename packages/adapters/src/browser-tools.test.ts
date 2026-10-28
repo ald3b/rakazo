@@ -944,6 +944,43 @@ describe("browser tools on dropdowns and stale refs", () => {
     expect(acted).not.toHaveProperty("note");
   });
 
+  it("replaces the old choice of a multiple select, and refuses an option in a disabled group", async () => {
+    const page = `<!doctype html><html><head><title>Tags</title></head><body>
+      <select aria-label="Tags" multiple><option selected>A</option><option selected>B</option><option>C</option>
+        <optgroup label="Soon" disabled><option>D</option></optgroup></select></body></html>`;
+    const browser = new FakeBrowserProvider({
+      pages: { "https://example.test/t": { title: "Tags", html: page } },
+    });
+    await browserNavigateFromTool(browser, computer, context, { url: "https://example.test/t" });
+    type Snap = {
+      elements: Array<{
+        ref: string;
+        name: string;
+        value?: string;
+        options?: Array<{ label: string; selected?: boolean; disabled?: boolean }>;
+      }>;
+    };
+    const tags = ((await browserSnapshotFromTool(browser, computer, context, {})) as Snap)
+      .elements[0]!;
+    expect(tags.options?.at(-1)).toMatchObject({ label: "D", disabled: true });
+    const acted = (await browserActFromTool(browser, computer, context, {
+      actions: [{ kind: "fill", ref: tags.ref, text: "C" }],
+    })) as Snap & { ok: boolean };
+    expect(acted.ok).toBe(true);
+    expect(acted.elements[0]!.options?.filter((o) => o.selected).map((o) => o.label)).toEqual([
+      "C",
+    ]);
+    const refused = await browserActFromTool(browser, computer, context, {
+      actions: [{ kind: "fill", ref: acted.elements[0]!.ref, text: "D" }],
+    });
+    expect(refused).toMatchObject({
+      ok: false,
+      uncertain: false,
+      error: expect.stringContaining('The option "D" is disabled'),
+    });
+    expect(refused).not.toHaveProperty("fallback");
+  });
+
   it("settles a stale ref with a fresh page instead of sending the bot to the desktop", async () => {
     const { browser } = await fake();
     const acted = await browserActFromTool(browser, computer, context, {

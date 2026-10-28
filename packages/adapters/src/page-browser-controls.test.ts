@@ -318,6 +318,33 @@ describe("live page helper click aim", () => {
     expect(browser.stillAimed(ref, 250, 315)).toEqual({ x: 0, y: 0 });
   });
 
+  it("aims at a part of the label that is not a link or button inside it", () => {
+    // The label is 200..300 wide; a "Terms" link sits in its middle (240..260).
+    const { browser } = installPageHelper(
+      `<label data-rect="200,300,100,30"><input type="checkbox" data-rect="0,0,1,1" /><span>I accept the</span> <a href="/terms" data-rect="240,300,20,30">Terms</a></label>`,
+      (dom, x) => dom.window.document.querySelector(x >= 240 && x < 260 ? "a" : "span"),
+    );
+    const ref = refOf(browser.snapshot(), "I accept the Terms");
+    const { x } = browser.aim(ref);
+    expect(x!).toBeGreaterThanOrEqual(200);
+    expect(x!).toBeLessThan(300);
+    expect(x! < 240 || x! >= 260).toBe(true);
+    // The pointer must not be left over the link.
+    expect(() => browser.stillAimed(ref, 250, 315)).toThrow(
+      /Settled: The page moved under the pointer: link "Terms"/,
+    );
+  });
+
+  it("says so when every spot of the label is a link", () => {
+    const { browser } = installPageHelper(
+      `<label data-rect="200,300,100,30"><input type="checkbox" data-rect="0,0,1,1" /><a href="/terms" data-rect="200,300,100,30">Terms</a></label>`,
+      (dom) => dom.window.document.querySelector("a"),
+    );
+    expect(() => browser.aim(refOf(browser.snapshot(), "Terms"))).toThrow(
+      /Settled: Element is covered by link "Terms"/,
+    );
+  });
+
   it("accepts a click on something inside the label of a normal-sized control", () => {
     const { browser } = installPageHelper(
       `<label><input type="radio" data-rect="0,0,16,16" /><span>Monthly</span></label>`,
@@ -390,6 +417,59 @@ describe("live page helper click aim", () => {
     const snap = browser.snapshot();
     expect(browser.aim(refOf(snap, "Year"))).toEqual({ x: null, y: null });
     expect(() => browser.aim(refOf(snap, "Statement"))).toThrow(/Settled: This is a file upload/);
+  });
+});
+
+describe("live page helper dropdown choices", () => {
+  it("replaces the old choice in a multiple select instead of adding to it", () => {
+    const { win, browser } = installPageHelper(
+      `<label for="m">Tags</label><select id="m" multiple><option selected>A</option><option selected>B</option><option>C</option></select>`,
+    );
+    const select = win.document.getElementById("m") as HTMLSelectElement;
+    browser.fill(refOf(browser.snapshot(), "Tags"), "C");
+    expect([...select.selectedOptions].map((o) => o.value)).toEqual(["C"]);
+  });
+
+  it("still replaces the old choice in a single select", () => {
+    const { win, browser } = installPageHelper(
+      `<label for="s">Year</label><select id="s"><option>2023</option><option selected>2024</option></select>`,
+    );
+    const select = win.document.getElementById("s") as HTMLSelectElement;
+    browser.fill(refOf(browser.snapshot(), "Year"), "2023");
+    expect(select.value).toBe("2023");
+  });
+
+  it("treats an option in a disabled group as disabled, in the list and when choosing", () => {
+    const { win, browser } = installPageHelper(
+      `<label for="g">Plan</label><select id="g"><option>Free</option><optgroup label="Soon" disabled><option>Pro</option></optgroup></select>`,
+    );
+    const snap = browser.snapshot();
+    expect(snap.elements.find((el) => el.name === "Plan")?.options?.at(-1)).toEqual({
+      label: "Pro",
+      value: "Pro",
+      disabled: true,
+    });
+    expect(() => browser.fill(refOf(snap, "Plan"), "Pro")).toThrow(
+      /Settled: The option "Pro" is disabled/,
+    );
+    expect((win.document.getElementById("g") as HTMLSelectElement).value).toBe("Free");
+  });
+});
+
+describe("live page helper control lines", () => {
+  it("writes a control's name as a quoted string, so quotes, backslashes and line breaks survive", () => {
+    const { browser } = installPageHelper(
+      `<button>Export "2024"</button><button aria-label="C:\\temp">x</button><button aria-label="two\nlines">y</button>`,
+    );
+    const lines = browser
+      .snapshot()
+      .tree.split("\n")
+      .filter((line) => line.startsWith("- button"));
+    expect(lines.map((line) => line.replace(/ \[e\d+\]$/, ""))).toEqual([
+      '- button "Export \\"2024\\""',
+      '- button "C:\\\\temp"',
+      '- button "two\\nlines"',
+    ]);
   });
 });
 
