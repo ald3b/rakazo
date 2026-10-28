@@ -378,3 +378,15 @@ describe("jsonField const handling", () => {
     expect(JSON.stringify(jsonField({ type: "string" }))).not.toContain("const");
   });
 });
+
+describe("request_secret description", () => {
+  it("keeps sign-ins without a password on the login card and takeover for the live screen", () => {
+    const { description } = toolNamed("request_secret");
+    expect(description).toContain('A sign-in without a password still uses auth {type:"login"}');
+    expect(description).toContain("never ask for them in chat");
+    expect(description).toContain("Ask for a texted or emailed one-time code the same way");
+    expect(description).toContain("Give the code its own name, not the ID and phone login's.");
+    expect(description).toContain("Use request_takeover only for what needs the live screen");
+    expect(description).not.toContain("For 2FA");
+  });
+});
