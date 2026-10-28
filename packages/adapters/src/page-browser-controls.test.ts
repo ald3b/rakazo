@@ -198,6 +198,22 @@ describe("live page helper dropdowns", () => {
     expect(changes).toEqual(["p23", "p24", "p23", ""]);
   });
 
+  it("fills with a long option's label as the snapshot cut it", () => {
+    const long =
+      "Annual report including every regional office, subsidiary, partner and joint venture";
+    const { win, browser } = installPageHelper(
+      `<label for="r">Report</label><select id="r"><option>Short</option><option>${long} 2023</option><option>${long} 2024</option><option>${long}, all years combined</option></select>`,
+    );
+    const snap = browser.snapshot();
+    const options = snap.elements.find((el) => el.name === "Report")?.options ?? [];
+    const select = win.document.getElementById("r") as HTMLSelectElement;
+    expect(new Set(options.map((option) => option.label)).size).toBe(4);
+    browser.fill(refOf(snap, "Report"), options[3]!.label);
+    expect(select.value).toBe(`${long}, all years combined`);
+    browser.fill(refOf(snap, "Report"), options[1]!.label);
+    expect(select.value).toBe(`${long} 2023`);
+  });
+
   it("refuses an option the select does not have, listing the ones it has", () => {
     const { win, browser } = installPageHelper(html);
     const ref = refOf(browser.snapshot(), "Year");

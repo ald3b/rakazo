@@ -738,6 +738,7 @@ EVAL_HELPERS = r"""
   }
   const MAX_CONTROLS = 80;
   const MAX_OPTIONS = 100;
+  const MAX_OPTION_TEXT = 80;
   // The snapshot goes to the model whole, in one piece of at most 12,000 characters, or the tool
   // result shortener cuts out its middle. So the control list and the page text share a budget,
   // measured as the page text and control lines will be sent (with their line breaks escaped).
@@ -768,6 +769,8 @@ EVAL_HELPERS = r"""
   const clean = (text) => String(text).replace(/\s+/g, " ").trim();
   // An option is out of reach when it, or the group it is in, is disabled.
   const unavailable = (option) => option.disabled || (option.parentElement instanceof HTMLOptGroupElement && option.parentElement.disabled);
+  // A long option label or value keeps its start and its end, which is where long options usually differ.
+  const cutOption = (text) => text.length > MAX_OPTION_TEXT ? `${text.slice(0, 50)}…${text.slice(-(MAX_OPTION_TEXT - 51))}` : text;
   // A select's options as the page shows them: the label, the value when it differs, and which is chosen.
   // A long list is cut to its first MAX_OPTIONS and the chosen one.
   function optionsOf(select) {
@@ -776,8 +779,8 @@ EVAL_HELPERS = r"""
     const chosen = all.find((option) => option.selected);
     if (chosen && !shown.includes(chosen)) shown.push(chosen);
     return shown.map((option) => ({
-      label: clean(option.label || option.text).slice(0, 80),
-      value: option.value.slice(0, 80),
+      label: cutOption(clean(option.label || option.text)),
+      value: cutOption(option.value),
       ...(option.selected ? { selected: true } : {}),
       ...(unavailable(option) ? { disabled: true } : {}),
     }));
@@ -801,14 +804,18 @@ EVAL_HELPERS = r"""
     return parts.join(", ") + (total > parts.length ? `, and ${total - parts.length} more` : "");
   }
   // Fills a select with the option whose value or visible label is the one asked for: the same text,
-  // else the same words ignoring case, spacing and direction marks.
+  // else the same words ignoring case, spacing and direction marks, else the one option whose label or
+  // value is the one asked for as the snapshot cut it.
   function chooseOption(select, wanted) {
     const normal = (text) => clean(String(text).replace(/[\u200e\u200f\u202a-\u202e\u00a0]/g, " ")).toLowerCase();
     const label = (option) => clean(option.label || option.text);
     const options = Array.from(select.options);
+    const shownCut = (text) => text.length > MAX_OPTION_TEXT && cutOption(text) === wanted;
+    const cut = options.filter((option) => shownCut(label(option)) || shownCut(option.value));
     const match = options.find((option) => option.value === wanted)
       || options.find((option) => label(option) === wanted)
-      || options.find((option) => normal(label(option)) === normal(wanted) || normal(option.value) === normal(wanted));
+      || options.find((option) => normal(label(option)) === normal(wanted) || normal(option.value) === normal(wanted))
+      || (cut.length === 1 ? cut[0] : undefined);
     if (!match) {
       throw settled(`This dropdown has no option "${wanted.slice(0, 80)}". Its options: ${describeOptions(optionsOf(select), select.options.length, OPTIONS_CHARS)}.`);
     }
