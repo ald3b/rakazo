@@ -11,6 +11,7 @@ import {
   BOT_SECRET_VALUE_MAX_LENGTH,
   encodeLoginSecret,
   hasThinkingActivityMarker,
+  loginAnswerFields,
   loginAnswerValue,
   MessageBlock as MessageBlockSchema,
   ThreadActivityPayloadSchema,
@@ -62,6 +63,14 @@ export class AnswerTooLongError extends Error {
   constructor() {
     super("This answer is too long.");
     this.name = "AnswerTooLongError";
+  }
+}
+
+/** A login answer that does not fit the fields its card asks for. Nothing is stored or echoed. */
+export class LoginAnswerMismatchError extends Error {
+  constructor() {
+    super("This login asks for different fields. Update the app to answer it.");
+    this.name = "LoginAnswerMismatchError";
   }
 }
 
@@ -828,11 +837,13 @@ async function commitAnswerRunInput(
   if (secretAsk && !dismissed && !runSecretWriter) return null;
   if (secretAsk && pendingAsk.credential && run.userId !== input.answeredByUserId) return null;
   const loginAsk = secretAsk && !dismissed && pendingAsk.credential?.auth.type === "login";
-  const login = loginAsk ? loginAnswerValue(pendingAsk.loginFields, input) : undefined;
-  // Login fields belong only to a login card, which cannot be saved without them.
-  if (loginAsk ? !login : input.username !== undefined || input.fields !== undefined) return null;
   if (secretAsk && input.answer.length > BOT_SECRET_VALUE_MAX_LENGTH)
     throw new AnswerTooLongError();
+  // Login fields belong only to a login card, which cannot be saved without them.
+  if (loginAsk && !loginAnswerFields(pendingAsk.loginFields, input))
+    throw new LoginAnswerMismatchError();
+  const login = loginAsk ? loginAnswerValue(pendingAsk.loginFields, input) : undefined;
+  if (loginAsk ? !login : input.username !== undefined || input.fields !== undefined) return null;
   let approvalEffect: { id: string; kind: string; request: Prisma.JsonValue } | null = null;
   let editedInstructions: string | undefined;
   let approvalAnswer = input.answer;

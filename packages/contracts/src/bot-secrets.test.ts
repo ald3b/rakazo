@@ -9,6 +9,8 @@ import {
   encodeLoginSecret,
   LOGIN_FIELD_LIMIT,
   LoginFieldLabels,
+  loginAnswerFields,
+  loginAnswerValue,
   loginCardFields,
   SecretHttpRequest,
 } from "./bot-secrets.js";
@@ -265,6 +267,72 @@ describe("login credentials", () => {
 
   it.each([[[]], [["Code", "CODE"]], [[""]]])("rejects requested labels %j", (labels) => {
     expect(LoginFieldLabels.safeParse(labels).success).toBe(false);
+  });
+  describe("loginAnswerValue", () => {
+    const named = [
+      { label: "ID number", value: "fake-id-123", hidden: false },
+      { label: "Phone number", value: "+1 555 0100", hidden: true },
+    ];
+
+    it("keeps an older app's username and password on the default card", () => {
+      expect(loginAnswerValue(undefined, { username: "fake-user", answer: "fake-pass" })).toEqual({
+        fields: [
+          { label: "Username", value: "fake-user", hidden: false },
+          { label: "Password", value: "fake-pass", hidden: true },
+        ],
+      });
+    });
+
+    it("stores an older app's username and password under a two-field card's labels", () => {
+      expect(
+        loginAnswerValue(["ID number", "Phone number"], {
+          username: "fake-id-123",
+          answer: "+1 555 0100",
+        }),
+      ).toEqual({ fields: named });
+    });
+
+    it.each([[["PIN"]], [["ID number", "Phone number", "PIN"]]])(
+      "rejects an older app's answer on a card asking for %j",
+      (labels) => {
+        expect(loginAnswerValue(labels, { username: "fake-id-123", answer: "x" })).toBeUndefined();
+      },
+    );
+
+    it("tells a shape that does not fit from a value that is empty or too long", () => {
+      const labels = ["ID number", "Phone number"];
+      const legacy = { username: "fake-id-123", answer: "" };
+      expect(loginAnswerFields(labels, legacy)).toHaveLength(2);
+      expect(loginAnswerValue(labels, legacy)).toBeUndefined();
+      expect(loginAnswerFields(labels, { ...legacy, answer: "x".repeat(5000) })).toHaveLength(2);
+      expect(loginAnswerFields(["PIN"], legacy)).toBeUndefined();
+      expect(loginAnswerFields([...labels, "PIN"], legacy)).toBeUndefined();
+      expect(loginAnswerFields(labels, { answer: "x" })).toBeUndefined();
+    });
+
+    it("rejects an older app's answer with an empty value", () => {
+      const labels = ["ID number", "Phone number"];
+      expect(loginAnswerValue(labels, { username: "", answer: "x" })).toBeUndefined();
+      expect(loginAnswerValue(labels, { username: "fake-id-123", answer: "" })).toBeUndefined();
+      expect(loginAnswerValue(labels, { answer: "x" })).toBeUndefined();
+    });
+
+    it("still requires fields to match the requested labels in order", () => {
+      const labels = ["ID number", "Phone number"];
+      expect(loginAnswerValue(labels, { answer: "", fields: named })).toEqual({ fields: named });
+      expect(
+        loginAnswerValue(labels, { answer: "", fields: [named[1]!, named[0]!] }),
+      ).toBeUndefined();
+      expect(
+        loginAnswerValue(labels, {
+          answer: "",
+          fields: [named[0]!, { ...named[1]!, label: "Mobile" }],
+        }),
+      ).toBeUndefined();
+      expect(
+        loginAnswerValue(labels, { answer: "x", username: "u", fields: named }),
+      ).toBeUndefined();
+    });
   });
 });
 

@@ -22,6 +22,7 @@ import {
   finalizeComputerControlRelease,
   finalizeRun,
   followThreadEvents,
+  LoginAnswerMismatchError,
   pauseRunForInput,
   pauseRunForTakeover,
   sendUserMessage,
@@ -3040,23 +3041,41 @@ describe("answerRunInput", () => {
       ["an extra field", [...bankFields, { label: "PIN", value: "1234", hidden: true }]],
       ["a renamed field", [bankFields[0]!, { ...bankFields[1]!, label: "Mobile" }]],
       ["fields out of order", [bankFields[1]!, bankFields[0]!]],
-      ["an empty field", [bankFields[0]!, { ...bankFields[1]!, value: "" }]],
     ])("rejects an answer with %s", async (_name, fields) => {
       const { store, tx, answerWith } = loginFixture(login, ["ID number", "Phone number"]);
-      await expect(answerWith({ fields })).resolves.toBe(false);
+      await expect(answerWith({ fields })).rejects.toThrow(LoginAnswerMismatchError);
       expect(store).not.toHaveBeenCalled();
       expect(tx.run.updateMany).not.toHaveBeenCalled();
     });
 
-    it("rejects a username and password on a card that asked for other fields", async () => {
-      const { store, answer } = loginFixture(login, ["ID number", "Phone number"]);
-      await expect(answer("fake-id-123", "+1 555 0100")).resolves.toBe(false);
+    it("stores an older app's username and password under the labels a two-field card asked for", async () => {
+      const { store, tx, answer } = loginFixture(login, ["ID number", "Phone number"]);
+      await expect(answer("fake-id-123", "+1 555 0100")).resolves.toBe(true);
+      expect(store).toHaveBeenCalledWith(
+        expect.objectContaining({
+          credential: login,
+          plaintext: encodeLoginSecret({ fields: bankFields }),
+        }),
+      );
+      const recorded = JSON.stringify([tx.event.create.mock.calls, tx.message.update.mock.calls]);
+      expect(recorded).not.toContain("fake-id-123");
+      expect(recorded).not.toContain("+1 555 0100");
+    });
+
+    it.each([
+      ["one field", ["PIN"]],
+      ["three fields", ["ID number", "Phone number", "PIN"]],
+    ])("rejects an older app's answer on a card that asked for %s", async (_name, labels) => {
+      const { store, answer } = loginFixture(login, labels);
+      await expect(answer("fake-id-123", "+1 555 0100")).rejects.toThrow(LoginAnswerMismatchError);
       expect(store).not.toHaveBeenCalled();
     });
 
     it("rejects fields with a value in answer too", async () => {
       const { store, answerWith } = loginFixture(login, ["ID number", "Phone number"]);
-      await expect(answerWith({ fields: bankFields, answer: "+1 555 0100" })).resolves.toBe(false);
+      await expect(answerWith({ fields: bankFields, answer: "+1 555 0100" })).rejects.toThrow(
+        LoginAnswerMismatchError,
+      );
       expect(store).not.toHaveBeenCalled();
     });
 
@@ -3079,19 +3098,53 @@ describe("answerRunInput", () => {
       expect(recorded).not.toContain("fake-password-1");
     });
 
-    it.each(["", "   "])("requires a username (%j)", async (username) => {
+    it.each(["", "   "])("requires a username value (%j)", async (username) => {
       const { store, tx, answer } = loginFixture();
       await expect(answer(username)).resolves.toBe(false);
-      await expect(answer()).resolves.toBe(false);
       expect(store).not.toHaveBeenCalled();
       expect(tx.run.updateMany).not.toHaveBeenCalled();
     });
 
-    it("rejects an oversized password before queueing, not with an internal error", async () => {
+    it("says an answer without a username does not fit, as an app from before logins sends it", async () => {
       const { store, tx, answer } = loginFixture();
-      await expect(answer("fake-user", "x".repeat(4097))).resolves.toBe(false);
+      await expect(answer()).rejects.toThrow(LoginAnswerMismatchError);
       expect(store).not.toHaveBeenCalled();
       expect(tx.run.updateMany).not.toHaveBeenCalled();
+    });
+
+    it("keeps an empty value on a card whose labels match a plain not-answered", async () => {
+      const { store, answerWith } = loginFixture(login, ["ID number", "Phone number"]);
+      await expect(
+        answerWith({ fields: [bankFields[0]!, { ...bankFields[1]!, value: "" }] }),
+      ).resolves.toBe(false);
+      await expect(
+        answerWith({ fields: [{ ...bankFields[0]!, value: "   " }, bankFields[1]!] }),
+      ).resolves.toBe(false);
+      expect(store).not.toHaveBeenCalled();
+    });
+
+    it("keeps a value too long for a field a plain not-answered", async () => {
+      const { store, answer, answerWith } = loginFixture(login, ["ID number", "Phone number"]);
+      await expect(answer("fake-id-123", "x".repeat(4097))).resolves.toBe(false);
+      await expect(
+        answerWith({ fields: [bankFields[0]!, { ...bankFields[1]!, value: "x".repeat(5000) }] }),
+      ).resolves.toBe(false);
+      expect(store).not.toHaveBeenCalled();
+    });
+
+    it("says an answer too long for any secret is too long, not that the fields differ", async () => {
+      const { store, answer } = loginFixture(login, ["ID number", "Phone number"]);
+      await expect(answer("fake-id-123", "x".repeat(16_385))).rejects.toThrow(AnswerTooLongError);
+      expect(store).not.toHaveBeenCalled();
+    });
+
+    it("answers a card's non-owner as before, even with an answer that does not fit", async () => {
+      const { store, tx, answer, answerWith } = loginFixture(login, ["ID number", "Phone number"]);
+      tx.run.findFirst.mockResolvedValue({ botId: "bot-1", userId: "someone-else" });
+      await expect(answer("fake-id-123", "+1 555 0100")).resolves.toBe(false);
+      await expect(answerWith({ fields: [bankFields[0]!] })).resolves.toBe(false);
+      await expect(answer()).resolves.toBe(false);
+      expect(store).not.toHaveBeenCalled();
     });
 
     it("rejects a username or fields on a card that is not a login", async () => {

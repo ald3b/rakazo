@@ -27,7 +27,7 @@ import type { Actor, Bot, ProductEvent } from "@rakazo/contracts";
 import { MODEL_KEY_FORMAT_ERROR, REPLY_QUOTE_MAX_LENGTH } from "@rakazo/contracts";
 import { openScreenCapability } from "@rakazo/core/node/screen-capability";
 import type { PrismaClient } from "@rakazo/db";
-import { AnswerTooLongError, runProviderTransaction } from "@rakazo/db";
+import { AnswerTooLongError, LoginAnswerMismatchError, runProviderTransaction } from "@rakazo/db";
 import { createLogger, createTestSink, installLogger } from "@rakazo/logging";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { mainRole, withModelRoles } from "../../../packages/adapters/src/testing/model-roles.js";
@@ -866,6 +866,73 @@ describe("oversized one-time answer", () => {
     expect(body).toContain("This answer is too long.");
     expect(body).not.toContain("fake-code-");
     expect(enqueue).not.toHaveBeenCalled();
+  });
+});
+
+describe("login answer that does not fit its card", () => {
+  async function answerStatus(answerRunInput: ReturnType<typeof vi.fn>) {
+    const enqueue = vi.fn();
+    const prisma = {
+      bot: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "bot-1",
+          thread: { id: "thread-1" },
+          computer: null,
+        }),
+      },
+    } as unknown as PrismaClient;
+    const deps = {
+      prisma,
+      events: { answerRunInput },
+      jobs: { enqueue },
+      env: {
+        defaultProvider: "fake",
+        defaultModel: "fake-model",
+        webOrigin: "http://127.0.0.1:5173",
+        screenProxySecret: "fake-test-secret",
+        sandboxProvider: "fake",
+      },
+      dataDir: "/tmp/rakazo-router-test",
+    } as unknown as RouterDeps;
+    const actor = {
+      spaceId: "workspace-1",
+      userId: "user-1",
+      email: "user@example.test",
+      isDeploymentOwner: true,
+    } satisfies Actor;
+    const { response } = await new RPCHandler(createRouter(deps)).handle(
+      new Request("http://127.0.0.1/rpc/threads/answer", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          json: {
+            botId: "bot-1",
+            runId: "run-1",
+            messageId: "message-1",
+            answer: "fake-password",
+            username: "fake-user",
+          },
+        }),
+      }),
+      { prefix: "/rpc", context: { actor } },
+    );
+    expect(enqueue).not.toHaveBeenCalled();
+    return { status: response?.status, body: await response?.text() };
+  }
+
+  it("answers 400 with the mismatch, not that the prompt is gone", async () => {
+    const { status, body } = await answerStatus(
+      vi.fn().mockRejectedValue(new LoginAnswerMismatchError()),
+    );
+    expect(status).toBe(400);
+    expect(body).toContain("This login asks for different fields. Update the app to answer it.");
+    expect(body).not.toContain("fake-password");
+  });
+
+  it("still answers 409 when the prompt is not awaiting an answer", async () => {
+    const { status, body } = await answerStatus(vi.fn().mockResolvedValue(false));
+    expect(status).toBe(409);
+    expect(body).toContain("This prompt is no longer awaiting an answer");
   });
 });
 

@@ -14,6 +14,7 @@ import {
   createExternalConversationRepos,
   createThreadMessageInTransaction,
   IsolationError,
+  LoginAnswerMismatchError,
   lockOwnedGroup,
   touchGroupUpdatedAt,
 } from "@rakazo/db";
@@ -532,7 +533,7 @@ export function threadsRoutes(ctx: RouterContext) {
             dismiss: input.dismiss,
           })
           .catch((error: unknown) => {
-            if (error instanceof AnswerTooLongError)
+            if (error instanceof AnswerTooLongError || error instanceof LoginAnswerMismatchError)
               throw new ORPCError("BAD_REQUEST", { message: error.message });
             // A typed credential its destination cannot carry (e.g. a header with a line break).
             throw mapBotSecretInputError(error);

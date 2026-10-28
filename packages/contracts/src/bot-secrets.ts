@@ -309,21 +309,21 @@ export function loginCardFields(requested: readonly string[] | undefined): Login
 }
 
 /**
- * The login a card's answer saves, or undefined unless it answers exactly the requested fields,
- * in order. An app that predates fields answers a Username and Password card with `username`
- * and the password as `answer`.
+ * The fields a card's answer carries, or undefined unless it answers exactly the requested fields,
+ * in order. An app that predates fields answers with `username` and the password as `answer`;
+ * that fits only a card asking for exactly two fields, the first visible and the second hidden.
  */
-export function loginAnswerValue(
+export function loginAnswerFields(
   requested: readonly string[] | undefined,
   input: { answer: string; username?: string; fields?: readonly LoginFieldInput[] },
-): LoginSecretValue | undefined {
+): readonly LoginFieldInput[] | undefined {
   const labels = requested ?? DEFAULT_LOGIN_FIELD_LABELS;
-  const [usernameLabel, passwordLabel] = DEFAULT_LOGIN_FIELD_LABELS;
+  const [firstLabel = "", secondLabel = ""] = labels;
   const legacy =
     !input.fields && input.username !== undefined
       ? [
-          { label: usernameLabel, value: input.username, hidden: false },
-          { label: passwordLabel, value: input.answer, hidden: true },
+          { label: firstLabel, value: input.username, hidden: false },
+          { label: secondLabel, value: input.answer, hidden: true },
         ]
       : undefined;
   const fields = input.fields ?? legacy;
@@ -335,7 +335,16 @@ export function loginAnswerValue(
   ) {
     return undefined;
   }
-  return LoginSecretValue.safeParse({ fields }).data;
+  return fields;
+}
+
+/** The login a card's answer saves, or undefined unless its fields fit the card and hold values. */
+export function loginAnswerValue(
+  requested: readonly string[] | undefined,
+  input: { answer: string; username?: string; fields?: readonly LoginFieldInput[] },
+): LoginSecretValue | undefined {
+  const fields = loginAnswerFields(requested, input);
+  return fields && LoginSecretValue.safeParse({ fields }).data;
 }
 
 export const GENERATED_SECRET_SYMBOLS = "!@#$%^&*-_=+?";
