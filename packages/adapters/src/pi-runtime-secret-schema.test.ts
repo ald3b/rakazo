@@ -386,7 +386,7 @@ describe("request_secret login card arguments", () => {
     auth: { type: "login" },
   };
 
-  it("accepts a login without a password: labeled fields and a one-field texted code with replace", () => {
+  it("accepts a login without a password as labeled fields", () => {
     const schema = requestSecretSchema();
     expect(
       parseConnectorToolArgs(schema, {
@@ -396,15 +396,6 @@ describe("request_secret login card arguments", () => {
         fields: ["ID number", "Phone"],
       }),
     ).toMatchObject({ credential: login, fields: ["ID number", "Phone"] });
-    expect(
-      parseConnectorToolArgs(schema, {
-        label: "Example sign-in code",
-        purpose: "otp",
-        credential: { ...login, name: "example-login-code" },
-        fields: ["SMS code"],
-        replace: true,
-      }),
-    ).toMatchObject({ purpose: "otp", fields: ["SMS code"], replace: true });
   });
 
   it("rejects a purpose outside the allowed values and an empty field list", () => {

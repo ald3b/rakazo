@@ -113,6 +113,6 @@ The thread credential card still works on the phone, including website logins, a
 bot obtains a value there. Listing, replacing, and removing saved credentials stays on the web
 section. Asking the bot to `forget_secret` a name only removes it; it does not list or replace one.
 
-A sign-in without a password, such as an ID number and phone number, uses the same login card. So does a texted or emailed one-time code that a sign-in page asks for, including a 2FA code on a site that also has a password: the bot saves it as its own one-field login under a new name (not the name of the ID or phone login) and you mark the field visible on the card, since a hidden field only goes into a password input. CAPTCHA, passkeys and payment pages and their codes still use `request_takeover`, as does any site where you prefer to sign in yourself.
+A sign-in without a password, such as an ID number and phone number, uses the same login card. Texted or emailed one-time codes, CAPTCHA and passkeys still use `request_takeover`, so a code is typed on the live screen rather than saved, as is any sign-in you prefer to do yourself.
 
 The value is typed into a real browser on the bot's computer. Anything that can read that browser, including the bot's own shell commands through the page or its debugging port, could read a filled field. Keeping the value out of model input stops accidental disclosure, not a bot that sets out to extract it. Save logins only for accounts you would let the bot use unattended.
