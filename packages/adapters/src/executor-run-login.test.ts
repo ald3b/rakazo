@@ -184,6 +184,14 @@ async function runTool(
           secrets.find((row) => matches(row, where)) ?? null,
         findMany: async ({ where }: { where: Record<string, unknown> }) =>
           secrets.filter((row) => matches(row, where)),
+        count: async ({ where }: { where: Record<string, unknown> }) =>
+          secrets.filter((row) => matches(row, where)).length,
+        deleteMany: async ({ where }: { where: Record<string, unknown> }) => {
+          const kept = secrets.filter((row) => !matches(row, where));
+          const count = secrets.length - kept.length;
+          secrets.splice(0, secrets.length, ...kept);
+          return { count };
+        },
       },
       deploymentSettings: {
         findUnique: async () => ({
@@ -336,5 +344,27 @@ describe("this run's login that wasn't saved", () => {
     expect(text).not.toContain("fake-password-1");
     expect(text).not.toContain("fake-user");
     expect(text).toContain("other=kept");
+  });
+});
+
+describe("forget_secret and generate_secret", () => {
+  it("forgets this run's unsaved login before a saved one of the name", async () => {
+    const secrets = [await runLogin("run-1")];
+    const { toolResults, calls } = await runTool(
+      { name: "forget_secret", args: { name: "site_login" } },
+      { secrets, saved: { ...DESTINATION } },
+    );
+    expect(toolResults).toEqual([{ removed: true }]);
+    expect(secrets).toEqual([]);
+    expect(JSON.stringify(calls)).not.toContain('"vaultCredential","deleteMany"');
+  });
+
+  it("won't generate a login under the name of this run's unsaved one", async () => {
+    const { toolResults, calls } = await runTool(
+      { name: "generate_secret", args: { name: "site_login" } },
+      { secrets: [await runLogin("run-1")] },
+    );
+    expect(toolResults).toMatchObject([{ error: expect.stringContaining("Use another name") }]);
+    expect(JSON.stringify(calls)).not.toContain('"vaultCredential","create"');
   });
 });
