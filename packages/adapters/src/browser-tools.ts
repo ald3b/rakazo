@@ -213,10 +213,7 @@ export async function browserActFromTool(
       }
     }
     const result = await browser.act(computer, { actions, signal: context.signal }, context);
-    return redactConnectorPayload(
-      formatBrowserResult(result, options),
-      options.redactions?.() ?? [],
-    );
+    return redactBrowserResult(formatBrowserResult(result, options), options.redactions?.() ?? []);
   } catch (error) {
     context.signal.throwIfAborted();
     if (error instanceof BrowserToolInputError)
@@ -317,6 +314,19 @@ export function parseBrowserActions(value: unknown): BrowserActInput[] {
     }
     return { kind, ref };
   });
+}
+
+/**
+ * Page tool results with the run's secrets taken out. A snapshot writes control names and values as
+ * quoted strings, so a secret with a quote, a backslash or a line break reads differently there:
+ * hide it in that form too.
+ */
+export function redactBrowserResult<T>(result: T, secrets: string[]): unknown {
+  const forms = secrets.flatMap((secret) => {
+    const quoted = JSON.stringify(secret).slice(1, -1);
+    return quoted === secret ? [secret] : [secret, quoted];
+  });
+  return redactConnectorPayload(result, forms);
 }
 
 /** The most a page tool result may be, as the model reads it, before the generic shortener cuts it. */

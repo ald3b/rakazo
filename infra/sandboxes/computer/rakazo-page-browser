@@ -854,10 +854,11 @@ EVAL_HELPERS = r"""
     return false;
   }
   // What in a label does its own thing when clicked, instead of acting on the label's control.
-  const OWN_ACTION = "a[href], button, select, textarea, summary, input, [role=link], [role=button], [role=menuitem], [role=tab], [role=checkbox], [role=switch], [onclick], [contenteditable]";
+  const OWN_ACTION = "a[href], button, select, textarea, summary, input, [role=link], [role=button], [role=menuitem], [role=tab], [role=checkbox], [role=switch], [onclick], [contenteditable], label";
   function actsOnControl(el, label, hit) {
     for (let at = hit; at && at !== label; at = at.parentNode || at.host) {
-      if (at !== el && at.matches?.(OWN_ACTION)) return false;
+      // Another label inside this one acts on its own control, unless that control is el.
+      if (at !== el && at.matches?.(OWN_ACTION) && !Array.from(el.labels || []).includes(at)) return false;
     }
     return true;
   }

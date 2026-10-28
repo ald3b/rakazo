@@ -12,6 +12,7 @@ import {
   browserNavigateFromTool,
   browserResultForModel,
   browserSnapshotFromTool,
+  redactBrowserResult,
 } from "./browser-tools.js";
 import { BACKGROUND_WORK_LAUNCH } from "./computer-idle.js";
 import {
@@ -29,7 +30,6 @@ import {
   unchangedVisualLoopToolResult,
   unchangedVisualStreakAfterPageBrowser,
 } from "./computer-tools.js";
-import { redactConnectorPayload } from "./connector-safety.js";
 import {
   desktopProtectionGuardMessage,
   protectedComputerLifecycleRefusal,
@@ -148,7 +148,7 @@ export async function pageBrowserTool(ctx: RunContext, call: ToolCall) {
         : null;
   return computerScreenToolResult(async () => {
     const result = tool
-      ? redactConnectorPayload(
+      ? redactBrowserResult(
           await tool(ctx.providers.browser, await ctx.computer.get("tool", name), context, args, {
             desktopTools,
           }),

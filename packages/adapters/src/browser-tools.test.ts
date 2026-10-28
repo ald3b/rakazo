@@ -6,8 +6,10 @@ import {
   browserNavigateFromTool,
   browserSnapshotFromTool,
   parseBrowserActions,
+  redactBrowserResult,
 } from "./browser-tools.js";
 import { ComputerBrowserProvider } from "./computer-browser.js";
+import { redactConnectorPayload } from "./connector-safety.js";
 import { FakeBrowserProvider } from "./fake-browser.js";
 import { filterPageBrowserTools, PAGE_BROWSER_TOOL_NAMES } from "./run-tool-selection.js";
 
@@ -979,6 +981,40 @@ describe("browser tools on dropdowns and stale refs", () => {
       error: expect.stringContaining('The option "D" is disabled'),
     });
     expect(refused).not.toHaveProperty("fallback");
+  });
+
+  it("hides a secret with a quote and a backslash where a snapshot quotes it, in a name and in a value", async () => {
+    const secret = 'zq"xv\\mk';
+    const html = `<!doctype html><html><head><title>Echo</title></head><body>
+      <button aria-label='${secret}'>Echo</button><input aria-label="Field" /></body></html>`;
+    const browser = new FakeBrowserProvider({
+      pages: { "https://example.test/e": { title: "Echo", html } },
+    });
+    await browserNavigateFromTool(browser, computer, context, { url: "https://example.test/e" });
+    type Snap = { elements: Array<{ ref: string; name: string }> };
+    const field = (
+      (await browserSnapshotFromTool(browser, computer, context, {})) as Snap
+    ).elements.find((el) => el.name === "Field")!;
+    const fill = { actions: [{ kind: "fill", ref: field.ref, text: secret }] };
+    const acted = await browserActFromTool(browser, computer, context, fill, {
+      redactions: () => [secret],
+    });
+    // The tree quotes names and values, so the secret reads differently there.
+    const quoted = JSON.stringify(secret).slice(1, -1);
+    const tree = String((acted as { tree: string }).tree);
+    expect(tree).toContain("[redacted]");
+    expect(tree).not.toContain(quoted);
+    expect(tree).not.toContain("xv");
+    expect(JSON.stringify(acted)).not.toContain("xv");
+    // With the plain secret alone, the quoted form would have been left in the tree.
+    const snapshot = (await browserSnapshotFromTool(browser, computer, context, {})) as {
+      tree: string;
+    };
+    expect((redactConnectorPayload(snapshot, [secret]) as typeof snapshot).tree).toBe(
+      snapshot.tree,
+    );
+    expect(snapshot.tree).toContain(quoted);
+    expect((redactBrowserResult(snapshot, [secret]) as typeof snapshot).tree).not.toContain("xv");
   });
 
   it("settles a stale ref with a fresh page instead of sending the bot to the desktop", async () => {

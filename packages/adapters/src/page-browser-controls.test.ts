@@ -335,6 +335,23 @@ describe("live page helper click aim", () => {
     );
   });
 
+  it("keeps off a label inside the label, which ticks another control", () => {
+    // A second label (for another checkbox) covers the middle of the first (200..300).
+    const { browser } = installPageHelper(
+      `<label data-rect="200,300,100,30"><input type="checkbox" data-rect="0,0,1,1" /><span>Newsletter</span><label for="other" data-rect="240,300,20,30"><span>Partners</span></label></label><input id="other" type="checkbox" />`,
+      (dom, x) =>
+        dom.window.document.querySelector(
+          x >= 240 && x < 260 ? "label label span" : "label > span",
+        ),
+    );
+    const ref = refOf(browser.snapshot(), "NewsletterPartners");
+    const { x } = browser.aim(ref);
+    expect(x! < 240 || x! >= 260).toBe(true);
+    expect(() => browser.stillAimed(ref, 250, 315)).toThrow(
+      /Settled: The page moved under the pointer/,
+    );
+  });
+
   it("says so when every spot of the label is a link", () => {
     const { browser } = installPageHelper(
       `<label data-rect="200,300,100,30"><input type="checkbox" data-rect="0,0,1,1" /><a href="/terms" data-rect="200,300,100,30">Terms</a></label>`,
