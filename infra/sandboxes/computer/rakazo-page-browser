@@ -1749,15 +1749,18 @@ def check_frame(client: CdpClient, session_id: str, x: float, y: float) -> None:
     (a frame in a closed shadow tree, for one). The browser itself says which frame owns the spot,
     given as a spot on the page (the window's spot plus the scroll), not in the window.
 
-    Any answer but "the main frame" stops the press, including a failed call. Right after a scroll the
-    browser may not know the spot yet ("No node found"): it gets one more frame to catch up.
+    Any answer but "the main frame" stops the press, including a failed call. A cross-origin frame runs
+    in its own process, so the browser's hit-test stops at its frame element, which the main frame owns:
+    that element stops the press too. Right after a scroll the browser may not know the spot yet
+    ("No node found"): it gets one more frame to catch up.
     """
-    owner = None
     for attempt in range(2):
         try:
-            owner = client.call("DOM.getNodeForLocation", {"x": x, "y": y, "includeUserAgentShadowDOM": True},
-                                session_id=session_id).get("frameId")
+            hit = client.call("DOM.getNodeForLocation", {"x": x, "y": y, "includeUserAgentShadowDOM": True},
+                              session_id=session_id)
             main = client.call("Page.getFrameTree", session_id=session_id)["frameTree"]["frame"]["id"]
+            node = client.call("DOM.describeNode", {"backendNodeId": hit["backendNodeId"]},
+                               session_id=session_id)["node"]
             break
         except (RuntimeError, KeyError) as error:
             if attempt == 0 and "No node found" in str(error):
@@ -1766,7 +1769,7 @@ def check_frame(client: CdpClient, session_id: str, x: float, y: float) -> None:
             if "No node found" in str(error):
                 raise Settled(STILL_MOVING) from None
             raise Settled(CHANGED_UNDER_POINTER) from None
-    if owner not in (None, main):
+    if hit.get("frameId") != main or str(node.get("nodeName", "")).upper() in ("IFRAME", "FRAME", "OBJECT", "EMBED"):
         raise Settled(FRAME_CLICK)
 
 

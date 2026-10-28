@@ -1043,10 +1043,11 @@ class PageBrowserTest(unittest.TestCase):
                 helper.act(Mock(), "session", [{"kind": "upload", "ref": "e1", "paths": ["nope.pdf"]}])
         ensure.assert_not_called()
 
-    def scripted_act(self, actions, page, on_call=None, frame_at_spot="main"):
+    def scripted_act(self, actions, page, on_call=None, frame_at_spot="main", node_at_spot="BUTTON"):
         """Runs act against a stand-in page: `page` answers each helper expression, CDP calls are recorded.
 
-        The browser says the main frame owns every spot unless frame_at_spot is another frame.
+        The browser says the main frame owns every spot unless frame_at_spot is another frame, and that a
+        node_at_spot element is there.
         """
         client = helper.CdpClient("ws://browser.example.test:9222/test")
         self.client = client
@@ -1058,6 +1059,8 @@ class PageBrowserTest(unittest.TestCase):
                 on_call(client, method, params)
             if method == "DOM.getNodeForLocation":
                 return {"frameId": frame_at_spot, "backendNodeId": 5}
+            if method == "DOM.describeNode":
+                return {"node": {"backendNodeId": 5, "nodeName": node_at_spot}}
             if method == "Page.getFrameTree":
                 return {"frameTree": {"frame": {"id": "main"}}}
             return {}
@@ -1115,6 +1118,13 @@ class PageBrowserTest(unittest.TestCase):
                          ["mouseMoved"])
         locate = [params for method, params in sent if method == "DOM.getNodeForLocation"]
         self.assertEqual(locate, [{"x": 120, "y": 210, "includeUserAgentShadowDOM": True}])
+
+    def test_click_presses_nothing_on_a_cross_origin_frame_the_main_frame_owns(self):
+        # A cross-origin frame has its own process: the main frame's hit-test stops at the iframe element.
+        result, sent = self.scripted_act([{"kind": "click", "ref": "e1"}], self.click_page, node_at_spot="IFRAME")
+        self.assertEqual((result["ok"], result["completed"], result["uncertain"]), (False, 0, False))
+        self.assertEqual(result["error"], helper.FRAME_CLICK)
+        self.assertEqual(self.mouse_types(sent), ["mouseMoved"])
 
     def mouse_types(self, sent):
         return [params["type"] for method, params in sent if method == "Input.dispatchMouseEvent"]

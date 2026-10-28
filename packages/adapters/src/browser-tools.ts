@@ -10,6 +10,7 @@ import type { PurchaseCardField } from "@rakazo/contracts";
 import { PURCHASE_CARD_FIELDS } from "@rakazo/contracts";
 import { getLogger } from "@rakazo/logging";
 import { redactConnectorPayload } from "./connector-safety.js";
+import { TOOL_RESULT_TEXT_LIMIT } from "./pi-runtime-limits.js";
 
 const MAX_BROWSER_ACTIONS = 24;
 /** The action kinds `browser_act` takes, as its tool schema lists them. */
@@ -329,9 +330,6 @@ export function redactBrowserResult<T>(result: T, secrets: string[]): unknown {
   return redactConnectorPayload(result, forms);
 }
 
-/** The most a page tool result may be, as the model reads it, before the generic shortener cuts it. */
-const MODEL_RESULT_LIMIT = 12_000;
-
 /**
  * A page tool result as the model reads it. The snapshot tree already lists every control with its
  * ref and its notices (what was cut), so the `elements` array only repeats it: it stays in `details`
@@ -343,7 +341,7 @@ export function browserResultForModel<T>(result: T): T | AgentToolExecutionResul
   const { elements, ...view } = result as { elements?: unknown; tree?: unknown };
   if (!Array.isArray(elements) || typeof view.tree !== "string") return result;
   const text = JSON.stringify(view);
-  if (text.length > MODEL_RESULT_LIMIT) return result;
+  if (text.length > TOOL_RESULT_TEXT_LIMIT) return result;
   return { kind: "agent_tool_result", content: [{ type: "text", text }], details: result };
 }
 
