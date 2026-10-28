@@ -379,14 +379,41 @@ describe("jsonField const handling", () => {
   });
 });
 
-describe("request_secret description", () => {
-  it("keeps sign-ins without a password on the login card and takeover for the live screen", () => {
-    const { description } = toolNamed("request_secret");
-    expect(description).toContain('A sign-in without a password still uses auth {type:"login"}');
-    expect(description).toContain("never ask for them in chat");
-    expect(description).toContain("Ask for a texted or emailed one-time code the same way");
-    expect(description).toContain("Give the code its own name, not the ID and phone login's.");
-    expect(description).toContain("Use request_takeover only for what needs the live screen");
-    expect(description).not.toContain("For 2FA");
+describe("request_secret login card arguments", () => {
+  const login = {
+    name: "example-login",
+    origin: "https://login.example.test",
+    auth: { type: "login" },
+  };
+
+  it("accepts a login without a password: labeled fields and a one-field texted code with replace", () => {
+    const schema = requestSecretSchema();
+    expect(
+      parseConnectorToolArgs(schema, {
+        label: "Example sign-in",
+        purpose: "password",
+        credential: login,
+        fields: ["ID number", "Phone"],
+      }),
+    ).toMatchObject({ credential: login, fields: ["ID number", "Phone"] });
+    expect(
+      parseConnectorToolArgs(schema, {
+        label: "Example sign-in code",
+        purpose: "otp",
+        credential: { ...login, name: "example-login-code" },
+        fields: ["SMS code"],
+        replace: true,
+      }),
+    ).toMatchObject({ purpose: "otp", fields: ["SMS code"], replace: true });
+  });
+
+  it("rejects a purpose outside the allowed values and an empty field list", () => {
+    const schema = requestSecretSchema();
+    expect(() =>
+      parseConnectorToolArgs(schema, { label: "c", purpose: "login", credential: login }),
+    ).toThrow();
+    expect(() =>
+      parseConnectorToolArgs(schema, { label: "c", purpose: "otp", credential: login, fields: [] }),
+    ).toThrow();
   });
 });

@@ -16,7 +16,7 @@ For example, the bot can request:
 }
 ```
 
-The value is encrypted in Postgres `vault_credentials` using the deployment's `ENCRYPTION_KEY` (AES-256-GCM with record-bound authentication). Only the run's user can submit a reusable credential. It belongs to that user and survives later runs. By default it sits in the user's account vault, which every Space uses; a Space where the user keeps its own credentials has a separate copy that no other Space can read. It is deleted when its owner is deleted, and a Space copy is also deleted with its Space. Names, destinations and authentication configuration are metadata; `list_secrets` returns those fields without values. No hosted credential service or prebuilt connector is required.
+The value is encrypted in Postgres `vault_credentials` using the deployment's `ENCRYPTION_KEY` (AES-256-GCM with record-bound authentication). Only the run's user can submit a reusable credential. It belongs to that user and survives later runs. By default it sits in the user's account vault, which every Space uses; a Space where the user keeps its own credentials has a separate vault that starts empty, so they have to be saved there again, and no other Space can read it. It is deleted when its owner is deleted, and a Space's own vault is also deleted with its Space. Names, destinations and authentication configuration are metadata; `list_secrets` returns those fields without values. No hosted credential service or prebuilt connector is required.
 
 The bot uses `secret_request` to ask the backend to decrypt and inject the credential:
 
