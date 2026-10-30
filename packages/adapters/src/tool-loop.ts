@@ -19,6 +19,14 @@ export function isLoopGuardStopText(text: string): boolean {
 
 // Same tool, same arguments, this many times in a row means the agent is stuck, not paginating.
 const MAX_CONSECUTIVE_IDENTICAL_TOOL_CALLS = 6;
+// Arguments that differ only by digits in their text (`echo noop-1`, `echo noop-2`) can be a real
+// sequence such as reading a file in chunks or paging through a site, so they get more room.
+const MAX_CONSECUTIVE_SIMILAR_TOOL_CALLS = 25;
+
+/** The longer of the two runs, for the stop message. */
+export function toolCallStreakLength(streak: ToolCallStreak): number {
+  return Math.max(streak.count, streak.shapeCount ?? 0);
+}
 
 export function advanceToolCallLoopGuard(
   streak: ToolCallStreak,
@@ -28,6 +36,8 @@ export function advanceToolCallLoopGuard(
   const next = trackToolCallStreak(streak, name, args);
   return {
     streak: next,
-    stuck: next.count >= MAX_CONSECUTIVE_IDENTICAL_TOOL_CALLS,
+    stuck:
+      next.count >= MAX_CONSECUTIVE_IDENTICAL_TOOL_CALLS ||
+      (next.shapeCount ?? 0) >= MAX_CONSECUTIVE_SIMILAR_TOOL_CALLS,
   };
 }
