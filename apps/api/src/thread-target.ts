@@ -20,6 +20,7 @@ import {
   BACKGROUND_RUN_TRIGGERS,
   callIdFromClientNonce,
   isConversationalRun,
+  mentionedGroupBotIds,
   messageBypassesTakeoverWait,
   messageReaction,
   projectMessages,
@@ -312,7 +313,18 @@ async function lockAndLoadGroupMembers(
   }));
 }
 
-/** The bots a send wakes: the bot itself, or the group members it names (else the first). */
+function groupTargeting(
+  members: Array<{ botId: string; name: string }>,
+  input: { text?: string; mentions?: MentionTargetInput[] },
+) {
+  return {
+    text: input.text ?? "",
+    members: members.map((member) => ({ id: member.botId, name: member.name })),
+    explicitMentions: splitMentionTargets(input.mentions).botMentionIds,
+  };
+}
+
+/** The bots a send wakes: the bot itself, or the group members it names (else every member). */
 export function sendTargetBotIds(
   target:
     | { kind: "bot"; botId: string }
@@ -320,11 +332,7 @@ export function sendTargetBotIds(
   input: { text?: string; mentions?: MentionTargetInput[] },
 ): string[] {
   if (target.kind === "bot") return [target.botId];
-  return resolveGroupTargetBotIds({
-    text: input.text ?? "",
-    members: target.members.map((member) => ({ id: member.botId, name: member.name })),
-    explicitMentions: splitMentionTargets(input.mentions).botMentionIds,
-  });
+  return resolveGroupTargetBotIds(groupTargeting(target.members, input));
 }
 
 export async function resolveThreadTarget(
@@ -767,6 +775,7 @@ export async function sendThreadMessage(
       let replyToMessageId: string | undefined;
       let replyQuote: string | undefined;
       let replyPreview: ReplyPreview | null | undefined;
+      let repliedBotId: string | undefined;
       if (input.replyToMessageId) {
         const reply = await tx.message.findFirst({
           where: { id: input.replyToMessageId, threadId: target.threadId },
@@ -779,6 +788,7 @@ export async function sendThreadMessage(
           replyPreview = null;
         } else {
           replyToMessageId = input.replyToMessageId;
+          if (reply.role === "bot" && reply.botId) repliedBotId = reply.botId;
           const parsed = MessageBlockSchema.array().safeParse(reply.blocks);
           replyPreview = null;
           if (parsed.success) {
@@ -1009,7 +1019,19 @@ export async function sendThreadMessage(
       const members = await lockAndLoadGroupMembers(tx, actor, target);
       const memberBotIds = members.map((member) => member.botId);
       const mentionTargets = splitMentionTargets(input.mentions);
-      const targetBotIds = sendTargetBotIds({ kind: "group", members }, input);
+      const targeting = groupTargeting(members, input);
+      // Replying to a member's message addresses that member, as naming it would.
+      const repliedMemberId =
+        repliedBotId &&
+        memberBotIds.includes(repliedBotId) &&
+        mentionedGroupBotIds(targeting).length === 0
+          ? repliedBotId
+          : undefined;
+      const targetBotIds = repliedMemberId
+        ? [repliedMemberId]
+        : sendTargetBotIds({ kind: "group", members }, input);
+      // A message that names nobody reaches every member; each may stay silent.
+      const namesNobody = !repliedMemberId && mentionedGroupBotIds(targeting).length === 0;
       const { blocks: attachmentBlocks, artifacts } = await resolveGroupSendAttachments(
         { prisma: tx, maxAttachmentsPerMessage: deps.maxAttachmentsPerMessage },
         actor,
@@ -1109,11 +1131,20 @@ export async function sendThreadMessage(
               data: { messageId: message.id, botId, userId: actor.userId, runId: run.id },
             });
           }
+          // A person who answered the member's question is talking to it.
+          await tx.run.updateMany({
+            where: { id: { in: answered.map((run) => run.id) } },
+            data: { groupReplyOptional: false },
+          });
           runs.push(...answered);
           continue;
         }
         const active = activeByBotId.get(botId);
         if (active) {
+          // Naming a member that is still working on an unnamed message makes its reply required.
+          if (!namesNobody && steersUserMessage(active)) {
+            await tx.run.update({ where: { id: active.id }, data: { groupReplyOptional: false } });
+          }
           await tx.steeringMessage.create({
             data: {
               messageId: message.id,
@@ -1144,6 +1175,7 @@ export async function sendThreadMessage(
             userId: actor.userId,
             status: "queued",
             trigger: "user",
+            groupReplyOptional: namesNobody,
             clientNonce: sendRunClientNonce(input.clientNonce, message.id, botId),
             sourceMessageId: message.id,
           },
