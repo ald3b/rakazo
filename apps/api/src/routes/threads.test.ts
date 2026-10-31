@@ -15,7 +15,7 @@ describe("takeoverReleaser", () => {
 
   beforeEach(() => {
     findUnique.mockReset();
-    vi.mocked(releaseComputerControl).mockClear();
+    vi.mocked(releaseComputerControl).mockReset().mockResolvedValue(undefined);
   });
 
   it("hands the screen back to the bot of a direct chat", async () => {
@@ -41,5 +41,23 @@ describe("takeoverReleaser", () => {
     const target = { kind: "group", memberBotIds: ["bot-1"] } as ThreadTarget;
     await takeoverReleaser(deps, actor, target)("run-3");
     expect(releaseComputerControl).not.toHaveBeenCalled();
+  });
+
+  it("continues after a group run lookup fails", async () => {
+    findUnique.mockRejectedValue(new Error("lookup failed"));
+    const target = { kind: "group", memberBotIds: ["bot-1"] } as ThreadTarget;
+    await expect(takeoverReleaser(deps, actor, target)("run-1")).resolves.toBeUndefined();
+    expect(releaseComputerControl).not.toHaveBeenCalled();
+  });
+
+  it.each(["bot", "group"] as const)("continues after a %s release fails", async (kind) => {
+    findUnique.mockResolvedValue({ botId: "bot-1" });
+    vi.mocked(releaseComputerControl).mockRejectedValue(new Error("release failed"));
+    const target =
+      kind === "bot"
+        ? ({ kind, botId: "bot-1" } as ThreadTarget)
+        : ({ kind, memberBotIds: ["bot-1"] } as ThreadTarget);
+    await expect(takeoverReleaser(deps, actor, target)("run-1")).resolves.toBeUndefined();
+    expect(releaseComputerControl).toHaveBeenCalledWith(deps, actor, "bot-1", "done", "run-1");
   });
 });

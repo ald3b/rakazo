@@ -2,15 +2,17 @@ import type { ToolCallStreak } from "@rakazo/core";
 import { trackToolCallStreak } from "@rakazo/core";
 
 const LOOP_GUARD_STOP_PREFIX = "I got stuck calling ";
-const LOOP_GUARD_STOP_COUNT_PREFIX = " with the same input ";
+const LOOP_GUARD_STOP_COUNT_PATTERN = " with (?:nearly )?the same input ";
 const LOOP_GUARD_STOP_SUFFIX =
   " times in a row without making progress, so I stopped early. Try rephrasing this, or ask me to try a different approach.";
 const LOOP_GUARD_STOP_PATTERN = new RegExp(
-  `^${LOOP_GUARD_STOP_PREFIX}.+${LOOP_GUARD_STOP_COUNT_PREFIX}\\d+${LOOP_GUARD_STOP_SUFFIX.replaceAll(".", "\\.")}$`,
+  `^${LOOP_GUARD_STOP_PREFIX}.+${LOOP_GUARD_STOP_COUNT_PATTERN}\\d+${LOOP_GUARD_STOP_SUFFIX.replaceAll(".", "\\.")}$`,
 );
 
-export function loopGuardStopText(toolName: string, count: number): string {
-  return `${LOOP_GUARD_STOP_PREFIX}${toolName}${LOOP_GUARD_STOP_COUNT_PREFIX}${count}${LOOP_GUARD_STOP_SUFFIX}`;
+export function loopGuardStopText(toolName: string, streak: ToolCallStreak): string {
+  const identical = streak.count >= MAX_CONSECUTIVE_IDENTICAL_TOOL_CALLS;
+  const count = identical ? streak.count : toolCallStreakLength(streak);
+  return `${LOOP_GUARD_STOP_PREFIX}${toolName} with ${identical ? "" : "nearly "}the same input ${count}${LOOP_GUARD_STOP_SUFFIX}`;
 }
 
 export function isLoopGuardStopText(text: string): boolean {

@@ -76,7 +76,7 @@ import {
 } from "./silent-reply.js";
 import { takeoverCheckpointOf } from "./takeover-resume.js";
 import { appendToolCompletionAudit, toolCompletionFromResult } from "./tool-completion-audit.js";
-import { advanceToolCallLoopGuard, loopGuardStopText, toolCallStreakLength } from "./tool-loop.js";
+import { advanceToolCallLoopGuard, loopGuardStopText } from "./tool-loop.js";
 import {
   assistantTurnSeparator,
   botMessageOutcomeFromMidTurn,
@@ -532,10 +532,7 @@ async function stopStuckToolLoop(ctx: RunContext, toolName: string) {
   }
   await ctx.computer.checkpoint.flush();
   ctx.state.terminalCheckpointComplete = true;
-  const stuckText = loopGuardStopText(
-    humanizeToolName(toolName),
-    toolCallStreakLength(ctx.state.toolCallStreak),
-  );
+  const stuckText = loopGuardStopText(humanizeToolName(toolName), ctx.state.toolCallStreak);
   await ctx.settleRunningHelpers();
   const stopped = await deps.events.finalizeRun({
     spaceId: run.spaceId,

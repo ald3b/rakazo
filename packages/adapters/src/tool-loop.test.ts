@@ -56,14 +56,29 @@ describe("advanceToolCallLoopGuard", () => {
       for (let call = 1; call < 50; call += 1) {
         const result = advanceToolCallLoopGuard(streak, "shell", { command: command(call) });
         streak = result.streak;
-        if (result.stuck) return loopGuardStopText("shell", toolCallStreakLength(streak));
+        if (result.stuck) return loopGuardStopText("shell", streak);
       }
       throw new Error("never stopped");
     };
 
     expect(stopText(() => "npm test")).toContain(" with the same input 6 times in a row");
-    expect(stopText((call) => `echo noop-${call}`)).toContain(" with the same input 25 times");
+    expect(stopText((call) => `echo noop-${call}`)).toContain(
+      " with nearly the same input 25 times",
+    );
+    expect(isLoopGuardStopText(stopText(() => "npm test"))).toBe(true);
+    expect(isLoopGuardStopText("An ordinary reply")).toBe(false);
     expect(isLoopGuardStopText(stopText((call) => `echo noop-${call}`))).toBe(true);
+  });
+
+  it("keeps the identical stop count when a longer similar streak precedes it", () => {
+    let streak = { key: undefined as string | undefined, count: 0 };
+    for (let call = 1; call <= 10; call += 1) {
+      streak = advanceToolCallLoopGuard(streak, "shell", { command: `echo noop-${call}` }).streak;
+    }
+    for (let call = 0; call < 6; call += 1) {
+      streak = advanceToolCallLoopGuard(streak, "shell", { command: "echo noop-11" }).streak;
+    }
+    expect(loopGuardStopText("shell", streak)).toContain(" with the same input 6 times in a row");
   });
 
   it.each([
