@@ -86,6 +86,7 @@ describe("local model output limit on the wire", () => {
   });
 
   it("keeps 4096 when RAKAZO_LOCAL_MAX_TOKENS is unset", async () => {
+    vi.stubEnv("RAKAZO_LOCAL_MAX_TOKENS", "");
     expect(outputLimit(await wireRequest(localServer))).toBe(4096);
   });
 

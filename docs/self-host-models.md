@@ -71,7 +71,7 @@ RAKAZO_LOCAL_VISION_MODELS=qwen3-vl
 ```
 
 `RAKAZO_LOCAL_MAX_TOKENS` is the output limit sent with every request to a local model, unless the
-connection sets its own. It never exceeds a quarter of `RAKAZO_LOCAL_CONTEXT_WINDOW`, so the prompt
+connection sets a lower limit. It never exceeds a quarter of `RAKAZO_LOCAL_CONTEXT_WINDOW`, so the prompt
 keeps the rest; a higher limit leaves less room for the prompt, so long chats are compacted sooner.
 
 The loopback default is suitable when running Rakazo from a source checkout. From containers,
