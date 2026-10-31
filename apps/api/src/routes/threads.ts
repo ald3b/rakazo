@@ -75,20 +75,16 @@ class SavedSubmission extends Error {}
 /** A chat reply hands the screen back to the bot whose run it steers, in a group as in a DM. */
 export function takeoverReleaser(deps: RouterDeps, actor: Actor, target: ThreadTarget) {
   return async (runId: string) => {
-    try {
-      const botId =
-        target.kind === "bot"
-          ? target.botId
-          : (
-              await deps.prisma.run.findUnique({
-                where: { id: runId, spaceId: actor.spaceId },
-                select: { botId: true },
-              })
-            )?.botId;
-      if (botId) await releaseComputerControl(deps, actor, botId, "done", runId);
-    } catch (error) {
-      getLogger().error("thread takeover release", error);
-    }
+    const botId =
+      target.kind === "bot"
+        ? target.botId
+        : (
+            await deps.prisma.run.findUnique({
+              where: { id: runId, spaceId: actor.spaceId },
+              select: { botId: true },
+            })
+          )?.botId;
+    if (botId) await releaseComputerControl(deps, actor, botId, "done", runId);
   };
 }
 
