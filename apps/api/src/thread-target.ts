@@ -313,15 +313,40 @@ async function lockAndLoadGroupMembers(
   }));
 }
 
-function groupTargeting(
+/**
+ * The members a group send wakes. A message that names nobody and replies to a member's message
+ * goes to that member alone; one that names nobody and replies to no member reaches everyone,
+ * and `namesNobody` then lets each member stay silent.
+ */
+function groupSendTargets(
   members: Array<{ botId: string; name: string }>,
   input: { text?: string; mentions?: MentionTargetInput[] },
+  replied: string | undefined,
 ) {
-  return {
+  const targeting = {
     text: input.text ?? "",
     members: members.map((member) => ({ id: member.botId, name: member.name })),
     explicitMentions: splitMentionTargets(input.mentions).botMentionIds,
   };
+  const named = mentionedGroupBotIds(targeting).length > 0;
+  if (!named && replied && members.some((member) => member.botId === replied)) {
+    return { botIds: [replied], namesNobody: false };
+  }
+  return { botIds: resolveGroupTargetBotIds(targeting), namesNobody: !named };
+}
+
+/** The bot whose message a send replies to, if any. */
+export async function replyParentBotId(
+  prisma: Pick<PrismaClient, "message">,
+  target: { threadId: string },
+  input: { replyToMessageId?: string },
+): Promise<string | undefined> {
+  if (!input.replyToMessageId) return undefined;
+  const reply = await prisma.message.findFirst({
+    where: { id: input.replyToMessageId, threadId: target.threadId, role: "bot" },
+    select: { botId: true },
+  });
+  return reply?.botId ?? undefined;
 }
 
 /** The bots a send wakes: the bot itself, or the group members it names (else every member). */
@@ -330,9 +355,10 @@ export function sendTargetBotIds(
     | { kind: "bot"; botId: string }
     | { kind: "group"; members: Array<{ botId: string; name: string }> },
   input: { text?: string; mentions?: MentionTargetInput[] },
+  replied?: string,
 ): string[] {
   if (target.kind === "bot") return [target.botId];
-  return resolveGroupTargetBotIds(groupTargeting(target.members, input));
+  return groupSendTargets(target.members, input, replied).botIds;
 }
 
 export async function resolveThreadTarget(
@@ -1019,19 +1045,7 @@ export async function sendThreadMessage(
       const members = await lockAndLoadGroupMembers(tx, actor, target);
       const memberBotIds = members.map((member) => member.botId);
       const mentionTargets = splitMentionTargets(input.mentions);
-      const targeting = groupTargeting(members, input);
-      // Replying to a member's message addresses that member, as naming it would.
-      const repliedMemberId =
-        repliedBotId &&
-        memberBotIds.includes(repliedBotId) &&
-        mentionedGroupBotIds(targeting).length === 0
-          ? repliedBotId
-          : undefined;
-      const targetBotIds = repliedMemberId
-        ? [repliedMemberId]
-        : sendTargetBotIds({ kind: "group", members }, input);
-      // A message that names nobody reaches every member; each may stay silent.
-      const namesNobody = !repliedMemberId && mentionedGroupBotIds(targeting).length === 0;
+      const { botIds: targetBotIds, namesNobody } = groupSendTargets(members, input, repliedBotId);
       const { blocks: attachmentBlocks, artifacts } = await resolveGroupSendAttachments(
         { prisma: tx, maxAttachmentsPerMessage: deps.maxAttachmentsPerMessage },
         actor,

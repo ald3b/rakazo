@@ -8,6 +8,8 @@ import type { ThreadTarget } from "./thread-target.js";
 import {
   cancelSupersededQueuedRuns,
   reactToThreadMessage,
+  replyParentBotId,
+  sendTargetBotIds,
   sendThreadMessage,
   stopThreadRuns,
   threadHead,
@@ -4423,4 +4425,38 @@ describe("helper snapshot settlement", () => {
       });
     },
   );
+});
+
+describe("sendTargetBotIds", () => {
+  const group = {
+    kind: "group" as const,
+    members: [
+      { botId: "bot-a", name: "Alpha" },
+      { botId: "bot-b", name: "Beta" },
+    ],
+  };
+
+  it("sends a reply to a member's message to that member alone", () => {
+    expect(sendTargetBotIds(group, { text: "blue" }, "bot-b")).toEqual(["bot-b"]);
+  });
+
+  it("lets a mention beat the reply target, and ignores a bot outside the group", () => {
+    expect(sendTargetBotIds(group, { text: "@Alpha and you?" }, "bot-b")).toEqual(["bot-a"]);
+    expect(sendTargetBotIds(group, { text: "blue" }, "bot-outside")).toEqual(["bot-a", "bot-b"]);
+    expect(sendTargetBotIds(group, { text: "blue" })).toEqual(["bot-a", "bot-b"]);
+  });
+
+  it("finds the bot a send replies to only for a bot's message", async () => {
+    const findFirst = vi.fn().mockResolvedValue({ botId: "bot-b" });
+    const prisma = { message: { findFirst } } as unknown as PrismaClient;
+    expect(await replyParentBotId(prisma, { threadId: "thread-1" }, {})).toBeUndefined();
+    expect(findFirst).not.toHaveBeenCalled();
+    expect(
+      await replyParentBotId(prisma, { threadId: "thread-1" }, { replyToMessageId: "m-1" }),
+    ).toBe("bot-b");
+    expect(findFirst).toHaveBeenCalledWith({
+      where: { id: "m-1", threadId: "thread-1", role: "bot" },
+      select: { botId: true },
+    });
+  });
 });
